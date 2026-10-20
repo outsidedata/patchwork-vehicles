@@ -1,0 +1,24 @@
+{
+  "end": 16,
+  "reach": 10,
+  "stop": 10,
+  "head": 1.2,
+  "fov": 55,
+  "pace": 1,
+  "limit": 1,
+  "cast": {
+    "jeep": { "kind": "driver", "name": "jeep" },
+    "cart": { "kind": "driver", "name": "cart" },
+    "truck": { "kind": "driver", "name": "truck" }
+  },
+  "cues": [
+    { "at": 0, "do": "fade", "to": 1, "over": 0 },
+    { "at": 0, "do": "bars", "on": true, "over": 0 },
+    { "at": 0, "do": "shot", "name": "jeep chase", "follows": "jeep", "frame": "body", "pos": [0, 2.2, -7], "look": "jeep", "over": 0 },
+    { "at": 0, "do": "fade", "to": 0, "over": 1.2 },
+    { "at": 4, "do": "shot", "name": "truck low", "follows": "truck", "frame": "body", "pos": [3, 0.6, 6], "look": "truck", "fov": 45, "over": 0 },
+    { "at": 8, "do": "shot", "name": "cart side", "follows": "cart", "frame": "body", "pos": [-5, 1.2, 0.5], "look": "cart", "over": 0 },
+    { "at": 11, "do": "shot", "name": "over the plains", "follows": "jeep", "pos": [22, 16, 22], "look": "jeep", "fov": 50, "over": 3 },
+    { "at": 14.5, "do": "bars", "on": false, "over": 1.5 }
+  ]
+}

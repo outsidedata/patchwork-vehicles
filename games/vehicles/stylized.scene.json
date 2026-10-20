@@ -1,0 +1,432 @@
+{
+  "world": {
+    "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
+    "walker": {
+      "kinds": {
+        "player": { "radius": 0.35, "height": 1.8, "accel": 10, "turnRate": 10, "gravity": 20, "jumpH": 0, "step": 0.55, "maxSlope": 0.55, "slopeBand": 0.05, "slide": 2, "wade": 0.6, "span": 0.7, "probe": 1.5, "seekSpeed": 1.4 }
+      },
+      "mods": { "height": "terrain3d", "cell": "terrain3d", "depth": "terrain3d", "solids": "scatter3d" }
+    },
+    "terrain3d": {
+      "field": "stylized",
+      "rings": [
+        {
+          "reach": 256,
+          "seg": 128
+        },
+        {
+          "reach": 1024,
+          "seg": 128
+        },
+        {
+          "reach": 9000,
+          "seg": 180
+        }
+      ],
+      "shadowReach": 256,
+      "budget": 6,
+      "seabed": false
+    },
+    "skydome3d": {
+      "day": 1200,
+      "weathers": "weathers",
+      "soak": 6,
+      "dry": 45,
+      "lay": 55,
+      "melt": 90,
+      "gusts": [
+        3,
+        7,
+        11
+      ],
+      "bolt": {
+        "lasts": [
+          0.12,
+          0.4
+        ],
+        "out": [
+          300,
+          2500
+        ]
+      },
+      "look": {
+        "dayZenith": "#1c63d9",
+        "nightZenith": "#03050e",
+        "dayHorizon": "#9fd4ff",
+        "nightHorizon": "#090e1a",
+        "setZenith": "#4a3a8c",
+        "setHorizon": "#ff8a4c",
+        "sunHigh": "#fff6e0",
+        "sunLow": "#ff6b29",
+        "moon": "#8cadff",
+        "ground": "#0a1218",
+        "exposure": 1.1,
+        "nightOpen": 0.35,
+        "sunIntensity": 2.6,
+        "moonIntensity": 0.35,
+        "hemiDay": 0.7,
+        "hemiNight": 0.12,
+        "cloudScale": 0.0032,
+        "cloudSharp": 0.85,
+        "cloudDrift": 0.01,
+        "cloudShadow": 0.35,
+        "godrays": 0,
+        "stars": 1,
+        "haze": 0.00035,
+        "mist": 0.008,
+        "cloudLit": 0.6,
+        "cloudShade": 0.35,
+        "lining": 1,
+        "cirrusAlpha": 0.5,
+        "starSize": 0.15,
+        "twinkle": 0.4,
+        "twinkles": 900,
+        "twinkleSpread": 5,
+        "sunShrink": [
+          0.05,
+          0.4
+        ],
+        "sunEdge": 0.85,
+        "moonEdge": 0.9,
+        "moonSize": 0.0045,
+        "snowScale": 0.05,
+        "flash": 0.8,
+        "radius": 8000,
+        "overcast": 0.2,
+        "envSun": 0.02,
+        "envMix": 0.05,
+        "envIntensity": 0.25
+      },
+      "precip": {
+        "rain": 40000,
+        "snow": 60000,
+        "dust": 2600,
+        "splashes": 280,
+        "range": 26,
+        "edge": 3,
+        "near": 1.5,
+        "rainFall": 16,
+        "rainLen": 0.24,
+        "rainWidth": 0.012,
+        "rainOpacity": 0.24,
+        "snowFall": 1.1,
+        "snowSize": 0.03,
+        "snowOpacity": 0.9,
+        "snowSway": [
+          0.25,
+          1.3,
+          0.5
+        ],
+        "dustFall": 0.1,
+        "dustSize": 0.02,
+        "dustOpacity": 0.22,
+        "dustColour": "#b08a5a",
+        "dustSway": [
+          0.6,
+          0.4,
+          0.6
+        ],
+        "swayPeriod": 60,
+        "splashSize": 0.12,
+        "splashLife": 0.35,
+        "splashOpacity": 0.32,
+        "splashRing": 0.25,
+        "lift": 0.02,
+        "keyShare": 0.3
+      },
+      "shadow": {
+        "map": 2048,
+        "half": 45,
+        "near": 1,
+        "far": 1600,
+        "bias": -0.00002,
+        "normalBias": 0.04
+      },
+      "mods": {
+        "land": "terrain3d"
+      }
+    },
+    "cel3d": {
+      "bands": [
+        {
+          "at": 0,
+          "level": 0.35
+        },
+        {
+          "at": 0.22,
+          "level": 1
+        }
+      ],
+      "soft": 0.03,
+      "shade": "#8f95e0",
+      "spec": 0.95,
+      "gloss": "#ffffff",
+      "rim": {
+        "width": 0.1,
+        "strength": 0.2,
+        "colour": "#fff4d6"
+      },
+      "outline": {
+        "width": 1.2,
+        "depth": 0.12,
+        "ink": 0.35,
+        "colour": "#ffffff",
+        "fade": [
+          25,
+          350
+        ]
+      }
+    },
+    "scatter3d": {
+      "cutout": 0.45,
+      "coverage": 0.25,
+      "budget": 2,
+      "remember": 100000,
+      "packs": {
+        "trees": {
+          "asset": "firs",
+          "rows": {
+            "tall": { "weight": 5, "solid": 0.35, "tall": 8.76 },
+            "mid": { "weight": 3, "solid": 0.35, "tall": 3.71 },
+            "small": { "weight": 2, "solid": 0.35, "tall": 1.3 }
+          },
+          "cell": 13,
+          "reach": 640,
+          "seed": 91,
+          "lods": [38, 85, 175],
+          "shadow": 90,
+          "leaf": 0.55,
+          "density": 0.3,
+          "rules": [{ "q": "slope", "lo": 0.4, "hi": 0.3 }],
+          "clearing": 24,
+          "size": [0.75, 0.8],
+          "vary": 0.18
+        },
+        "clumps": {
+          "asset": "clumps",
+          "rows": {
+            "grass01": { "weight": 4 },
+            "grass02": { "weight": 4 },
+            "grass03": { "weight": 3 },
+            "dry01": { "weight": 3 },
+            "dry02": { "weight": 3 },
+            "flowers01": { "weight": 1 },
+            "flowers02": { "weight": 1 },
+            "flowers03": { "weight": 1 },
+            "reeds": { "weight": 1 }
+          },
+          "cell": 2.2,
+          "reach": 120,
+          "seed": 311,
+          "lods": [40],
+          "shadow": 78,
+          "leaf": 0.55,
+          "density": 0.8,
+          "rules": [{ "q": "slope", "lo": 0.46, "hi": 0.36 }],
+          "clearing": 0,
+          "size": [0.55, 0.7],
+          "vary": 0.22
+        },
+        "rocks": {
+          "shape": { "detail": 1, "lumpy": [0.74, 0.36], "squash": 0.72 },
+          "colour": "#6a655e",
+          "surface": {
+            "broad": 1.4,
+            "fine": 5,
+            "lift": 0.78,
+            "range": 0.44,
+            "mix": [0.6, 0.4],
+            "moss": { "from": 0.55, "to": 0.95, "amount": 0.4, "up": [0.2, 0.8], "colour": "#27401d" },
+            "bump": 0.5,
+            "rough": 0.85
+          },
+          "rows": {
+            "a": { "weight": 1, "solid": 0.8, "tall": 0.75 },
+            "b": { "weight": 1, "solid": 0.8, "tall": 0.75 },
+            "c": { "weight": 1, "solid": 0.8, "tall": 0.75 }
+          },
+          "cell": 21,
+          "reach": 520,
+          "seed": 173,
+          "lods": [90],
+          "shadow": 90,
+          "leaf": 0,
+          "density": 0.35,
+          "rules": [{ "q": "cliffAbove", "lo": 0.04, "hi": 0.3 }],
+          "clearing": 0,
+          "size": [0.5, 5.5],
+          "vary": 0.3
+        }
+      },
+      "hollows": 16,
+      "mods": {
+        "ground": "terrain3d",
+        "land": "terrain3d",
+        "hollows": ["box3dvehicle"]
+      }
+    }
+  },
+  "plugins": [
+    "loader",
+    "scenemanager",
+    "player",
+    "terrain3d",
+    "skydome3d",
+    "scatter3d",
+    "box3d",
+    "box3dvehicle",
+    "particle3d",
+    "anim",
+    "interact",
+    "ik3d",
+    "render3d",
+    "audio",
+    "ui",
+    "stats"
+  ],
+  "seats": 2,
+  "prefabs": {
+    "engine": {
+      "dt": 0.016666666666666666,
+      "width": 1280,
+      "height": 720
+    },
+    "scenemanager": {
+      "out": {}
+    },
+    "render3d": {
+      "camera": {
+        "at": [
+          -30,
+          6,
+          0
+        ],
+        "look": [
+          -20,
+          1,
+          0
+        ],
+        "fov": 60,
+        "near": 0.1,
+        "far": 9000
+      },
+      "tone": "neutral",
+      "exposure": 1,
+      "shadows": "soft"
+    },
+    "skydome3d": {
+      "t": 450,
+      "rate": 1,
+      "doy": 172,
+      "lat": 47,
+      "phase": 0.72,
+      "to": "fair",
+      "from": {
+        "cloud": 0.34,
+        "cirrus": 0.25,
+        "base": 1000,
+        "top": 1900,
+        "dense": 1,
+        "rain": 0,
+        "snow": 0,
+        "fog": 0.02,
+        "haze": 1.35,
+        "wind": 4.5,
+        "gust": 0.3,
+        "thunder": 0,
+        "dust": 0.1
+      },
+      "mix": {
+        "cloud": 0.34,
+        "cirrus": 0.25,
+        "base": 1000,
+        "top": 1900,
+        "dense": 1,
+        "rain": 0,
+        "snow": 0,
+        "fog": 0.02,
+        "haze": 1.35,
+        "wind": 4.5,
+        "gust": 0.3,
+        "thunder": 0,
+        "dust": 0.1
+      },
+      "blend": 1,
+      "fade": 20,
+      "wet": 0,
+      "pack": 0,
+      "windDeg": 210,
+      "flash": 0,
+      "strike": [
+        0,
+        0
+      ],
+      "drift": [
+        0,
+        0
+      ]
+    }
+  },
+  "actors": [
+    {
+      "is": "loader"
+    },
+    {
+      "is": "scenemanager"
+    },
+    {
+      "is": "skydome3d"
+    },
+    {
+      "is": "box3d"
+    },
+    {
+      "is": "hud"
+    },
+    {
+      "is": "atlas"
+    },
+    {
+      "is": "spot",
+      "name": "cart",
+      "vehicle": "cart",
+      "x": -20,
+      "z": -3.1,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "jeep",
+      "vehicle": "jeep",
+      "x": -20,
+      "z": 0,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "truck",
+      "vehicle": "truck",
+      "x": -20,
+      "z": 4.8,
+      "yaw": 0
+    },
+    {
+      "is": "start",
+      "slot": 0,
+      "spot": "jeep"
+    },
+    {
+      "is": "start",
+      "slot": 1,
+      "spot": "cart"
+    },
+    {
+      "is": "ball",
+      "pos": [
+        0,
+        30,
+        6
+      ]
+    }
+  ]
+}

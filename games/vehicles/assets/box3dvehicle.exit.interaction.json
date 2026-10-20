@@ -1,0 +1,6 @@
+{
+  "body": "player",
+  "steps": [
+    {"name": "out", "clip": "exit", "at": "seat", "turn": 90, "travel": "from"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "folder": "ground",
+  "sizes": [1024],
+  "sets": {
+    "grass": { "set": "Grass004_4K-JPG", "maps": ["color", "normal"] },
+    "meadow": { "set": "aerial_grass_rock_4K-JPG", "maps": ["color", "normal", "roughness"] },
+    "dirt": { "set": "aerial_ground_rock_4K-JPG", "maps": ["color", "normal", "roughness"] },
+    "sand": { "set": "Ground055S_4K-JPG", "maps": ["color", "normal"] },
+    "rock": { "set": "Rock007_4K-JPG", "maps": ["color", "normal", "roughness"] }
+  }
+}

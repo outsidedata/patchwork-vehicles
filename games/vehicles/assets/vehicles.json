@@ -1,0 +1,102 @@
+{
+  "car": {
+    "ahead": 3,
+    "radius": 1,
+    "spawnLift": 0.13
+  },
+  "ball": {
+    "colour": 15158332
+  },
+  "ramp": {
+    "colour": 13150540
+  },
+  "kicker": {
+    "colour": 15890731
+  },
+  "pedestrian": {
+    "again": 5
+  },
+  "hud": {
+    "anchor": [0.5, 0.5],
+    "tach": {
+      "at": [118, 118], "radius": 108, "sweep": [2.356, 7.069], "step": 1000, "minor": 1, "scale": 1000,
+      "tick": [13, 7], "labels": 80, "needle": [90, 6, 16], "hub": 9, "red": 4,
+      "caption": { "at": [0, 44], "text": "x1000 r/min" }
+    },
+    "speedo": {
+      "at": [722, 118], "radius": 108, "sweep": [2.356, 7.069], "step": 20, "minor": 1, "scale": 1, "max": 160,
+      "tick": [13, 7], "labels": 80, "needle": [90, 6, 16], "hub": 9,
+      "caption": { "at": [0, 76], "text": "km/h" },
+      "readout": [0, 50]
+    },
+    "selector": { "at": [390, 196], "gap": 30, "letters": ["R", "N", "D"], "number": [24, 0] }
+  },
+  "player": {
+    "camera": { "back": 6.5, "high": 3.0, "aim": 1.5, "followHz": 4, "riseHz": 1.5, "turnHz": 1 },
+    "foot": {
+      "creep": 1.6, "run": 4.4, "turn": 2.6,
+      "camera": { "back": 4.2, "high": 2.3, "aim": 1.4, "followHz": 5, "riseHz": 3, "turnHz": 1.5 }
+    },
+    "board": {
+      "reach": 2.5, "stand": [0, 1.5], "stop": 0.05, "facing": 0.05,
+      "enter": "enter", "sit": "sit", "exit": "exit"
+    },
+    "orbit": { "yaw": 2.6, "pitch": [0.3, 0.7], "hz": 3 },
+    "rumble": { "from": 1, "full": 10, "strong": 1, "weak": 0.8, "seconds": 0.15 },
+    "menu": "atlas"
+  },
+  "atlas": {
+    "panel": "atlas",
+    "face": { "size": [360, 320], "radius": 14 },
+    "title": { "at": [180, 38], "anchor": [0.5, 0.5], "text": "Where to drive" },
+    "places": [
+      { "scene": "road", "label": "The road", "at": [40, 76] },
+      { "scene": "stylized", "label": "The stylized road", "at": [40, 132] },
+      { "scene": "gym", "label": "The gym", "at": [40, 188] },
+      { "scene": "desert", "label": "The desert", "at": [40, 244] }
+    ]
+  },
+  "driver": {
+    "reach": 12,
+    "steer": 1.6,
+    "gain": 0.4,
+    "corner": 0.6,
+    "speeds": { "jeep": 14, "cart": 8, "truck": 11 },
+    "routes": {
+      "oval": [[-110, -12], [110, -12], [128, 0], [110, 12], [-110, 12], [-128, 0]],
+      "road": [[-120, 0], [120, 0], [132, 20], [0, 24], [-132, 20]]
+    }
+  },
+  "curtain": { "wait": 10 },
+  "marquee": {
+    "panel": "marquee",
+    "button": "word",
+    "camera": { "orbit": 0.08 },
+    "model": "title",
+    "overlay": [0.1, 200],
+    "env": { "sky": "#3d6fa8", "horizon": "#f4e2c8", "ground": "#1c1810", "band": "#ffffff", "width": 0.12, "size": 50 },
+    "key": { "colour": "#fff1d8", "power": 70, "at": [-5, 7, -6], "distance": 34 },
+    "sweep": { "colour": "#ffffff", "power": 140, "from": [-8, 4.5, -10], "to": [8, 4.5, -10], "at": 1.2, "seconds": 1.6, "every": 5, "distance": 12 },
+    "sway": { "yaw": [0.05, 0.45], "pitch": [0.025, 0.33], "roll": [0.01, 0.27] },
+    "name": {
+      "text": "VEHICLES",
+      "at": [0, 2.6, -12],
+      "scale": 2,
+      "reveal": { "seconds": 1.4, "from": [0, 2.6, -46], "turn": 0.7 },
+      "face": { "colour": "#eef2f6", "metalness": 1, "roughness": 0.1, "env": 1.2 },
+      "side": { "colour": "#e8401c", "metalness": 0.6, "roughness": 0.3, "env": 0.8, "clearcoat": 1 }
+    },
+    "words": {
+      "scale": 0.62,
+      "side": { "colour": "#3a4048", "metalness": 1, "roughness": 0.18, "env": 1.1 },
+      "dim": 0.45,
+      "focus": { "scale": 1.16, "glow": 0.45 },
+      "reveal": { "after": 0.8, "stagger": 0.12, "seconds": 0.8, "from": [0, -3, -10], "turn": 0.5 }
+    },
+    "places": [
+      { "scene": "road", "word": "PLAINS", "at": [0, 0.2, -12], "face": { "colour": ["#2f7a2a", "#a6e88d"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } },
+      { "scene": "desert", "word": "DESERT", "at": [0, -0.85, -12], "face": { "colour": ["#b8620c", "#ffd27a"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } },
+      { "scene": "gym", "word": "TEST TRACK", "at": [0, -1.9, -12], "face": { "colour": ["#1b2f8a", "#7fa8ff"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } }
+    ]
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "extends": "plains.partial_scene.json",
+  "world": {
+    "loader": {
+      "assets": {
+        "vehicles": { "type": "json", "url": "/games/vehicles/assets/vehicles.json", "preload": true },
+        "land": { "type": "json", "url": "/games/vehicles/assets/land.json", "preload": true },
+        "weathers": { "type": "json", "url": "/games/vehicles/assets/weathers.json", "preload": true },
+        "effects": { "type": "json", "url": "/games/vehicles/assets/effects.json", "preload": true },
+        "exhaust": { "type": "sheet", "url": "/games/vehicles/assets/exhaust.json", "preload": true },
+        "intro": { "type": "json", "url": "/games/vehicles/assets/intro.json", "preload": true },
+        "title": { "type": "model", "url": "/games/vehicles/assets/title/title.glb", "preload": true },
+        "firs": { "type": "model", "url": "/games/vehicles/assets/firs.glb" },
+        "clumps": { "type": "model", "url": "/games/vehicles/assets/clumps.glb" },
+        "jeep-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/jeep.engine.json" },
+        "truck-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/truck.engine.json" },
+        "cart-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/cart.engine.json" },
+        "truck": { "type": "model", "url": "/games/vehicles/assets/truck/truck.glb", "preload": true },
+        "contractor-rig": { "type": "json", "url": "/games/vehicles/assets/contractors/contractor.rig.json", "preload": true },
+        "pedestrian-rig": { "type": "json", "url": "/games/vehicles/assets/pedestrian/pedestrian.rig.json", "preload": true },
+        "grass": { "type": "texture", "url": "/games/vehicles/assets/ground/grass-color-1024.webp", "wrap": "repeat", "anisotropy": 8 },
+        "grassNormal": { "type": "texture", "url": "/games/vehicles/assets/ground/grass-normal-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "meadow": { "type": "texture", "url": "/games/vehicles/assets/ground/meadow-color-1024.webp", "wrap": "repeat", "anisotropy": 8 },
+        "meadowNormal": { "type": "texture", "url": "/games/vehicles/assets/ground/meadow-normal-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "meadowRough": { "type": "texture", "url": "/games/vehicles/assets/ground/meadow-roughness-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "dirt": { "type": "texture", "url": "/games/vehicles/assets/ground/dirt-color-1024.webp", "wrap": "repeat", "anisotropy": 8 },
+        "dirtNormal": { "type": "texture", "url": "/games/vehicles/assets/ground/dirt-normal-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "dirtRough": { "type": "texture", "url": "/games/vehicles/assets/ground/dirt-roughness-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "rock": { "type": "texture", "url": "/games/vehicles/assets/ground/rock-color-1024.webp", "wrap": "repeat", "anisotropy": 8 },
+        "rockNormal": { "type": "texture", "url": "/games/vehicles/assets/ground/rock-normal-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 },
+        "rockRough": { "type": "texture", "url": "/games/vehicles/assets/ground/rock-roughness-1024.webp", "space": "linear", "wrap": "repeat", "anisotropy": 8 }
+      }
+    },
+    "scatter3d": {
+      "cutout": 0.45,
+      "coverage": 0.25,
+      "budget": 2,
+      "remember": 100000,
+      "packs": {
+        "trees": {
+          "asset": "firs",
+          "rows": {
+            "tall": { "weight": 5, "solid": 0.35, "tall": 8.76 },
+            "mid": { "weight": 3, "solid": 0.35, "tall": 3.71 },
+            "small": { "weight": 2, "solid": 0.35, "tall": 1.3 }
+          },
+          "cell": 13,
+          "reach": 640,
+          "seed": 91,
+          "lods": [38, 85, 175],
+          "shadow": 90,
+          "leaf": 0.55,
+          "density": 0.3,
+          "rules": [{ "q": "slope", "lo": 0.4, "hi": 0.3 }],
+          "clearing": 160,
+          "size": [0.75, 0.8],
+          "vary": 0.18
+        },
+        "clumps": {
+          "asset": "clumps",
+          "rows": {
+            "grass01": { "weight": 4 },
+            "grass02": { "weight": 4 },
+            "grass03": { "weight": 3 },
+            "dry01": { "weight": 3 },
+            "dry02": { "weight": 3 },
+            "flowers01": { "weight": 1 },
+            "flowers02": { "weight": 1 },
+            "flowers03": { "weight": 1 },
+            "reeds": { "weight": 1 }
+          },
+          "cell": 2.2,
+          "reach": 120,
+          "seed": 311,
+          "lods": [40],
+          "shadow": 78,
+          "leaf": 0.55,
+          "density": 0.8,
+          "rules": [{ "q": "slope", "lo": 0.46, "hi": 0.36 }],
+          "clearing": 0,
+          "size": [0.55, 0.7],
+          "vary": 0.22
+        },
+        "rocks": {
+          "shape": { "detail": 1, "lumpy": [0.74, 0.36], "squash": 0.72 },
+          "colour": "#6a655e",
+          "surface": {
+            "broad": 1.4,
+            "fine": 5,
+            "lift": 0.78,
+            "range": 0.44,
+            "mix": [0.6, 0.4],
+            "moss": { "from": 0.55, "to": 0.95, "amount": 0.4, "up": [0.2, 0.8], "colour": "#27401d" },
+            "bump": 0.5,
+            "rough": 0.85
+          },
+          "rows": {
+            "a": { "weight": 1, "solid": 0.8, "tall": 0.75 },
+            "b": { "weight": 1, "solid": 0.8, "tall": 0.75 },
+            "c": { "weight": 1, "solid": 0.8, "tall": 0.75 }
+          },
+          "cell": 21,
+          "reach": 520,
+          "seed": 173,
+          "lods": [90],
+          "shadow": 90,
+          "leaf": 0,
+          "density": 0.35,
+          "rules": [{ "q": "cliffAbove", "lo": 0.04, "hi": 0.3 }],
+          "clearing": 160,
+          "size": [0.5, 5.5],
+          "vary": 0.3
+        }
+      },
+      "hollows": 16,
+      "mods": { "ground": "terrain3d", "land": "terrain3d", "hollows": ["box3dvehicle"] }
+    },
+    "cutscene": {
+      "script": "intro",
+      "kinds": ["driver"],
+      "settle": 0.5,
+      "tremor": [[1, 41], [0.8, 53], [0.5, 37]],
+      "mods": { "land": "terrain3d" }
+    },
+    "ui": {
+      "panels": {
+        "marquee": { "anchor": "center", "size": [1280, 720], "modal": true },
+        "cutscene.top": { "anchor": "top", "size": [1280, 96], "layer": 2 },
+        "cutscene.bottom": { "anchor": "bottom", "size": [1280, 96], "layer": 2 },
+        "cutscene.veil": { "anchor": "center", "size": [1280, 720], "layer": 3 },
+        "curtain": { "anchor": "center", "size": [1280, 720], "layer": 4 }
+      },
+      "keys": {
+        "up": ["ArrowUp", "w", "Pad12", "PadStickUp"],
+        "down": ["ArrowDown", "s", "Pad13", "PadStickDown"],
+        "left": ["ArrowLeft", "a", "Pad14", "PadStickLeft"],
+        "right": ["ArrowRight", "d", "Pad15", "PadStickRight"],
+        "press": ["Enter", " ", "Pad0"],
+        "back": ["Escape", "Pad1", "Pad9"]
+      },
+      "styles": {
+        "cutscene.bars": { "color": 0 },
+        "cutscene.veil": { "color": 0 },
+        "curtain.cover": { "color": 0 },
+        "word": { "size": [1, 1], "fill": { "color": 0, "alpha": 0 }, "focus": { "color": 0, "alpha": 0 }, "text": {} }
+      }
+    }
+  },
+  "plugins": [
+    "loader",
+    "scenemanager",
+    "terrain3d",
+    "skydome3d",
+    "scatter3d",
+    "box3d",
+    "box3dvehicle",
+    "particle3d",
+    "render3d",
+    "audio",
+    "cutscene",
+    "ui"
+  ],
+  "prefabs": {
+    "cutscene": {},
+    "curtain": { "t": 0, "started": false },
+    "marquee": {},
+    "driver": { "name": "", "vehicle": "", "route": "", "next": 0, "x": 0, "z": 0, "turn": 0, "made": 0, "on": false, "pos": [0, 0, 0], "yaw": 0, "direct": null }
+  },
+  "actors": [
+    { "is": "curtain" },
+    { "is": "marquee" },
+    { "is": "cutscene" },
+    { "is": "driver", "name": "jeep", "vehicle": "jeep", "route": "road", "next": 1, "x": -110, "z": 0, "turn": 0 },
+    { "is": "driver", "name": "truck", "vehicle": "truck", "route": "oval", "next": 1, "x": -80, "z": -12, "turn": 0 },
+    { "is": "driver", "name": "cart", "vehicle": "cart", "route": "oval", "next": 4, "x": 60, "z": 12, "turn": 3.141592653589793 }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "order": 4,
+  "mix": {
+    "stems": {
+      "on": [
+        0.25,
+        1
+      ],
+      "off": [
+        1,
+        0
+      ],
+      "intake": [
+        0.2,
+        0.7
+      ],
+      "mech": [
+        0.35,
+        0.35
+      ]
+    },
+    "ease": 0.06
+  },
+  "layers": [
+    {
+      "rpm": 1000,
+      "stems": {
+        "on": "jeep-1000-on.wav",
+        "off": "jeep-1000-off.wav",
+        "intake": "jeep-1000-intake.wav",
+        "mech": "jeep-1000-mech.wav"
+      }
+    },
+    {
+      "rpm": 1700,
+      "stems": {
+        "on": "jeep-1700-on.wav",
+        "off": "jeep-1700-off.wav",
+        "intake": "jeep-1700-intake.wav",
+        "mech": "jeep-1700-mech.wav"
+      }
+    },
+    {
+      "rpm": 2800,
+      "stems": {
+        "on": "jeep-2800-on.wav",
+        "off": "jeep-2800-off.wav",
+        "intake": "jeep-2800-intake.wav",
+        "mech": "jeep-2800-mech.wav"
+      }
+    },
+    {
+      "rpm": 4300,
+      "stems": {
+        "on": "jeep-4300-on.wav",
+        "off": "jeep-4300-off.wav",
+        "intake": "jeep-4300-intake.wav",
+        "mech": "jeep-4300-mech.wav"
+      }
+    },
+    {
+      "rpm": 6400,
+      "stems": {
+        "on": "jeep-6400-on.wav",
+        "off": "jeep-6400-off.wav",
+        "intake": "jeep-6400-intake.wav",
+        "mech": "jeep-6400-mech.wav"
+      }
+    },
+    {
+      "rpm": 9000,
+      "stems": {
+        "on": "jeep-9000-on.wav",
+        "off": "jeep-9000-off.wav",
+        "intake": "jeep-9000-intake.wav",
+        "mech": "jeep-9000-mech.wav"
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "plants": {
+    "grass01": { "species": "grass01" },
+    "grass02": { "species": "grass02" },
+    "grass03": { "species": "grass03" },
+    "dry01": { "species": "dry01" },
+    "dry02": { "species": "dry02" },
+    "flowers01": { "species": "flowers01" },
+    "flowers02": { "species": "flowers02" },
+    "flowers03": { "species": "flowers03" },
+    "reeds": { "species": "reeds" }
+  },
+  "lods": ["0", "1"],
+  "textures": { "color": 1024, "normal": 512 },
+  "node": "{plant}-{lod}"
+}

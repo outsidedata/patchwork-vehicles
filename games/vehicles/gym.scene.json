@@ -1,0 +1,476 @@
+{
+  "world": {
+    "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
+    "terrain3d": {
+      "field": "gym",
+      "rings": [
+        {
+          "reach": 200,
+          "seg": 400
+        },
+        {
+          "reach": 1000,
+          "seg": 200
+        },
+        {
+          "reach": 4000,
+          "seg": 80
+        }
+      ],
+      "shadowReach": 200,
+      "budget": 6,
+      "seabed": false,
+      "static": true
+    },
+    "skydome3d": {
+      "day": 1200,
+      "weathers": "weathers",
+      "soak": 6,
+      "dry": 45,
+      "lay": 55,
+      "melt": 90,
+      "gusts": [
+        3,
+        7,
+        11
+      ],
+      "bolt": {
+        "lasts": [
+          0.12,
+          0.4
+        ],
+        "out": [
+          300,
+          2500
+        ]
+      },
+      "look": {
+        "dayZenith": "#2961b3",
+        "nightZenith": "#03050e",
+        "dayHorizon": "#bdd1e0",
+        "nightHorizon": "#090e1a",
+        "setZenith": "#47386b",
+        "setHorizon": "#fa7a38",
+        "sunHigh": "#fff2db",
+        "sunLow": "#ff6b29",
+        "moon": "#8cadff",
+        "ground": "#0a1218",
+        "exposure": 1.05,
+        "nightOpen": 0.35,
+        "sunIntensity": 2.4,
+        "moonIntensity": 0.35,
+        "hemiDay": 0.55,
+        "hemiNight": 0.12,
+        "cloudScale": 0.004,
+        "cloudSharp": 0.42,
+        "cloudDrift": 0.01,
+        "cloudShadow": 0.55,
+        "godrays": 1,
+        "stars": 1,
+        "haze": 0.00075,
+        "mist": 0.02,
+        "cloudLit": 0.35,
+        "cloudShade": 0.55,
+        "lining": 0.8,
+        "cirrusAlpha": 0.5,
+        "starSize": 0.15,
+        "twinkle": 0.4,
+        "twinkles": 900,
+        "twinkleSpread": 5,
+        "sunShrink": [
+          0.05,
+          0.4
+        ],
+        "sunEdge": 0.85,
+        "moonEdge": 0.9,
+        "moonSize": 0.0045,
+        "snowScale": 0.05,
+        "flash": 0.8,
+        "radius": 8000,
+        "overcast": 0.2,
+        "envSun": 0.02,
+        "envMix": 0.05,
+        "envIntensity": 0.25
+      },
+      "precip": {
+        "rain": 40000,
+        "snow": 60000,
+        "dust": 2600,
+        "splashes": 280,
+        "range": 26,
+        "edge": 3,
+        "near": 1.5,
+        "rainFall": 16,
+        "rainLen": 0.24,
+        "rainWidth": 0.012,
+        "rainOpacity": 0.24,
+        "snowFall": 1.1,
+        "snowSize": 0.03,
+        "snowOpacity": 0.9,
+        "snowSway": [
+          0.25,
+          1.3,
+          0.5
+        ],
+        "dustFall": 0.1,
+        "dustSize": 0.02,
+        "dustOpacity": 0.22,
+        "dustColour": "#b08a5a",
+        "dustSway": [
+          0.6,
+          0.4,
+          0.6
+        ],
+        "swayPeriod": 60,
+        "splashSize": 0.12,
+        "splashLife": 0.35,
+        "splashOpacity": 0.32,
+        "splashRing": 0.25,
+        "lift": 0.02,
+        "keyShare": 0.3
+      },
+      "shadow": {
+        "map": 2048,
+        "half": 45,
+        "near": 1,
+        "far": 1600,
+        "bias": -0.00002,
+        "normalBias": 0.04
+      },
+      "mods": {
+        "land": "terrain3d"
+      }
+    },
+    "box3d": {
+      "gravity": [
+        0,
+        -9.8,
+        0
+      ],
+      "subStepCount": 4,
+      "enableSleep": true,
+      "enableContinuous": true,
+      "enableWarmStarting": false,
+      "static": [],
+      "mods": {
+        "ground": "terrain3d",
+        "kinds": "box3dvehicle"
+      },
+      "chunk": {
+        "count": 33,
+        "cell": 1
+      },
+      "kinds": {
+        "ball": {
+          "type": "dynamic",
+          "enableContactRecycling": false,
+          "shapes": [
+            {
+              "sphere": {
+                "center": [
+                  0,
+                  0,
+                  0
+                ],
+                "radius": 1
+              },
+              "density": 50,
+              "baseMaterial": {
+                "friction": 0.6,
+                "restitution": 0.5,
+                "rollingResistance": 0.2
+              }
+            }
+          ]
+        },
+        "ramp": {
+          "type": "static",
+          "shapes": [
+            {
+              "hull": {
+                "points": [
+                  -5,
+                  0,
+                  -2,
+                  -5,
+                  0,
+                  2,
+                  5,
+                  0,
+                  -2,
+                  5,
+                  0,
+                  2,
+                  5,
+                  2,
+                  -2,
+                  5,
+                  2,
+                  2
+                ]
+              },
+              "baseMaterial": {
+                "friction": 0.9
+              }
+            }
+          ]
+        },
+        "kicker": {
+          "type": "static",
+          "shapes": [
+            {
+              "hull": {
+                "points": [
+                  -1.5,
+                  0,
+                  -1.5,
+                  -1.5,
+                  0,
+                  1.5,
+                  1.5,
+                  0,
+                  -1.5,
+                  1.5,
+                  0,
+                  1.5,
+                  1.5,
+                  0.8,
+                  -1.5,
+                  1.5,
+                  0.8,
+                  1.5
+                ]
+              },
+              "baseMaterial": {
+                "friction": 0.9
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "plugins": [
+    "loader",
+    "scenemanager",
+    "player",
+    "terrain3d",
+    "skydome3d",
+    "box3d",
+    "box3dvehicle",
+    "particle3d",
+    "anim",
+    "interact",
+    "ik3d",
+    "render3d",
+    "audio",
+    "ui",
+    "stats"
+  ],
+  "seats": 2,
+  "prefabs": {
+    "engine": {
+      "dt": 0.016666666666666666,
+      "width": 1280,
+      "height": 720
+    },
+    "scenemanager": {
+      "out": {}
+    },
+    "render3d": {
+      "camera": {
+        "at": [
+          -30,
+          6,
+          0
+        ],
+        "look": [
+          -20,
+          1,
+          0
+        ],
+        "fov": 60,
+        "near": 0.1,
+        "far": 9000
+      },
+      "tone": "neutral",
+      "exposure": 1,
+      "shadows": "soft",
+      "ao": {
+        "on": false,
+        "radius": 0.8,
+        "thickness": 0.3,
+        "falloff": 1,
+        "scale": 1.5,
+        "intensity": 1,
+        "samples": 16
+      }
+    },
+    "ramp": {
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "vel": [
+        0,
+        0,
+        0
+      ],
+      "spin": [
+        0,
+        0,
+        0
+      ],
+      "awake": true
+    },
+    "kicker": {
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "vel": [
+        0,
+        0,
+        0
+      ],
+      "spin": [
+        0,
+        0,
+        0
+      ],
+      "awake": true
+    }
+  },
+  "actors": [
+    {
+      "is": "loader"
+    },
+    {
+      "is": "scenemanager"
+    },
+    {
+      "is": "skydome3d"
+    },
+    {
+      "is": "box3d"
+    },
+    {
+      "is": "hud"
+    },
+    {
+      "is": "atlas"
+    },
+    {
+      "is": "spot",
+      "name": "cart",
+      "vehicle": "cart",
+      "x": -10,
+      "z": -3.1,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "jeep",
+      "vehicle": "jeep",
+      "x": -10,
+      "z": 0,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "truck",
+      "vehicle": "truck",
+      "x": -10,
+      "z": -30,
+      "yaw": 0
+    },
+    {
+      "is": "start",
+      "slot": 0,
+      "spot": "jeep"
+    },
+    {
+      "is": "start",
+      "slot": 1,
+      "spot": "truck"
+    },
+    {
+      "is": "kicker",
+      "pos": [
+        25,
+        0,
+        -30
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ramp",
+      "pos": [
+        110,
+        0,
+        -30
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ramp",
+      "pos": [
+        62,
+        0,
+        -62
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "kicker",
+      "pos": [
+        15,
+        0,
+        4
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ball",
+      "pos": [
+        20,
+        30,
+        12
+      ]
+    }
+  ]
+}

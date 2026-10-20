@@ -1,0 +1,87 @@
+{
+  "extends": "plains.partial_scene.json",
+  "world": {
+    "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
+    "walker": {
+      "kinds": {
+        "player": { "radius": 0.35, "height": 1.8, "accel": 10, "turnRate": 10, "gravity": 20, "jumpH": 0, "step": 0.55, "maxSlope": 0.55, "slopeBand": 0.05, "slide": 2, "wade": 0.6, "span": 0.7, "probe": 1.5, "seekSpeed": 1.4 }
+      },
+      "mods": { "height": "terrain3d", "cell": "terrain3d", "depth": "terrain3d", "solids": "scatter3d" }
+    }
+  },
+  "plugins": [
+    "loader",
+    "scenemanager",
+    "player",
+    "terrain3d",
+    "skydome3d",
+    "scatter3d",
+    "box3d",
+    "box3dvehicle",
+    "particle3d",
+    "anim",
+    "ragdoll3d",
+    "interact",
+    "ik3d",
+    "render3d",
+    "audio",
+    "ui",
+    "stats"
+  ],
+  "seats": 2,
+  "actors": [
+    {
+      "is": "hud"
+    },
+    {
+      "is": "atlas"
+    },
+    {
+      "is": "spot",
+      "name": "cart",
+      "vehicle": "cart",
+      "x": -20,
+      "z": -3.1,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "jeep",
+      "vehicle": "jeep",
+      "x": -20,
+      "z": 0,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "truck",
+      "vehicle": "truck",
+      "x": -20,
+      "z": 4.8,
+      "yaw": 0
+    },
+    {
+      "is": "start",
+      "slot": 0,
+      "spot": "jeep"
+    },
+    {
+      "is": "start",
+      "slot": 1,
+      "spot": "cart"
+    },
+    {
+      "is": "pedestrian",
+      "pos": [-8, 0, 0],
+      "yaw": -1.5707963267948966
+    },
+    {
+      "is": "ball",
+      "pos": [
+        0,
+        30,
+        6
+      ]
+    }
+  ]
+}

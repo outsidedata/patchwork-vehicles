@@ -1,0 +1,437 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>vehicles dev</title>
+    <style>
+      body { margin: 0; background: #0b0b0e; display: grid; place-items: center; height: 100vh; overflow: hidden }
+      canvas { grid-area: 1 / 1 }
+      #look {
+        position: fixed; top: 58px; left: 10px; padding: 8px 10px;
+        font: 12px/1.45 Menlo, Consolas, monospace; color: #dfe6ee; background: rgba(8, 10, 14, 0.72);
+        border-radius: 4px; pointer-events: none; white-space: pre-wrap
+      }
+    </style>
+  </head>
+  <body>
+    <div id="look"></div>
+    <script type="module">
+      // The testbed against the server, `node --experimental-strip-types games/vehicles/vehicles.server.ts`:
+      // one seat a tab, so two tabs (in two windows: Chrome pauses a tab that is not in front) are the
+      // two players. The page dials the server over a socket of its own and runs the scene ahead
+      // (addons/predict). Between the page and its socket stands this seat's network (`Net` in
+      // addons/loopback), both ways, which the `network` folder of the panel sets live, from a preset or
+      // by hand, kept in this browser between loads. The readout shows how the page runs ahead, and
+      // three's stats panel (the stats plugin) stands at the top left.
+      //   ?tab    no server: the game's manager truth in this tab, stepped on the page's clock as
+      //           vehicles.server.ts steps it, the page joined to it over a loopback with this seat's
+      //           network between them.
+      //   ?scene=<name>  that scene entered instead of the road (road, desert, gym, stylized), in this tab as
+      //           ?tab runs it, since the server enters its own.
+      //   ?off=<plugin,…>  with ?scene, those plugins taken out of that scene: ?scene=stylized&off=scatter3d.
+      //   ?spot=<name>  with ?scene, this tab's seat (slot 0) starts at that scene's spot of that name:
+      //           ?scene=desert&spot=truck.
+      //
+      //   o       an orbit round the seat's car instead of the chase camera, or back.
+      //   drag    swings round the orbit; the wheel moves in and out.
+      //   1 to 4  the orbit from low behind, high behind, the side, and high above looking down the road.
+      //   h       this help hidden or shown.
+      // At the top right, three's lil-gui: the network, and what render3d draws the scene with, as
+      // three's own demos have it: the renderer's tone mapping, exposure, pixel ratio and shadows; the
+      // AO's every number, its denoise's and what it outputs; the bloom's; every pass of the composer
+      // on or off; every object in the scene shown or hidden, listed again by `refresh`; and every
+      // number of terrain3d's ground textures, as demo_terrain3d's dev.html has them (the ground
+      // panel, below), live and never saved to the file. Every object render3d stops drawing between
+      // the steps is written to the console as a warning, naming it (render3d's `drifted`). The
+      // render3d folders are made again for each scene's client, and when render3d makes its composer
+      // again, from what they draw with then.
+      // Every error the page throws or writes, shown in the readout.
+      const errors = []
+      const caught = e => {
+        errors.push(String(e?.message ?? e))
+        if (errors.length > 5) errors.shift()
+      }
+      addEventListener('error', e => caught(e.error ?? e.message))
+      addEventListener('unhandledrejection', e => caught(e.reason))
+      const written = console.error.bind(console)
+      console.error = (...a) => { caught(a.map(x => x?.message ?? x).join(' ')); written(...a) }
+      import { boot } from '#engine/engine.ts'
+      import { accept, link, load, manager } from '#addons/scenemanager/scenemanager.addon.ts'
+      import { loopback } from '#addons/loopback/loopback.addon.ts'
+      import { dial } from '#addons/socket/socket.addon.ts'
+      import { predict } from '#addons/predict/predict.addon.ts'
+      import GUI from 'lil-gui'
+      import { sim } from './vehicles.sim.ts'
+      import file from './vehicles.scene.json'
+      import { holding, possessed } from '#plugins/player/player.plugin.ts'
+      const VIEWS = [
+        { name: 'low behind', az: 180, el: 6, dist: 9 },
+        { name: 'high behind', az: 180, el: 28, dist: 30 },
+        { name: 'the side', az: 90, el: 12, dist: 14 },
+        { name: 'high above', az: 200, el: 55, dist: 120 },
+      ]
+      let orbit = false
+      let head = { ...VIEWS[0] }
+      let help = true
+
+      // This seat's network, both ways, kept in this browser between loads.
+      const leg = () => ({ delay: 0, jitter: 0, tail: false, loss: 0, burst: 0, reorder: 0, dup: 0 })
+      const presets = {
+        clean: leg(),
+        LAN: { ...leg(), delay: 5, jitter: 4, burst: 0.05 },
+        'bad wifi': { ...leg(), delay: 40, jitter: 40, tail: true, loss: 0.01, burst: 0.2 },
+        mobile: { ...leg(), delay: 90, jitter: 80, tail: true, loss: 0.03, burst: 0.3, reorder: 0.02 },
+        awful: { ...leg(), delay: 150, jitter: 150, tail: true, loss: 0.08, burst: 0.4, reorder: 0.05, dup: 0.02 },
+      }
+      const net = { up: leg(), down: leg(), seed: Math.floor(Math.random() * 1e9) }
+      const store = 'vehicles.dev.net'
+      try {
+        const saved = JSON.parse(localStorage.getItem(store) ?? 'null')
+        if (saved) { Object.assign(net.up, saved.up); Object.assign(net.down, saved.down) }
+      } catch {}
+      const keepNet = () => { try { localStorage.setItem(store, JSON.stringify({ up: net.up, down: net.down })) } catch {} }
+
+      const time = { now: () => performance.now(), after: (ms, f) => { setTimeout(f, Math.max(0, ms)) } }
+      const url = `ws://${location.hostname}:${file.prefabs.scenemanager.port}`
+      const socket = send => {
+        const w = dial(url)(send)
+        return { take: up => w.send(up), close: () => w.close() }
+      }
+      // The truth in this tab with `?tab` or `?scene`, as index.html boots it, entering the scene named;
+      // the server's otherwise, over the socket.
+      const query = new URLSearchParams(location.search)
+      const scene = query.get('scene')
+      if (scene !== null) {
+        if (!(scene in file.prefabs.scenemanager.scenes)) throw new Error(`vehicles has no scene ${scene}: ${Object.keys(file.prefabs.scenemanager.scenes).join(', ')}`)
+        file.prefabs.scenemanager.entry = scene
+        // ?off=<plugin,…>: those plugins taken out of the entered scene before it boots, in the copy of
+        // its file this tab's truth and page both read, imported at the url scenemanager imports it at.
+        const off = query.get('off')?.split(',').filter(Boolean) ?? []
+        const spot = query.get('spot')
+        if (off.length || spot) {
+          const { scene: child } = await import(new URL(file.prefabs.scenemanager.scenes[scene].file.replace(/\.scene\.json$/, '.sim.ts'), import.meta.url).href)
+          for (const p of off) if (!child.plugins.includes(p)) throw new Error(`${scene} lists no plugin ${p}: ${child.plugins.join(', ')}`)
+          child.plugins = child.plugins.filter(p => !off.includes(p))
+          // ?spot=<name>: slot 0's start moved to that spot, in the same copy
+          if (spot) {
+            const spots = child.actors.filter(a => a.is === 'spot').map(a => a.name)
+            if (!spots.includes(spot)) throw new Error(`${scene} has no spot ${spot}: ${spots.join(', ')}`)
+            child.actors.find(a => a.is === 'start' && a.slot === 0).spot = spot
+          }
+        }
+      }
+      const truth = query.get('tab') === null && scene === null ? undefined : boot(file, sim)
+      if (truth) await load(truth, import.meta.url)
+      let client
+      const page = predict(link(loopback(truth ? accept(manager(truth)) : socket, time, net)), file, import.meta.url, (me, s) => {
+        client = me
+        for (const c of document.querySelectorAll('canvas')) c.remove()
+        for (const surface of [me.plugins.render3d ?? me.plugins.render2d, me.plugins.ui]) {
+          if (!surface) continue
+          const canvas = document.createElement('canvas')
+          canvas.width = s.prefabs.engine.width
+          canvas.height = s.prefabs.engine.height
+          document.body.appendChild(canvas)
+          surface.mount(canvas)
+        }
+        me.plugins.stats?.mount(document.body)
+      })
+      // The page, the client it holds now and the truth in this tab, on `window.dev`, for the console
+      // and a profiler.
+      window.dev = { page, net, truth, get client() { return client } }
+
+      const owner = { looks: true }
+      const out = document.getElementById('look')
+      const deg = Math.PI / 180
+
+      // The chassis of the car the seat holds, as this page draws it.
+      const chassis = () => {
+        const rows = client?.plugins.wire.rows ?? []
+        const car = holding(rows)
+        return car && rows.find(r => r.id === car.data.chassis)
+      }
+
+      function place(r3, c) {
+        const [x, y, z] = c.data.pos
+        const az = head.az * deg, el = head.el * deg
+        r3.camera.position.set(x + Math.sin(az) * Math.cos(el) * head.dist, y + Math.sin(el) * head.dist, z - Math.cos(az) * Math.cos(el) * head.dist)
+        r3.camera.up.set(0, 1, 0)
+        r3.camera.lookAt(x, y + 1, z)
+      }
+
+      // The panel: the network folder, made once, and render3d's folders, made again whenever its
+      // renderer or composer is not the one they were made on.
+      const gui = new GUI({ title: 'vehicles dev' })
+      // Keys typed into the panel reach neither this page's keys nor the car's.
+      for (const type of ['keydown', 'keyup']) gui.domElement.addEventListener(type, e => e.stopPropagation())
+      const network = gui.addFolder('network')
+      const setNet = p => {
+        Object.assign(net.up, p)
+        Object.assign(net.down, p)
+        gui.controllersRecursive().forEach(c => c.updateDisplay())
+        keepNet()
+      }
+      const pick = network.addFolder('presets')
+      for (const [name, p] of Object.entries(presets)) pick.add({ [name]: () => setNet(p) }, name)
+      for (const way of ['down', 'up']) {
+        const w = network.addFolder(`${way} (server ${way === 'down' ? '→ page' : '← page'})`)
+        w.add(net[way], 'delay', 0, 400, 1).name('delay ms').onChange(keepNet)
+        w.add(net[way], 'jitter', 0, 300, 1).name('jitter ms').onChange(keepNet)
+        w.add(net[way], 'tail').name('long tail').onChange(keepNet)
+        w.add(net[way], 'loss', 0, 0.5, 0.005).onChange(keepNet)
+        w.add(net[way], 'burst', 0, 0.9, 0.01).onChange(keepNet)
+        w.add(net[way], 'reorder', 0, 0.5, 0.01).onChange(keepNet)
+        w.add(net[way], 'dup', 0, 0.5, 0.01).onChange(keepNet)
+        w.close()
+      }
+      let looks = [], built
+      function panel(r3) {
+        const r = r3.renderer, composer = r3.composer
+        if (!r || (built?.r === r && built?.composer === composer)) return
+        for (const f of looks) f.destroy()
+        looks = []
+        built = { r, composer }
+        const folder = (name, closed) => {
+          const f = gui.addFolder(name)
+          if (closed) f.close()
+          looks.push(f)
+          return f
+        }
+        const T = r3.THREE
+
+        const view = folder('renderer')
+        view.add(r, 'toneMapping', { neutral: T.NeutralToneMapping, none: T.NoToneMapping }).name('tone')
+        view.add(r, 'toneMappingExposure', 0, 4, 0.01).name('exposure')
+        view.add({ ratio: r.getPixelRatio() }, 'ratio', 0.25, 3, 0.25).name('pixel ratio').onChange(v => {
+          r.setPixelRatio(v)
+          r3.composer?.setPixelRatio(v)
+        })
+        view.add(r.shadowMap, 'enabled').name('shadows').onChange(() => r3.scene.traverse(o => {
+          for (const m of [o.material ?? []].flat()) m.needsUpdate = true
+        }))
+
+        // The passes found by what they hold: this page's import of three's GTAOPass and UnrealBloomPass is
+        // another module than render3d's, so `instanceof` never matches.
+        const ao = composer?.passes.find(p => 'gtaoMaterial' in p)
+        if (ao) {
+          const u = ao.gtaoMaterial.uniforms, d = ao.gtaoMaterial.defines
+          const a = {
+            radius: u.radius.value, distanceExponent: u.distanceExponent.value, thickness: u.thickness.value,
+            distanceFallOff: u.distanceFallOff.value, scale: u.scale.value, samples: d.SAMPLES, screenSpaceRadius: d.SCREEN_SPACE_RADIUS === 1,
+          }
+          const pu = ao.pdMaterial.uniforms
+          const pd = {
+            lumaPhi: pu.lumaPhi.value, depthPhi: pu.depthPhi.value, normalPhi: pu.normalPhi.value, radius: pu.radius.value,
+            radiusExponent: ao.pdRadiusExponent, rings: ao.pdRings, samples: ao.pdSamples,
+          }
+          const f = folder('ao', true)
+          f.add(ao, 'enabled')
+          const O = ao.constructor.OUTPUT
+          f.add(ao, 'output', { default: O.Default, diffuse: O.Diffuse, 'ao only': O.AO, 'ao denoised': O.Denoise, depth: O.Depth })
+          f.add(ao, 'blendIntensity', 0, 1, 0.01).name('intensity')
+          const on = () => ao.updateGtaoMaterial(a)
+          f.add(a, 'radius', 0.01, 4, 0.01).onChange(on)
+          f.add(a, 'distanceExponent', 1, 4, 0.01).onChange(on)
+          f.add(a, 'thickness', 0.01, 10, 0.01).onChange(on)
+          f.add(a, 'distanceFallOff', 0, 1, 0.01).onChange(on)
+          f.add(a, 'scale', 0.01, 2, 0.01).onChange(on)
+          f.add(a, 'samples', 2, 32, 1).onChange(on)
+          f.add(a, 'screenSpaceRadius').onChange(on)
+          const g = folder('ao denoise', true)
+          const pon = () => ao.updatePdMaterial(pd)
+          g.add(pd, 'lumaPhi', 0, 20, 0.01).onChange(pon)
+          g.add(pd, 'depthPhi', 0.01, 20, 0.01).onChange(pon)
+          g.add(pd, 'normalPhi', 0.01, 20, 0.01).onChange(pon)
+          g.add(pd, 'radius', 0, 32, 1).onChange(pon)
+          g.add(pd, 'radiusExponent', 0.1, 4, 0.1).onChange(pon)
+          g.add(pd, 'rings', 1, 16, 0.125).onChange(pon)
+          g.add(pd, 'samples', 2, 32, 1).onChange(pon)
+        }
+
+        const bloom = composer?.passes.find(p => 'bloomTintColors' in p)
+        if (bloom) {
+          const f = folder('bloom', true)
+          f.add(bloom, 'enabled')
+          f.add(bloom, 'strength', 0, 3, 0.01)
+          f.add(bloom, 'radius', 0, 1, 0.01)
+          f.add(bloom, 'threshold', 0, 2, 0.01)
+        }
+
+        if (composer) {
+          const f = folder('passes', true)
+          composer.passes.forEach((p, i) => f.add(p, 'enabled').name(`${i} ${p.constructor.name}`))
+        }
+
+        const objects = folder('objects', true)
+        const list = () => {
+          for (const c of [...objects.controllers]) c.destroy()
+          objects.add({ refresh: list }, 'refresh')
+          r3.scene.children.forEach((o, i) => objects.add(o, 'visible').name(`${i} ${o.name || o.type}`))
+        }
+        list()
+
+        const land = client.plugins.wire.scene.world?.terrain3d?.field
+        const field = land && client.plugins.loader.get(land)
+        if (field?.ground) groundFolder(folder(`ground (${land})`), field, land)
+      }
+
+      // ---------- the ground panel ----------
+      // Every number of the field's `ground`, as demo_terrain3d's dev.html has it: the composition, the
+      // roughness, the height blend, the far read, and each layer's repeat, normal strength,
+      // projection, rules, noise, edge and warp octaves. The land's shape (its `program`) is not here.
+      // The panel tweaks a copy, laid into the field the page's loader holds a quarter second after the
+      // last change; terrain3d compares the field by content, so a change makes a new material and
+      // rebuilds no ring. Nothing is written to disk and the truth keeps the file's field: `copy ground
+      // JSON` copies the panel's `ground`, and `reset` puts the file's back.
+
+      const clone = v => JSON.parse(JSON.stringify(v))
+      // each field's `ground` as the file had it, kept from the first time a panel was made on it
+      const files = new WeakMap()
+      let timer
+      const about = v => {
+        const m = Math.max(Math.abs(v) * 4, 1e-3)
+        return [v < 0 ? -m : 0, m, m / 1000]
+      }
+
+      function groundFolder(folder, field, name) {
+        if (!files.has(field)) files.set(field, clone(field.ground))
+        const g = clone(field.ground)
+        const apply = () => {
+          clearTimeout(timer)
+          timer = setTimeout(() => { field.ground = clone(g) }, 250)
+        }
+        const add = (f, o, key, ...range) => f.add(o, key, ...range).onChange(apply)
+        folder.add({ copy: () => navigator.clipboard?.writeText(JSON.stringify(g, null, 2)) }, 'copy').name('copy ground JSON')
+        folder.add({ reset: () => {
+          clearTimeout(timer)
+          field.ground = clone(files.get(field))
+          for (const c of [...folder.controllers]) c.destroy()
+          for (const f of [...folder.folders]) f.destroy()
+          groundFolder(folder, field, name)
+        } }, 'reset').name('reset to the file')
+
+        g.compose ??= 'stack'
+        add(folder, g, 'compose', ['stack', 'normalise', 'sharpened']).name('weights formula')
+        g.roughness ??= 0.9
+        add(folder, g, 'roughness', 0, 1, 0.01)
+        const hb = { on: !!g.heightBlend, ...(g.heightBlend ?? { amount: 2, depth: 0.1 }) }
+        const setHb = () => { g.heightBlend = hb.on ? { amount: hb.amount, depth: hb.depth } : undefined; apply() }
+        const hf = folder.addFolder('height blend')
+        hf.close()
+        hf.add(hb, 'on').onChange(setHb)
+        hf.add(hb, 'amount', 0, 4, 0.01).onChange(setHb)
+        hf.add(hb, 'depth', 0.01, 1, 0.01).onChange(setHb)
+        const far = { on: !!g.far, ...(g.far ?? { amount: 0.7, scale: 7.3 }) }
+        const setFar = () => { g.far = far.on ? { amount: far.amount, scale: far.scale } : undefined; apply() }
+        const ff = folder.addFolder('far read')
+        ff.close()
+        ff.add(far, 'on').onChange(setFar)
+        ff.add(far, 'amount', 0, 1, 0.01).onChange(setFar)
+        ff.add(far, 'scale', 2, 64, 0.1).name('× repeat').onChange(setFar)
+
+        const rule = (f, r) => {
+          const rf = f.addFolder(`${r.q}`)
+          rf.close()
+          const span = r.q === 'height' ? [-50, 1000, 0.5] : r.q.startsWith('biome:') || r.q.startsWith('surface:') || r.q === 'slope' || r.q === 'relief' ? [-0.2, 1.2, 0.005] : about(Math.max(Math.abs(r.lo), Math.abs(r.hi)))
+          add(rf, r, 'lo', ...span).name('lo (0 at)')
+          add(rf, r, 'hi', ...span).name('hi (1 at)')
+        }
+        const octaves = (f, list) => list.forEach((o, i) => {
+          const of = f.addFolder(`warp octave ${i}`)
+          of.close()
+          add(of, o, 'freq', 0, 0.5, 0.0005).name('freq /m')
+          add(of, o, 'amp', 0, 60, 0.1).name('amp m')
+          add(of, o.stretch, 0, 0, 8, 0.05).name('stretch x')
+          add(of, o.stretch, 1, 0, 8, 0.05).name('stretch y')
+          add(of, o.stretch, 2, 0, 8, 0.05).name('stretch z')
+          add(of, o, 'rotate', -Math.PI, Math.PI, 0.01).name('rotate about y')
+        })
+        g.layers.forEach((l, k) => {
+          const f = folder.addFolder(`layer ${k}: ${l.name}${k === 0 ? ' (base)' : ''}`)
+          f.close()
+          add(f, l, 'scale', 0.5, 100, 0.5).name('repeat m')
+          l.strength ??= 1
+          add(f, l, 'strength', 0, 3, 0.05).name('normal strength')
+          l.tri ??= false
+          add(f, l, 'tri').name('triplanar')
+          l.sharp ??= 4
+          add(f, l, 'sharp', 1, 16, 0.5).name('triplanar sharpness')
+          if (k === 0) { if (l.warp) octaves(f, l.warp); return }
+          ;(l.where ?? []).forEach(r => rule(f, r))
+          l.noise ??= { freq: 0.05, amp: 0 }
+          add(f, l.noise, 'freq', 0.001, 1, 0.001).name('noise freq /m')
+          add(f, l.noise, 'amp', 0, 1.5, 0.01).name('noise amount')
+          l.edge ??= 0.3
+          add(f, l, 'edge', 0, 1, 0.01).name('edge (0 cut, 1 soft)')
+          if (l.warp) octaves(f, l.warp)
+        })
+      }
+
+      addEventListener('keydown', e => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return
+        if (e.key === 'o') orbit = !orbit
+        else if (e.key >= '1' && e.key <= String(VIEWS.length)) { head = { ...VIEWS[Number(e.key) - 1] }; orbit = true }
+        else if (e.key === 'h') help = !help
+      })
+      let dragging = false
+      const onPanel = e => gui.domElement.contains(e.target)
+      addEventListener('pointerdown', e => { if (e.button === 0 && !onPanel(e)) dragging = true })
+      addEventListener('pointerup', () => { dragging = false })
+      addEventListener('pointermove', e => {
+        if (!dragging || !orbit) return
+        head.az -= e.movementX * 0.3
+        head.el = Math.max(-5, Math.min(89, head.el + e.movementY * 0.3))
+      })
+      addEventListener('wheel', e => {
+        if (!orbit || onPanel(e)) return
+        e.preventDefault()
+        head.dist = Math.max(2, Math.min(800, head.dist * Math.exp(e.deltaY * 0.001)))
+      }, { passive: false })
+
+      // Every object render3d stops drawing between the steps, the moment it does, in the console as a
+      // warning naming its path in the scene (render3d's `drifted`): what judders, and why.
+      let watched, stopWatching
+
+      // The truth in this tab, stepped on the page's clock as the server steps its own.
+      const dt = file.prefabs.engine.dt
+      let last = performance.now(), owed = 0
+      const loop = async now => {
+        if (truth) {
+          owed += Math.min((now - last) / 1000, 0.25)
+          last = now
+          while (owed >= dt) { truth.step(dt); owed -= dt }
+        }
+        const r3 = client?.plugins.render3d, c = chassis()
+        if (r3 && orbit && c && r3.claim(owner)) place(r3, c)
+        else if (r3 && !orbit) r3.release(owner)
+        // A frame that throws is shown, and the next frame goes on.
+        try {
+          page.input()
+          await page.frame(now)
+        } catch (e) { caught(e) }
+        if (r3) panel(r3)
+        if (r3 && r3 !== watched) {
+          stopWatching?.()
+          watched = r3
+          stopWatching = r3.drifted(d => console.warn(`drifted off the blend, step ${d.step}: ${d.path}`, { was: d.was, now: d.now, object: d.object }))
+        }
+        const s = page.stats, { up, down } = net
+        const me = possessed(client?.plugins.wire.rows ?? [])
+        const lines = [
+          `${page.name ?? '…'}  seat ${me?.data.seat ?? '?'}  ${orbit ? `orbit  az ${head.az.toFixed(0)}°  el ${head.el.toFixed(0)}°  ${head.dist.toFixed(1)} m` : 'chase camera'}`,
+          `down ${down.delay}+${down.jitter}${down.tail ? ' tail' : ''} ms loss ${down.loss}   up ${up.delay}+${up.jitter}${up.tail ? ' tail' : ''} ms loss ${up.loss}`,
+          `${s.predicting ? 'predicting' : 'not predicting'}  step ${s.n}  ${s.behind} behind the server`,
+          `corrections ${s.corrections}  drifts ${s.drifts}  packets checked ${s.checked}`,
+          `other seat's presses taken ${s.taken}, too late ${s.missed}  steps gone back ${s.back}`,
+          `snapshots loaded at ${s.loads.slice(-6).join(', ')}`,
+          ...(s.differed ? [`last differed at ${s.differed.n}: ${s.differed.rows.map(r => r.kind + ' ' + r.id).join(', ')}`] : []),
+          ...(s.drifted ? [`last drifted at ${s.drifted.n} by ${s.drifted.by.toExponential(2)}: ${s.drifted.rows.map(r => r.kind + ' ' + r.id).join(', ')}`] : []),
+        ]
+        if (help) lines.push('o orbit  drag swing  wheel in/out  1-4 views  h help')
+        out.textContent = [...lines, ...errors].join('\n')
+        requestAnimationFrame(loop)
+      }
+      requestAnimationFrame(loop)
+    </script>
+  </body>
+</html>

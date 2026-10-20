@@ -1,0 +1,12 @@
+{
+  "body": "player",
+  "steps": [
+    {"name": "in", "clip": "enter", "at": "seat", "turn": 90, "travel": "to"},
+    {"name": "seated", "clip": "drive", "at": "seat", "turn": 90, "hold": true, "ik": [
+      {"bones": ["LeftArm", "LeftForeArm", "LeftHand"], "target": "gripL", "pole": [1, -1, 0]},
+      {"bones": ["RightArm", "RightForeArm", "RightHand"], "target": "gripR", "pole": [-1, -1, 0]},
+      {"bones": ["LeftUpLeg", "LeftLeg", "LeftFoot"], "target": "footL", "pole": [0, 0, 1]},
+      {"bones": ["RightUpLeg", "RightLeg", "RightFoot"], "target": "footR", "pole": [0, 0, 1]}
+    ]}
+  ]
+}

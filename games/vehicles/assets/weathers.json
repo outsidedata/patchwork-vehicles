@@ -1,0 +1,11 @@
+{
+  "clear": {"cloud": 0, "cirrus": 0.1, "base": 1400, "top": 2000, "dense": 1, "rain": 0, "snow": 0, "fog": 0, "haze": 1.15, "wind": 2.5, "gust": 0.15, "thunder": 0, "dust": 0.05},
+  "mist": {"cloud": 0.25, "cirrus": 0.3, "base": 900, "top": 1700, "dense": 1, "rain": 0, "snow": 0, "fog": 0.3, "haze": 1.6, "wind": 2, "gust": 0.12, "thunder": 0, "dust": 0.02},
+  "fair": {"cloud": 0.34, "cirrus": 0.25, "base": 1000, "top": 1900, "dense": 1, "rain": 0, "snow": 0, "fog": 0.02, "haze": 1.35, "wind": 4.5, "gust": 0.3, "thunder": 0, "dust": 0.1},
+  "overcast": {"cloud": 0.92, "cirrus": 0.55, "base": 700, "top": 1800, "dense": 1.7, "rain": 0, "snow": 0, "fog": 0.05, "haze": 1.8, "wind": 5.5, "gust": 0.25, "thunder": 0, "dust": 0.05},
+  "fog": {"cloud": 0.55, "cirrus": 0.2, "base": 500, "top": 1300, "dense": 1.3, "rain": 0, "snow": 0, "fog": 0.95, "haze": 3, "wind": 1, "gust": 0.08, "thunder": 0, "dust": 0},
+  "rain": {"cloud": 0.97, "cirrus": 0.4, "base": 550, "top": 2600, "dense": 2.3, "rain": 0.65, "snow": 0, "fog": 0.3, "haze": 2.4, "wind": 7, "gust": 0.45, "thunder": 0.2, "dust": 0},
+  "storm": {"cloud": 0.97, "cirrus": 0.3, "base": 450, "top": 4200, "dense": 3.4, "rain": 1, "snow": 0, "fog": 0.42, "haze": 2.8, "wind": 14, "gust": 0.85, "thunder": 9, "dust": 0},
+  "snow": {"cloud": 0.9, "cirrus": 0.35, "base": 700, "top": 2200, "dense": 1.9, "rain": 0, "snow": 0.55, "fog": 0.35, "haze": 2.2, "wind": 4, "gust": 0.35, "thunder": 0, "dust": 0},
+  "blizzard": {"cloud": 0.98, "cirrus": 0.25, "base": 400, "top": 2600, "dense": 2.6, "rain": 0, "snow": 1, "fog": 0.8, "haze": 3.2, "wind": 17, "gust": 0.95, "thunder": 0, "dust": 0}
+}

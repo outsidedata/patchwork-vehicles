@@ -1,0 +1,53 @@
+{
+  "order": 2,
+  "mix": {
+    "stems": {
+      "on": [
+        0.15,
+        0.55
+      ],
+      "mech": [
+        0.15,
+        0.25
+      ]
+    },
+    "ease": 0.1
+  },
+  "layers": [
+    {
+      "rpm": 400,
+      "stems": {
+        "on": "cart-400-on.wav",
+        "mech": "cart-400-mech.wav"
+      }
+    },
+    {
+      "rpm": 800,
+      "stems": {
+        "on": "cart-800-on.wav",
+        "mech": "cart-800-mech.wav"
+      }
+    },
+    {
+      "rpm": 1500,
+      "stems": {
+        "on": "cart-1500-on.wav",
+        "mech": "cart-1500-mech.wav"
+      }
+    },
+    {
+      "rpm": 2600,
+      "stems": {
+        "on": "cart-2600-on.wav",
+        "mech": "cart-2600-mech.wav"
+      }
+    },
+    {
+      "rpm": 4000,
+      "stems": {
+        "on": "cart-4000-on.wav",
+        "mech": "cart-4000-mech.wav"
+      }
+    }
+  ]
+}

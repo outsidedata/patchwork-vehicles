@@ -1,0 +1,56 @@
+{
+  "program": {
+    "world": 2000,
+    "hscale": 100,
+    "sea": -1,
+    "flood": false,
+    "out": "level",
+    "nodes": [
+      { "id": "swell", "op": "noise", "kind": "simplex", "freq": 4, "seed": 21 },
+      { "id": "crest", "op": "noise", "kind": "simplex", "freq": 30, "seed": 23, "rotate": 0.5, "stretch": [1, 0.3] },
+      { "id": "driftX", "op": "noise", "kind": "simplex", "freq": 8, "seed": 31 },
+      { "id": "driftZ", "op": "noise", "kind": "simplex", "freq": 8, "seed": 37 },
+      { "id": "dunes", "op": "warp", "input": "crest", "x": "driftX", "z": "driftZ", "amount": 80 },
+      { "id": "ripple", "op": "noise", "kind": "simplex", "freq": 300, "seed": 41 },
+      { "id": "broad", "op": "combine", "mode": "lerp", "a": "swell", "b": "dunes", "t": 0.6 },
+      { "id": "sand", "op": "combine", "mode": "lerp", "a": "broad", "b": "ripple", "t": 0.006 },
+      { "id": "roll", "op": "noise", "kind": "simplex", "freq": 0.8, "seed": 53 },
+      { "id": "rise", "op": "scale", "input": "roll", "by": 5 },
+      { "id": "dunesHeight", "op": "scale", "input": "sand", "by": 0.22 },
+      { "id": "rolling", "op": "combine", "mode": "add", "a": "dunesHeight", "b": "rise" },
+      { "id": "level", "op": "clearing", "input": "rolling", "flat": 30, "floor": 0 }
+    ]
+  },
+  "analysis": {
+    "slopeStep": 1.5,
+    "curveStep": 4,
+    "positionRadius": 18,
+    "occlusionRadius": 30,
+    "occlusionSteps": 5,
+    "cliffProbe": 12,
+    "cliffSlope": 0.5,
+    "cliffDrop": 7,
+    "flatAngle": 0.03,
+    "records": 50000
+  },
+  "ground": {
+    "compose": "stack",
+    "far": { "amount": 0.6, "scale": 9 },
+    "roughness": 0.95,
+    "layers": [
+      {
+        "name": "sand",
+        "map": "sand",
+        "normal": "sandNormal",
+        "scale": 6,
+        "strength": 1.2,
+        "warp": [
+          { "freq": 0.004, "amp": 30, "stretch": [1, 1, 1], "rotate": 0.5 },
+          { "freq": 0.03, "amp": 3, "stretch": [1, 1, 1], "rotate": 1.4 }
+        ]
+      }
+    ]
+  },
+  "surfaces": {},
+  "layers": []
+}
