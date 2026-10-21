@@ -5,6 +5,9 @@
   letters of PATCHWORK flash up in it one at a time, each somewhere new, like a colour-blindness
   plate. The first canvas the game shows takes all of it, its style and script too, off the page and
   stops its timers.
+
+  `yarn preview_loading` serves it on its own at http://localhost:8000/loading.html, where no canvas
+  ever shows, so it plays until the tab is closed: change it and reload.
 -->
 <div id="patchwork-loading">
 <style>
@@ -48,8 +51,21 @@
   @media (prefers-reduced-motion: reduce) {
     .patchwork-loading i::after { transition: none; }
   }
+
+  /* The box over the quilt, 100px down from the top, centred across, its words on one line: the
+     type shrinks with a narrow window so the line fits inside 16px from each edge. */
+  .patchwork-loading-modal {
+    position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
+    width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; white-space: nowrap;
+    padding: 16px 28px; border: 1px solid #444; border-radius: 9999px;
+    background: rgba(24, 23, 30, .85); color: #fff; box-shadow: 0 0 12px rgba(0, 0, 0, .5);
+    font: 300 clamp(12px, 4vw, 20px) system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: 0.15px;
+  }
+  /* PATCHWORK in the site's purple, the quilt's --purple-l. */
+  .patchwork-loading-modal span { color: #7d6db5; font-weight: 900; }
 </style>
 <div class="patchwork-loading" role="status" aria-label="Loading a Patchwork game"></div>
+<div class="patchwork-loading-modal">LOADING <span>PATCHWORK</span> GAME</div>
 <script>
   // Makes the 160 patches, then lights P, A, T, C, H, W, O, R, K one at a time, each in a new spot,
   // until a canvas of the game shows.
