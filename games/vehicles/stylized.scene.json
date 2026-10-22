@@ -191,9 +191,8 @@
             "small": { "weight": 2, "solid": 0.35, "tall": 1.3 }
           },
           "cell": 13,
-          "reach": 640,
           "seed": 91,
-          "lods": [38, 85, 175],
+          "lods": [0, 3],
           "shadow": 90,
           "leaf": 0.55,
           "density": 0.3,
@@ -216,9 +215,8 @@
             "reeds": { "weight": 1 }
           },
           "cell": 2.2,
-          "reach": 120,
           "seed": 311,
-          "lods": [40],
+          "lods": [0],
           "shadow": 78,
           "leaf": 0.55,
           "density": 0.8,
@@ -246,9 +244,8 @@
             "c": { "weight": 1, "solid": 0.8, "tall": 0.75 }
           },
           "cell": 21,
-          "reach": 520,
           "seed": 173,
-          "lods": [90],
+          "lods": [0, 0],
           "shadow": 90,
           "leaf": 0,
           "density": 0.35,

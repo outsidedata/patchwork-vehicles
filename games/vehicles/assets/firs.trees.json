@@ -10,6 +10,6 @@
     { "name": "2", "resolution": 1, "levels": 1, "keep": 4 },
     { "name": "3", "crown": { "bands": 4, "sides": 8, "taper": 0.35 } }
   ],
-  "textures": { "leaf": 1024, "normal": 512 },
+  "textures": { "leaf": 1024, "normal": 512, "bark": 1024, "barkNormal": 512 },
   "node": "{tree}-{lod}-{part}"
 }
