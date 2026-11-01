@@ -1,0 +1,1214 @@
+{
+  "program": {
+    "world": 2000,
+    "hscale": 10,
+    "sea": 0.5,
+    "flood": false,
+    "out": "level",
+    "nodes": [
+      {
+        "id": "swell",
+        "op": "noise",
+        "kind": "simplex",
+        "freq": 12,
+        "seed": 61
+      },
+      {
+        "id": "knoll",
+        "op": "noise",
+        "kind": "simplex",
+        "freq": 40,
+        "seed": 67
+      },
+      {
+        "id": "rolling",
+        "op": "combine",
+        "mode": "lerp",
+        "a": "swell",
+        "b": "knoll",
+        "t": 0.2
+      },
+      {
+        "id": "level",
+        "op": "clearing",
+        "input": "rolling",
+        "flat": 25,
+        "floor": 0
+      }
+    ]
+  },
+  "analysis": {
+    "slopeStep": 1,
+    "curveStep": 3,
+    "positionRadius": 12,
+    "occlusionRadius": 20,
+    "occlusionSteps": 5,
+    "cliffProbe": 6,
+    "cliffSlope": 0.5,
+    "cliffDrop": 3,
+    "flatAngle": 0.03,
+    "records": 50000
+  },
+  "ground": {
+    "compose": "stack",
+    "heightBlend": {
+      "amount": 2,
+      "depth": 0.1
+    },
+    "far": {
+      "amount": 0.7,
+      "scale": 7.3
+    },
+    "roughness": 0.9,
+    "layers": [
+      {
+        "name": "rough",
+        "map": "meadow",
+        "normal": "meadowNormal",
+        "scale": 36,
+        "warp": [
+          {
+            "freq": 0.005,
+            "amp": 30,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0
+          },
+          {
+            "freq": 0.035,
+            "amp": 3,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0.7
+          }
+        ]
+      },
+      {
+        "name": "fairway",
+        "map": "grass",
+        "normal": "grassNormal",
+        "scale": 30,
+        "where": [
+          {
+            "q": "surface:fairway",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.2,
+        "warp": [
+          {
+            "freq": 0.005,
+            "amp": 30,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0
+          },
+          {
+            "freq": 0.035,
+            "amp": 3,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0.7
+          }
+        ]
+      },
+      {
+        "name": "sand",
+        "map": "sand",
+        "normal": "sandNormal",
+        "scale": 20,
+        "where": [
+          {
+            "q": "surface:sand",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.25
+      }
+    ]
+  },
+  "surfaces": {
+    "path": {
+      "colour": "#9a978f",
+      "cover": 0,
+      "grip": 1.05,
+      "drag": 0.015,
+      "spray": false,
+      "mark": 0,
+      "edge": {
+        "width": 0.1,
+        "ragged": 0.1,
+        "scale": 0.5
+      }
+    },
+    "fairway": {
+      "cover": 0,
+      "grip": 0.85,
+      "drag": 0.04,
+      "spray": "grass",
+      "mark": 0.4,
+      "edge": {
+        "width": 0.15,
+        "ragged": 0.2,
+        "scale": 0.3
+      }
+    },
+    "green": {
+      "colour": "#4f9a3a",
+      "cover": 0,
+      "grip": 0.9,
+      "drag": 0.03,
+      "spray": "grass",
+      "mark": 0.45,
+      "edge": {
+        "width": 0.1,
+        "ragged": 0.15,
+        "scale": 0.4
+      }
+    },
+    "sand": {
+      "cover": 0,
+      "grip": 0.45,
+      "drag": 0.18,
+      "spray": "dirt",
+      "mark": 0.7,
+      "edge": {
+        "width": 0.15,
+        "ragged": 0.3,
+        "scale": 0.5
+      }
+    }
+  },
+  "layers": [
+    {
+      "at": [
+        0,
+        0
+      ],
+      "size": 1000,
+      "px": 1250,
+      "strokes": [
+        {
+          "verb": "bench",
+          "radius": 4,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -10,
+              6
+            ],
+            [
+              40,
+              15
+            ],
+            [
+              150,
+              -5
+            ],
+            [
+              255,
+              -25
+            ],
+            [
+              310,
+              -20
+            ],
+            [
+              365,
+              -100
+            ],
+            [
+              360,
+              -185
+            ],
+            [
+              345,
+              -235
+            ],
+            [
+              300,
+              -290
+            ],
+            [
+              240,
+              -375
+            ],
+            [
+              120,
+              -405
+            ],
+            [
+              60,
+              -400
+            ],
+            [
+              0,
+              -385
+            ],
+            [
+              -130,
+              -345
+            ],
+            [
+              -185,
+              -300
+            ],
+            [
+              -230,
+              -265
+            ],
+            [
+              -300,
+              -185
+            ],
+            [
+              -320,
+              -140
+            ],
+            [
+              -370,
+              -90
+            ],
+            [
+              -420,
+              20
+            ],
+            [
+              -390,
+              170
+            ],
+            [
+              -350,
+              225
+            ],
+            [
+              -290,
+              260
+            ],
+            [
+              -150,
+              340
+            ],
+            [
+              -60,
+              370
+            ],
+            [
+              40,
+              335
+            ],
+            [
+              90,
+              310
+            ],
+            [
+              130,
+              280
+            ],
+            [
+              195,
+              150
+            ],
+            [
+              110,
+              30
+            ],
+            [
+              40,
+              15
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 5.926,
+          "surface": "",
+          "path": [
+            [
+              30,
+              -10
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 5.401,
+          "surface": "",
+          "path": [
+            [
+              280,
+              -30
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 4.951,
+          "surface": "",
+          "path": [
+            [
+              310,
+              -220
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 5.78,
+          "surface": "",
+          "path": [
+            [
+              60,
+              -345
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 5.108,
+          "surface": "",
+          "path": [
+            [
+              -160,
+              -270
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 2.458,
+          "surface": "",
+          "path": [
+            [
+              -290,
+              -130
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 2.435,
+          "surface": "",
+          "path": [
+            [
+              -320,
+              210
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 7.03,
+          "surface": "",
+          "path": [
+            [
+              -100,
+              330
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 6,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 6.526,
+          "surface": "",
+          "path": [
+            [
+              80,
+              270
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 3.955,
+          "surface": "",
+          "path": [
+            [
+              250,
+              -60
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 2.497,
+          "surface": "",
+          "path": [
+            [
+              330,
+              -180
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 5.85,
+          "surface": "",
+          "path": [
+            [
+              80,
+              -370
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 3.999,
+          "surface": "",
+          "path": [
+            [
+              -130,
+              -300
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 4.296,
+          "surface": "",
+          "path": [
+            [
+              -260,
+              -160
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 4.019,
+          "surface": "",
+          "path": [
+            [
+              -330,
+              180
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 4.826,
+          "surface": "",
+          "path": [
+            [
+              -140,
+              300
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 4.064,
+          "surface": "",
+          "path": [
+            [
+              40,
+              290
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 16,
+          "hardness": 0.6,
+          "strength": 0,
+          "level": 3.613,
+          "surface": "",
+          "path": [
+            [
+              60,
+              40
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 7,
+          "hardness": 0.2,
+          "strength": 0.8,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              250.8,
+              -38.6
+            ],
+            [],
+            [
+              241.4,
+              -79.6
+            ],
+            [],
+            [
+              158,
+              -57.6
+            ],
+            [],
+            [
+              348.6,
+              -169.6
+            ],
+            [],
+            [
+              308.8,
+              -182.8
+            ],
+            [],
+            [
+              89.6,
+              -389.1
+            ],
+            [],
+            [
+              78,
+              -348.7
+            ],
+            [],
+            [
+              131.1,
+              -336.7
+            ],
+            [],
+            [
+              -130.9,
+              -321.3
+            ],
+            [],
+            [
+              -121.3,
+              -280.5
+            ],
+            [],
+            [
+              -58.1,
+              -335.5
+            ],
+            [],
+            [
+              -272.8,
+              -177.1
+            ],
+            [],
+            [
+              -241.8,
+              -148.9
+            ],
+            [],
+            [
+              -351.2,
+              182.5
+            ],
+            [],
+            [
+              -311.2,
+              169.9
+            ],
+            [],
+            [
+              -367.2,
+              121.4
+            ],
+            [],
+            [
+              -153,
+              317
+            ],
+            [],
+            [
+              -134.2,
+              279.4
+            ],
+            [],
+            [
+              -204,
+              247.9
+            ],
+            [],
+            [
+              42,
+              311.3
+            ],
+            [],
+            [
+              30.4,
+              270.9
+            ],
+            [],
+            [
+              78.8,
+              29.8
+            ],
+            [],
+            [
+              46.2,
+              56.4
+            ],
+            [],
+            [
+              82.1,
+              95.4
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              73.9,
+              -20
+            ],
+            [
+              250,
+              -60
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              281.5,
+              -254.8
+            ],
+            [
+              220,
+              -330
+            ],
+            [
+              80,
+              -370
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              16.2,
+              -334.6
+            ],
+            [
+              -130,
+              -300
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              -313.2,
+              -91.4
+            ],
+            [
+              -380,
+              20
+            ],
+            [
+              -330,
+              180
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              -279.8,
+              230.1
+            ],
+            [
+              -140,
+              300
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 16,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "fairway",
+          "path": [
+            [
+              102.7,
+              231.1
+            ],
+            [
+              150,
+              150
+            ],
+            [
+              60,
+              40
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 14,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "green",
+          "path": [
+            [
+              250,
+              -60
+            ],
+            [],
+            [
+              330,
+              -180
+            ],
+            [],
+            [
+              80,
+              -370
+            ],
+            [],
+            [
+              -130,
+              -300
+            ],
+            [],
+            [
+              -260,
+              -160
+            ],
+            [],
+            [
+              -330,
+              180
+            ],
+            [],
+            [
+              -140,
+              300
+            ],
+            [],
+            [
+              40,
+              290
+            ],
+            [],
+            [
+              60,
+              40
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 5,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "green",
+          "path": [
+            [
+              30,
+              -10
+            ],
+            [],
+            [
+              280,
+              -30
+            ],
+            [],
+            [
+              310,
+              -220
+            ],
+            [],
+            [
+              60,
+              -345
+            ],
+            [],
+            [
+              -160,
+              -270
+            ],
+            [],
+            [
+              -290,
+              -130
+            ],
+            [],
+            [
+              -320,
+              210
+            ],
+            [],
+            [
+              -100,
+              330
+            ],
+            [],
+            [
+              80,
+              270
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 6,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 0,
+          "surface": "sand",
+          "path": [
+            [
+              250.8,
+              -38.6
+            ],
+            [],
+            [
+              241.4,
+              -79.6
+            ],
+            [],
+            [
+              158,
+              -57.6
+            ],
+            [],
+            [
+              348.6,
+              -169.6
+            ],
+            [],
+            [
+              308.8,
+              -182.8
+            ],
+            [],
+            [
+              89.6,
+              -389.1
+            ],
+            [],
+            [
+              78,
+              -348.7
+            ],
+            [],
+            [
+              131.1,
+              -336.7
+            ],
+            [],
+            [
+              -130.9,
+              -321.3
+            ],
+            [],
+            [
+              -121.3,
+              -280.5
+            ],
+            [],
+            [
+              -58.1,
+              -335.5
+            ],
+            [],
+            [
+              -272.8,
+              -177.1
+            ],
+            [],
+            [
+              -241.8,
+              -148.9
+            ],
+            [],
+            [
+              -351.2,
+              182.5
+            ],
+            [],
+            [
+              -311.2,
+              169.9
+            ],
+            [],
+            [
+              -367.2,
+              121.4
+            ],
+            [],
+            [
+              -153,
+              317
+            ],
+            [],
+            [
+              -134.2,
+              279.4
+            ],
+            [],
+            [
+              -204,
+              247.9
+            ],
+            [],
+            [
+              42,
+              311.3
+            ],
+            [],
+            [
+              30.4,
+              270.9
+            ],
+            [],
+            [
+              78.8,
+              29.8
+            ],
+            [],
+            [
+              46.2,
+              56.4
+            ],
+            [],
+            [
+              82.1,
+              95.4
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 2.5,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "path",
+          "path": [
+            [
+              -10,
+              6
+            ],
+            [
+              40,
+              15
+            ],
+            [
+              150,
+              -5
+            ],
+            [
+              255,
+              -25
+            ],
+            [
+              310,
+              -20
+            ],
+            [
+              365,
+              -100
+            ],
+            [
+              360,
+              -185
+            ],
+            [
+              345,
+              -235
+            ],
+            [
+              300,
+              -290
+            ],
+            [
+              240,
+              -375
+            ],
+            [
+              120,
+              -405
+            ],
+            [
+              60,
+              -400
+            ],
+            [
+              0,
+              -385
+            ],
+            [
+              -130,
+              -345
+            ],
+            [
+              -185,
+              -300
+            ],
+            [
+              -230,
+              -265
+            ],
+            [
+              -300,
+              -185
+            ],
+            [
+              -320,
+              -140
+            ],
+            [
+              -370,
+              -90
+            ],
+            [
+              -420,
+              20
+            ],
+            [
+              -390,
+              170
+            ],
+            [
+              -350,
+              225
+            ],
+            [
+              -290,
+              260
+            ],
+            [
+              -150,
+              340
+            ],
+            [
+              -60,
+              370
+            ],
+            [
+              40,
+              335
+            ],
+            [
+              90,
+              310
+            ],
+            [
+              130,
+              280
+            ],
+            [
+              195,
+              150
+            ],
+            [
+              110,
+              30
+            ],
+            [
+              40,
+              15
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

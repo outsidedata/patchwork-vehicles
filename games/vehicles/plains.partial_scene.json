@@ -1,0 +1,128 @@
+{
+  "world": {
+    "terrain3d": {
+      "field": "land",
+      "rings": [
+        {
+          "reach": 256,
+          "seg": 128
+        },
+        {
+          "reach": 1024,
+          "seg": 128
+        },
+        {
+          "reach": 9000,
+          "seg": 180
+        }
+      ],
+      "shadowReach": 256,
+      "budget": 6,
+      "seabed": false
+    },
+    "skydome3d": {
+      "day": 1200,
+      "look": {
+        "dayZenith": "#2961b3",
+        "nightZenith": "#03050e",
+        "dayHorizon": "#bdd1e0",
+        "nightHorizon": "#090e1a",
+        "setZenith": "#47386b",
+        "setHorizon": "#fa7a38",
+        "sunHigh": "#fff2db",
+        "sunLow": "#ff6b29",
+        "moon": "#8cadff",
+        "ground": "#0a1218",
+        "exposure": 1.05,
+        "nightOpen": 0.35,
+        "sunIntensity": 2.4,
+        "moonIntensity": 0.35,
+        "hemiDay": 0.55,
+        "hemiNight": 0.12,
+        "stars": 1,
+        "haze": 0.00075,
+        "mist": 0.02,
+        "starSize": 0.15,
+        "twinkle": 0.4,
+        "twinkles": 900,
+        "twinkleSpread": 5,
+        "sunShrink": [
+          0.05,
+          0.4
+        ],
+        "sunEdge": 0.85,
+        "moonEdge": 0.9,
+        "moonSize": 0.0045,
+        "radius": 8000,
+        "overcast": 0.2,
+        "envSun": 0.02,
+        "envMix": 0.05,
+        "envIntensity": 0.25
+      },
+      "shadow": {
+        "map": 2048,
+        "half": 45,
+        "near": 1,
+        "far": 1600,
+        "bias": -0.00002,
+        "normalBias": 0.04
+      },
+      "mods": {
+        "land": "terrain3d"
+      }
+    }
+  },
+  "prefabs": {
+    "engine": {
+      "dt": 0.016666666666666666,
+      "width": 1280,
+      "height": 720
+    },
+    "scenemanager": {
+      "out": {}
+    },
+    "render3d": {
+      "camera": {
+        "at": [
+          -30,
+          6,
+          0
+        ],
+        "look": [
+          -20,
+          1,
+          0
+        ],
+        "fov": 60,
+        "near": 0.1,
+        "far": 9000
+      },
+      "tone": "neutral",
+      "exposure": 1,
+      "shadows": "soft",
+      "ao": {
+        "on": false,
+        "radius": 0.8,
+        "thickness": 0.3,
+        "falloff": 1,
+        "scale": 1.5,
+        "intensity": 1,
+        "samples": 16
+      }
+    }
+  },
+  "actors": [
+    {
+      "is": "loader"
+    },
+    {
+      "is": "scenemanager"
+    },
+    {
+      "is": "skydome3d"
+    },
+    {
+      "is": "box3d"
+    }
+  ]
+}

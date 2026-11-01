@@ -1,0 +1,436 @@
+{
+  "world": {
+    "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
+    "terrain3d": {
+      "field": "gym",
+      "rings": [
+        {
+          "reach": 200,
+          "seg": 400
+        },
+        {
+          "reach": 1000,
+          "seg": 200
+        },
+        {
+          "reach": 4000,
+          "seg": 80
+        }
+      ],
+      "shadowReach": 200,
+      "budget": 6,
+      "seabed": false,
+      "static": true
+    },
+    "skydome3d": {
+      "day": 1200,
+      "look": {
+        "dayZenith": "#2961b3",
+        "nightZenith": "#03050e",
+        "dayHorizon": "#bdd1e0",
+        "nightHorizon": "#090e1a",
+        "setZenith": "#47386b",
+        "setHorizon": "#fa7a38",
+        "sunHigh": "#fff2db",
+        "sunLow": "#ff6b29",
+        "moon": "#8cadff",
+        "ground": "#0a1218",
+        "exposure": 1.05,
+        "nightOpen": 0.35,
+        "sunIntensity": 2.4,
+        "moonIntensity": 0.35,
+        "hemiDay": 0.55,
+        "hemiNight": 0.12,
+        "stars": 1,
+        "haze": 0.00075,
+        "mist": 0.02,
+        "starSize": 0.15,
+        "twinkle": 0.4,
+        "twinkles": 900,
+        "twinkleSpread": 5,
+        "sunShrink": [
+          0.05,
+          0.4
+        ],
+        "sunEdge": 0.85,
+        "moonEdge": 0.9,
+        "moonSize": 0.0045,
+        "radius": 8000,
+        "overcast": 0.2,
+        "envSun": 0.02,
+        "envMix": 0.05,
+        "envIntensity": 0.25
+      },
+      "shadow": {
+        "map": 2048,
+        "half": 45,
+        "near": 1,
+        "far": 1600,
+        "bias": -0.00002,
+        "normalBias": 0.04
+      },
+      "mods": {
+        "land": "terrain3d"
+      }
+    },
+    "box3d": {
+      "gravity": [
+        0,
+        -9.8,
+        0
+      ],
+      "subStepCount": 4,
+      "enableSleep": true,
+      "enableContinuous": true,
+      "enableWarmStarting": false,
+      "static": [],
+      "mods": {
+        "ground": "terrain3d",
+        "kinds": "box3dvehicle",
+        "fixed": ["shapes3d"]
+      },
+      "chunk": {
+        "count": 33,
+        "cell": 1
+      },
+      "kinds": {
+        "ball": {
+          "type": "dynamic",
+          "enableContactRecycling": false,
+          "shapes": [
+            {
+              "sphere": {
+                "center": [
+                  0,
+                  0,
+                  0
+                ],
+                "radius": 1
+              },
+              "density": 50,
+              "baseMaterial": {
+                "friction": 0.6,
+                "restitution": 0.5,
+                "rollingResistance": 0.2
+              }
+            }
+          ]
+        },
+        "ramp": {
+          "type": "static",
+          "shapes": [
+            {
+              "hull": {
+                "points": [
+                  -5,
+                  0,
+                  -2,
+                  -5,
+                  0,
+                  2,
+                  5,
+                  0,
+                  -2,
+                  5,
+                  0,
+                  2,
+                  5,
+                  2,
+                  -2,
+                  5,
+                  2,
+                  2
+                ]
+              },
+              "baseMaterial": {
+                "friction": 0.9
+              }
+            }
+          ]
+        },
+        "kicker": {
+          "type": "static",
+          "shapes": [
+            {
+              "hull": {
+                "points": [
+                  -1.5,
+                  0,
+                  -1.5,
+                  -1.5,
+                  0,
+                  1.5,
+                  1.5,
+                  0,
+                  -1.5,
+                  1.5,
+                  0,
+                  1.5,
+                  1.5,
+                  0.8,
+                  -1.5,
+                  1.5,
+                  0.8,
+                  1.5
+                ]
+              },
+              "baseMaterial": {
+                "friction": 0.9
+              }
+            }
+          ]
+        }
+      }
+    },
+    "shapes3d": {
+      "kinds": {
+        "cube": { "shape": { "plane": { "size": [30, 28.18119], "tilt": 0.35 } }, "look": { "colour": "#e0662a", "roughness": 0.6, "thick": 30 }, "surface": { "friction": 0.9 } },
+        "rampup": { "shape": { "plane": { "size": [16, 31.9094], "tilt": 0.177164 } }, "look": { "colour": "#e9ecef", "roughness": 0.7, "thick": 0.8 }, "surface": { "friction": 0.9 } },
+        "tower": { "shape": { "box": { "size": [24, 16, 24] } }, "look": { "colour": "#2f3b52", "roughness": 0.8 }, "surface": { "friction": 0.9 } },
+        "rampoff": { "shape": { "plane": { "size": [10, 8], "tilt": 0.3 } }, "look": { "colour": "#f2c230", "roughness": 0.7, "thick": 0.6 }, "surface": { "friction": 0.9 } },
+        "bridge": { "shape": { "box": { "size": [12, 1, 80] } }, "look": { "colour": "#c7372f", "roughness": 0.7 }, "surface": { "friction": 0.9 } },
+        "pillar": { "shape": { "box": { "size": [3, 15, 3] } }, "look": { "colour": "#2f3b52", "roughness": 0.8 }, "surface": { "friction": 0.9 } },
+        "rampdown": { "shape": { "plane": { "size": [12, 64], "tilt": 0.244979 } }, "look": { "colour": "#e9ecef", "roughness": 0.7, "thick": 0.8 }, "surface": { "friction": 0.9 } }
+      }
+    },
+    "solids": { "mods": { "models": "shapes3d" } }
+  },
+  "plugins": [
+    "loader",
+    "scenemanager",
+    "player",
+    "terrain3d",
+    "skydome3d",
+    "box3d",
+    "box3dvehicle",
+    "particle3d",
+    "solids",
+    "render3d",
+    "audio",
+    "ui",
+    "stats"
+  ],
+  "seats": 2,
+  "prefabs": {
+    "engine": {
+      "dt": 0.016666666666666666,
+      "width": 1280,
+      "height": 720
+    },
+    "scenemanager": {
+      "out": {}
+    },
+    "render3d": {
+      "camera": {
+        "at": [
+          -30,
+          6,
+          0
+        ],
+        "look": [
+          -20,
+          1,
+          0
+        ],
+        "fov": 60,
+        "near": 0.1,
+        "far": 9000
+      },
+      "tone": "neutral",
+      "exposure": 1,
+      "shadows": "soft",
+      "ao": {
+        "on": false,
+        "radius": 0.8,
+        "thickness": 0.3,
+        "falloff": 1,
+        "scale": 1.5,
+        "intensity": 1,
+        "samples": 16
+      }
+    },
+    "ramp": {
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "vel": [
+        0,
+        0,
+        0
+      ],
+      "spin": [
+        0,
+        0,
+        0
+      ],
+      "awake": true
+    },
+    "kicker": {
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "vel": [
+        0,
+        0,
+        0
+      ],
+      "spin": [
+        0,
+        0,
+        0
+      ],
+      "awake": true
+    },
+    "cube": { "pos": [0, 0, 0], "yaw": 0 },
+    "rampup": { "pos": [0, 0, 0], "yaw": 0 },
+    "tower": { "pos": [0, 0, 0], "yaw": 0 },
+    "rampoff": { "pos": [0, 0, 0], "yaw": 0 },
+    "bridge": { "pos": [0, 0, 0], "yaw": 0 },
+    "pillar": { "pos": [0, 0, 0], "yaw": 0 },
+    "rampdown": { "pos": [0, 0, 0], "yaw": 0 }
+  },
+  "actors": [
+    {
+      "is": "loader"
+    },
+    {
+      "is": "scenemanager"
+    },
+    {
+      "is": "skydome3d"
+    },
+    {
+      "is": "box3d"
+    },
+    {
+      "is": "hud"
+    },
+    {
+      "is": "atlas"
+    },
+    {
+      "is": "spot",
+      "name": "cart",
+      "vehicle": "cart",
+      "x": -10,
+      "z": -3.1,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "jeep",
+      "vehicle": "jeep",
+      "x": -10,
+      "z": 0,
+      "yaw": 0
+    },
+    {
+      "is": "spot",
+      "name": "truck",
+      "vehicle": "truck",
+      "x": -10,
+      "z": -30,
+      "yaw": 0
+    },
+    {
+      "is": "start",
+      "slot": 0,
+      "spot": "jeep"
+    },
+    {
+      "is": "start",
+      "slot": 1,
+      "spot": "truck"
+    },
+    {
+      "is": "kicker",
+      "pos": [
+        25,
+        0,
+        -30
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ramp",
+      "pos": [
+        110,
+        0,
+        -30
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ramp",
+      "pos": [
+        62,
+        0,
+        -62
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "kicker",
+      "pos": [
+        15,
+        0,
+        4
+      ],
+      "rot": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "is": "ball",
+      "pos": [
+        20,
+        30,
+        12
+      ]
+    },
+    { "is": "cube", "pos": [-160, 5.14347, -40], "yaw": 3.141592653589793 },
+    { "is": "rampup", "pos": [-160, 13.14347, -70.0453], "yaw": 3.141592653589793 },
+    { "is": "tower", "pos": [-160, 0, -98], "yaw": 0 },
+    { "is": "rampoff", "pos": [-144, 17.23735, -98], "yaw": 1.5707963267948966 },
+    { "is": "rampoff", "pos": [-176, 17.23735, -98], "yaw": -1.5707963267948966 },
+    { "is": "bridge", "pos": [-160, 15, -150], "yaw": 0 },
+    { "is": "pillar", "pos": [-160, 0, -125], "yaw": 0 },
+    { "is": "pillar", "pos": [-160, 0, -150], "yaw": 0 },
+    { "is": "pillar", "pos": [-160, 0, -175], "yaw": 0 },
+    { "is": "rampdown", "pos": [-160, 8, -222], "yaw": 0 }
+  ]
+}

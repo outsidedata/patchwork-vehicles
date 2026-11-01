@@ -1,0 +1,777 @@
+{
+  "program": {
+    "world": 2000,
+    "hscale": 1,
+    "sea": 0.5,
+    "flood": false,
+    "out": "flat",
+    "nodes": [
+      {
+        "id": "flat",
+        "op": "const",
+        "value": 0
+      }
+    ]
+  },
+  "analysis": {
+    "slopeStep": 1,
+    "curveStep": 3,
+    "positionRadius": 12,
+    "occlusionRadius": 20,
+    "occlusionSteps": 5,
+    "cliffProbe": 6,
+    "cliffSlope": 0.5,
+    "cliffDrop": 3,
+    "flatAngle": 0.03,
+    "records": 50000
+  },
+  "ground": {
+    "compose": "stack",
+    "heightBlend": {
+      "amount": 2,
+      "depth": 0.1
+    },
+    "far": {
+      "amount": 0.7,
+      "scale": 7.3
+    },
+    "roughness": 0.9,
+    "layers": [
+      {
+        "name": "yard",
+        "map": "rock",
+        "normal": "rockNormal",
+        "scale": 30,
+        "warp": [
+          {
+            "freq": 0.005,
+            "amp": 30,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0
+          },
+          {
+            "freq": 0.035,
+            "amp": 3,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0.7
+          },
+          {
+            "freq": 0.18,
+            "amp": 0.5,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 1.9
+          }
+        ]
+      },
+      {
+        "name": "grass",
+        "map": "meadow",
+        "normal": "meadowNormal",
+        "scale": 30,
+        "where": [
+          {
+            "q": "surface:grass",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.3
+      },
+      {
+        "name": "gravel",
+        "map": "rock",
+        "normal": "rockNormal",
+        "scale": 30,
+        "where": [
+          {
+            "q": "surface:gravel",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.2
+      },
+      {
+        "name": "dirt",
+        "map": "dirt",
+        "normal": "dirtNormal",
+        "scale": 30,
+        "where": [
+          {
+            "q": "surface:dirt",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.25
+      },
+      {
+        "name": "mud",
+        "map": "dirt",
+        "normal": "dirtNormal",
+        "scale": 30,
+        "where": [
+          {
+            "q": "surface:mud",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "edge": 0.3
+      }
+    ]
+  },
+  "surfaces": {
+    "grass": {
+      "cover": 1,
+      "grip": 0.7,
+      "drag": 0.08,
+      "spray": "grass",
+      "mark": 0.35
+    },
+    "asphalt": {
+      "colour": "#3a3b3d",
+      "cover": 0,
+      "grip": 1.1,
+      "drag": 0.012,
+      "spray": false,
+      "mark": 0,
+      "edge": {
+        "width": 0.1,
+        "ragged": 0.1,
+        "scale": 0.5
+      }
+    },
+    "gravel": {
+      "cover": 0,
+      "grip": 0.6,
+      "drag": 0.05,
+      "spray": "gravel",
+      "mark": 0.4,
+      "edge": {
+        "width": 0.2,
+        "ragged": 0.4,
+        "scale": 0.4
+      }
+    },
+    "dirt": {
+      "cover": 0,
+      "grip": 0.65,
+      "drag": 0.04,
+      "spray": "dirt",
+      "mark": 0.55,
+      "edge": {
+        "width": 0.25,
+        "ragged": 0.45,
+        "scale": 0.35
+      }
+    },
+    "mud": {
+      "colour": "#4a3626",
+      "cover": 0,
+      "grip": 0.4,
+      "drag": 0.15,
+      "spray": "mud",
+      "mark": 0.85,
+      "edge": {
+        "width": 0.3,
+        "ragged": 0.6,
+        "scale": 0.3
+      }
+    },
+    "ice": {
+      "colour": "#c9dde8",
+      "cover": 0,
+      "grip": 0.1,
+      "drag": 0.01,
+      "spray": "ice",
+      "mark": 0.15,
+      "edge": {
+        "width": 0.1,
+        "ragged": 0.2,
+        "scale": 0.5
+      }
+    }
+  },
+  "layers": [
+    {
+      "at": [
+        0,
+        0
+      ],
+      "size": 400,
+      "px": 800,
+      "strokes": [
+        {
+          "verb": "surface",
+          "radius": 7,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "asphalt",
+          "path": [
+            [
+              -180,
+              0
+            ],
+            [
+              180,
+              0
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 7,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "asphalt",
+          "path": [
+            [
+              0,
+              -150
+            ],
+            [
+              0,
+              150
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 7,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "asphalt",
+          "path": [
+            [
+              0,
+              -30
+            ],
+            [
+              180,
+              -30
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 6,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "asphalt",
+          "path": [
+            [
+              -190,
+              172
+            ],
+            [
+              190,
+              172
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 5,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "ice",
+          "path": [
+            [
+              -190,
+              188
+            ],
+            [
+              190,
+              188
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              40,
+              -7
+            ],
+            [
+              40,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              48,
+              -7
+            ],
+            [
+              48,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              56,
+              -7
+            ],
+            [
+              56,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              64,
+              -7
+            ],
+            [
+              64,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              72,
+              -7
+            ],
+            [
+              72,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 3,
+          "hardness": 0,
+          "strength": 0.45,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              80,
+              -7
+            ],
+            [
+              80,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 0.8,
+          "hardness": 0,
+          "strength": 0.1,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              100,
+              -7
+            ],
+            [
+              100,
+              7
+            ],
+            [],
+            [
+              102,
+              -7
+            ],
+            [
+              102,
+              7
+            ],
+            [],
+            [
+              104,
+              -7
+            ],
+            [
+              104,
+              7
+            ],
+            [],
+            [
+              106,
+              -7
+            ],
+            [
+              106,
+              7
+            ],
+            [],
+            [
+              108,
+              -7
+            ],
+            [
+              108,
+              7
+            ],
+            [],
+            [
+              110,
+              -7
+            ],
+            [
+              110,
+              7
+            ],
+            [],
+            [
+              112,
+              -7
+            ],
+            [
+              112,
+              7
+            ],
+            [],
+            [
+              114,
+              -7
+            ],
+            [
+              114,
+              7
+            ],
+            [],
+            [
+              116,
+              -7
+            ],
+            [
+              116,
+              7
+            ],
+            [],
+            [
+              118,
+              -7
+            ],
+            [
+              118,
+              7
+            ],
+            [],
+            [
+              120,
+              -7
+            ],
+            [
+              120,
+              7
+            ],
+            [],
+            [
+              122,
+              -7
+            ],
+            [
+              122,
+              7
+            ],
+            [],
+            [
+              124,
+              -7
+            ],
+            [
+              124,
+              7
+            ],
+            [],
+            [
+              126,
+              -7
+            ],
+            [
+              126,
+              7
+            ],
+            [],
+            [
+              128,
+              -7
+            ],
+            [
+              128,
+              7
+            ],
+            [],
+            [
+              130,
+              -7
+            ],
+            [
+              130,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 1.2,
+          "hardness": 0.2,
+          "strength": 0.25,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              150,
+              -7
+            ],
+            [
+              150,
+              7
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 7,
+          "hardness": 0.1,
+          "strength": 2.5,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -50,
+              -20
+            ],
+            [
+              -50,
+              20
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 5,
+          "hardness": 0.4,
+          "strength": 3,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -110,
+              -20
+            ],
+            [
+              -110,
+              20
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 25,
+          "hardness": 0,
+          "strength": 6,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -80,
+              70
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 22,
+          "hardness": 0,
+          "strength": 5,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -80,
+              -70
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 15,
+          "hardness": 0,
+          "strength": 4,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              100,
+              -118
+            ],
+            [
+              170,
+              -118
+            ]
+          ]
+        },
+        {
+          "verb": "flatten",
+          "radius": 12,
+          "hardness": 0.85,
+          "strength": 0,
+          "level": 2,
+          "surface": "",
+          "path": [
+            [
+              80,
+              -62
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 11,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "asphalt",
+          "path": [
+            [
+              80,
+              -62
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 28,
+          "hardness": 0.95,
+          "strength": 0,
+          "level": 0,
+          "surface": "grass",
+          "path": [
+            [
+              45,
+              50
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 28,
+          "hardness": 0.95,
+          "strength": 0,
+          "level": 0,
+          "surface": "mud",
+          "path": [
+            [
+              110,
+              50
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 28,
+          "hardness": 0.95,
+          "strength": 0,
+          "level": 0,
+          "surface": "ice",
+          "path": [
+            [
+              170,
+              50
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 7,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "gravel",
+          "path": [
+            [
+              -150,
+              30
+            ],
+            [
+              -150,
+              150
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 7,
+          "hardness": 0.9,
+          "strength": 0,
+          "level": 0,
+          "surface": "dirt",
+          "path": [
+            [
+              -175,
+              30
+            ],
+            [
+              -175,
+              150
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

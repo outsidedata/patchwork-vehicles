@@ -1,0 +1,9 @@
+{
+  "rate": 48000,
+  "seed": 1,
+  "sounds": {
+    "jeep": { "species": "v8-flatplane" },
+    "truck": { "species": "v8-diesel" },
+    "cart": { "species": "electric-motor" }
+  }
+}

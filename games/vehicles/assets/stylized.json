@@ -1,0 +1,383 @@
+{
+  "program": {
+    "world": 2000,
+    "hscale": 8,
+    "sea": -1,
+    "flood": false,
+    "out": "rough",
+    "nodes": [
+      {
+        "id": "hills",
+        "op": "noise",
+        "kind": "simplex",
+        "freq": 16,
+        "seed": 11
+      },
+      {
+        "id": "bumps",
+        "op": "noise",
+        "kind": "simplex",
+        "freq": 160,
+        "seed": 7
+      },
+      {
+        "id": "rough",
+        "op": "combine",
+        "mode": "lerp",
+        "a": "hills",
+        "b": "bumps",
+        "t": 0.08
+      }
+    ]
+  },
+  "analysis": {
+    "slopeStep": 1.5,
+    "curveStep": 4,
+    "positionRadius": 18,
+    "occlusionRadius": 30,
+    "occlusionSteps": 5,
+    "cliffProbe": 12,
+    "cliffSlope": 0.5,
+    "cliffDrop": 7,
+    "flatAngle": 0.03,
+    "records": 50000
+  },
+  "ground": {
+    "compose": "stack",
+    "heightBlend": {
+      "amount": 2,
+      "depth": 0.1
+    },
+    "far": {
+      "amount": 0.7,
+      "scale": 7.3
+    },
+    "roughness": 0.9,
+    "layers": [
+      {
+        "name": "grass",
+        "map": "stylized-grass",
+        "normal": "grassNormal",
+        "scale": 6,
+        "warp": [
+          {
+            "freq": 0.005,
+            "amp": 35,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0
+          },
+          {
+            "freq": 0.035,
+            "amp": 3.5,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0.7
+          },
+          {
+            "freq": 0.18,
+            "amp": 0.5,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 1.9
+          }
+        ]
+      },
+      {
+        "name": "hollows",
+        "map": "stylized-hollows",
+        "normal": "meadowNormal",
+        "scale": 6,
+        "where": [
+          {
+            "q": "position",
+            "lo": 0.3,
+            "hi": -1
+          }
+        ],
+        "noise": {
+          "freq": 0.05,
+          "amp": 0.7
+        },
+        "edge": 0.15,
+        "warp": [
+          {
+            "freq": 0.005,
+            "amp": 20,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 0.6
+          },
+          {
+            "freq": 0.035,
+            "amp": 2,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 1.2999999999999998
+          },
+          {
+            "freq": 0.18,
+            "amp": 0.5,
+            "stretch": [
+              1,
+              1,
+              1
+            ],
+            "rotate": 2.5
+          }
+        ]
+      },
+      {
+        "name": "earth",
+        "map": "stylized-earth",
+        "normal": "dirtNormal",
+        "scale": 6,
+        "tri": true,
+        "sharp": 8,
+        "where": [
+          {
+            "q": "slope",
+            "lo": 0.22,
+            "hi": 0.36
+          }
+        ],
+        "noise": {
+          "freq": 0.1,
+          "amp": 0.6
+        },
+        "edge": 0.15
+      },
+      {
+        "name": "track",
+        "map": "stylized-track",
+        "normal": "dirtNormal",
+        "scale": 6,
+        "where": [
+          {
+            "q": "surface:dirt",
+            "lo": 0.2,
+            "hi": 0.8
+          }
+        ],
+        "noise": {
+          "freq": 0.4,
+          "amp": 0.35
+        },
+        "edge": 0.1
+      }
+    ]
+  },
+  "surfaces": {
+    "dirt": {
+      "cover": 0,
+      "grip": 0.65,
+      "drag": 0.04,
+      "spray": "dirt",
+      "mark": 0.55,
+      "edge": {
+        "width": 0.05,
+        "ragged": 0.35,
+        "scale": 0.4
+      }
+    }
+  },
+  "layers": [
+    {
+      "at": [
+        0,
+        0
+      ],
+      "size": 320,
+      "px": 640,
+      "strokes": [
+        {
+          "verb": "bench",
+          "radius": 40,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -150,
+              0
+            ],
+            [
+              150,
+              0
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 40,
+          "hardness": 0.6,
+          "strength": 12,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -150,
+              0
+            ],
+            [
+              150,
+              0
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 2.5,
+          "hardness": 0,
+          "strength": 0.7,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              40,
+              -6
+            ],
+            [
+              40,
+              6
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 2.5,
+          "hardness": 0,
+          "strength": 0.7,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              48,
+              -6
+            ],
+            [
+              48,
+              6
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 2.5,
+          "hardness": 0,
+          "strength": 0.7,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              56,
+              -6
+            ],
+            [
+              56,
+              6
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 2.5,
+          "hardness": 0,
+          "strength": 0.7,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              64,
+              -6
+            ],
+            [
+              64,
+              6
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 2.5,
+          "hardness": 0,
+          "strength": 0.7,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              72,
+              -6
+            ],
+            [
+              72,
+              6
+            ]
+          ]
+        },
+        {
+          "verb": "raise",
+          "radius": 8,
+          "hardness": 0,
+          "strength": 2.5,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              -50,
+              0
+            ]
+          ]
+        },
+        {
+          "verb": "lower",
+          "radius": 12,
+          "hardness": 0.3,
+          "strength": 4,
+          "level": 0,
+          "surface": "",
+          "path": [
+            [
+              0,
+              40
+            ]
+          ]
+        },
+        {
+          "verb": "surface",
+          "radius": 5,
+          "hardness": 0.5,
+          "strength": 0,
+          "level": 0,
+          "surface": "dirt",
+          "path": [
+            [
+              -150,
+              0
+            ],
+            [
+              150,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
