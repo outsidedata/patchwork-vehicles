@@ -84,7 +84,8 @@ const ENTER = {
   ],
 }
 // motor's manager: JSON.stringify's layout, but for the jeep's points, laid by hand a point a line. The
-// jeep is drawn in code with an exhaust; the van is a model with none.
+// jeep is drawn in code with an exhaust; the van is a model with none. The scene attaches smoke to every
+// exhaust, so particle3d draws with both.
 const MOTOR = JSON.stringify({
   world: {
     loader: { assets: {
@@ -95,12 +96,12 @@ const MOTOR = JSON.stringify({
     box3dvehicle: {
       chassis: 'car', wheel: 'wheel', joint: 'axle',
       vehicles: {
-        jeep: { body: { length: 3.6 }, look: { lock: 2, exhaust: [{ at: [-1.8, -0.2, 0.4], dir: [-1, 0, 0], pipe: 0.03, effect: 'smoke' }], points: {} } },
+        jeep: { body: { length: 3.6 }, look: { lock: 2, exhaust: [{ at: [-1.8, -0.2, 0.4], dir: [-1, 0, 0], pipe: 0.03 }], points: {} } },
         van: { body: { length: 4.5 }, look: { lock: 2.5, model: { asset: 'van' } } },
       },
       mods: { gravity: 'box3d', land: 'terrain3d' },
     },
-    particle3d: { effects: 'effects' },
+    particle3d: { effects: 'effects', attach: [{ on: 'exhaust', effect: 'smoke' }], mods: { sources: ['box3dvehicle'] } },
     anim: { kinds: { driver: { rig: 'driver-rig', model: 'driver' } } },
     interact: { kinds: { box3dvehicle: { enter: 'box3dvehicle-enter' } }, mods: { point: 'box3dvehicle', object: 'box3dvehicle', body: 'anim' } },
   },
@@ -493,15 +494,15 @@ test('interactions: each with its file, its body, and the fit and poses of the s
 test('vehicles: every vehicle of the fleet a scene has interactions for, a machine, with its files and how the page draws it', async () => {
   const g = (await json('/api/game/motor')).body
   expect(g.error).toBeUndefined()
-  const fleet = JSON.parse(MOTOR).world.box3dvehicle
+  const { box3dvehicle: fleet, particle3d } = JSON.parse(MOTOR).world
   expect(g.vehicles).toEqual([
     {
       name: 'jeep', scene: 'lot', files: ['games/motor/motor.scene.json'], model: null, plugins: ['box3dvehicle', 'particle3d'],
-      world: { box3dvehicle: { chassis: 'car', wheel: 'wheel', joint: 'axle', vehicles: { jeep: fleet.vehicles.jeep } }, particle3d: { effects: 'effects' } },
+      world: { box3dvehicle: { chassis: 'car', wheel: 'wheel', joint: 'axle', vehicles: { jeep: fleet.vehicles.jeep } }, particle3d },
     },
     {
-      name: 'van', scene: 'lot', files: ['games/motor/motor.scene.json'], model: 'van', plugins: ['box3dvehicle'],
-      world: { box3dvehicle: { chassis: 'car', wheel: 'wheel', joint: 'axle', vehicles: { van: fleet.vehicles.van } } },
+      name: 'van', scene: 'lot', files: ['games/motor/motor.scene.json'], model: 'van', plugins: ['box3dvehicle', 'particle3d'],
+      world: { box3dvehicle: { chassis: 'car', wheel: 'wheel', joint: 'axle', vehicles: { van: fleet.vehicles.van } }, particle3d },
     },
   ])
   // Its interactions are of the kind box3dvehicle, every vehicle's, on the points box3dvehicle hands.
@@ -722,18 +723,168 @@ test('a game\'s particles: each effects file once, the scenes that name it, and 
   expect(r.status).toBe(200)
   expect(r.body.files).toHaveLength(1)
   const [f] = r.body.files
+  // the thrown source's numbers, the workshop's stage file's whatever the game
+  expect(f.thrown).toEqual(JSON.parse(fs.readFileSync(new URL('./particles.stage.json', import.meta.url), 'utf8')).thrown)
   expect(f).toMatchObject({
     file: 'games/fireworks/assets/effects.json', key: 'fx', scenes: ['show', 'yard'],
     plugins: ['particle3d', 'lights3d', 'render3d'], render3d: { tone: 'neutral', bloom: { strength: 1 } }, dt: 0.02,
   })
   expect(f.effects.effects.pop).toEqual([{ n: [10, 20], life: [0.5, 1], speed: [2, 4] }])
+  expect(f.listed).toEqual([])
   expect(f.world).toEqual({
     particle3d: { effects: 'fx', hold: 0.1 },
-    loader: { assets: { puff: { type: 'sheet', url: '/games/fireworks/assets/puff.json' } } },
+    loader: { assets: { fx: { type: 'json', url: '/games/fireworks/assets/effects.json' }, puff: { type: 'sheet', url: '/games/fireworks/assets/puff.json' } } },
     lights3d: { grid: [8, 4], slices: 8 },
   })
   expect((await json('/api/particles/range')).body).toEqual({ files: [] })
   expect((await json('/api/particles/nowhere')).status).toBe(404)
+  // started on no effects file, there is none to give
+  const none = await json('/api/particles')
+  expect(none.status).toBe(404)
+  expect(none.body.error).toContain('--effects <path>')
+})
+
+// The workshop started on one effects file (`--effects`), with no game chosen.
+test('an effects file outside every game: the workshop\'s own stage, its sheets as given, served from their folders, saved in place', async () => {
+  const loose = fs.mkdtempSync(path.join(os.tmpdir(), 'loose-'))
+  const fx = path.join(loose, 'fx')
+  fs.mkdirSync(path.join(loose, 'pics'))
+  fs.mkdirSync(fx)
+  fs.writeFileSync(path.join(fx, 'portal.json'), `{
+  "cap": 300,
+  "files": ["more.json"],
+  "effects": {
+    "rift": [
+      { "n": [5, 5], "life": [1, 1], "sheet": "glow", "clip": "dot" }
+    ]
+  }
+}
+`)
+  fs.writeFileSync(path.join(fx, 'more.json'), JSON.stringify({ effects: { mote: [{ life: [1, 1], sheet: 'spark', clip: 'a' }] } }))
+  fs.writeFileSync(path.join(loose, 'pics/glow.json'), '{"pages":[]}')
+  fs.writeFileSync(path.join(loose, 'pics/spark.json'), '{"pages":[]}')
+  fs.writeFileSync(path.join(loose, 'pics/glow.png'), 'png')
+  fs.writeFileSync(path.join(loose, 'secret.txt'), 'outside')
+  const stage = JSON.parse(fs.readFileSync(new URL('./particles.stage.json', import.meta.url), 'utf8'))
+  const s = await start({ port: 0, root, effects: path.join(fx, 'portal.json'), sheets: { glow: path.join(loose, 'pics/glow.json'), spark: path.join(loose, 'pics/spark.json') } })
+  try {
+    const r = await (await fetch(s.url + '/api/particles')).json()
+    expect(r.files).toHaveLength(1)
+    const [f] = r.files
+    expect(f).toMatchObject({ file: path.join(fx, 'portal.json'), key: 'effects', scenes: [], plugins: stage.plugins, render3d: stage.render3d, dt: stage.dt, thrown: stage.thrown })
+    expect(f.effects.effects.rift).toEqual([{ n: [5, 5], life: [1, 1], sheet: 'glow', clip: 'dot' }])
+    expect(f.world).toEqual({
+      ...stage.world,
+      particle3d: { ...stage.world.particle3d, effects: 'effects' },
+      loader: { assets: {
+        glow: { type: 'sheet', url: '/given/sheet/glow/glow.json' },
+        spark: { type: 'sheet', url: '/given/sheet/spark/spark.json' },
+        effects: { type: 'json', url: '/given/effects/portal.json' },
+      } },
+    })
+    // each served from its own folder, a page beside a sheet too, the file `files` lists beside the effects; nothing outside
+    expect(await (await fetch(s.url + '/given/effects/portal.json')).text()).toContain('"rift"')
+    expect(await (await fetch(s.url + '/given/effects/more.json')).text()).toContain('mote')
+    expect(await (await fetch(s.url + '/given/sheet/glow/glow.png')).text()).toBe('png')
+    expect((await fetch(s.url + '/given/effects/..%2Fsecret.txt')).status).toBe(403)
+    expect((await fetch(s.url + '/given/sheet/nope/glow.json')).status).toBe(403)
+    // saved in place, the rest byte for byte; refused for another file, or what particle3d refuses
+    const was = fs.readFileSync(path.join(fx, 'portal.json'), 'utf8')
+    const rift = [{ n: [9, 9], life: [1, 1], sheet: 'glow', clip: 'dot' }]
+    const saved = await fetch(s.url + '/api/particles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ file: f.file, effects: { rift } }) })
+    expect(await saved.json()).toEqual({ written: true })
+    const now = fs.readFileSync(path.join(fx, 'portal.json'), 'utf8')
+    expect(JSON.parse(now).effects.rift).toEqual(rift)
+    expect(now.slice(0, now.indexOf('"effects"'))).toBe(was.slice(0, was.indexOf('"effects"')))
+    for (const b of [{ file: 'games/fireworks/assets/effects.json', effects: { rift } }, { file: f.file, effects: { rift: [{ life: [1, 1], wobble: 1 }] } }]) {
+      expect((await fetch(s.url + '/api/particles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })).status).toBe(400)
+    }
+    expect(JSON.parse(fs.readFileSync(path.join(fx, 'portal.json'), 'utf8')).effects.rift).toEqual(rift)
+  } finally {
+    await s.close()
+  }
+  // a sheet it draws from, in it or in a file it lists, and given nowhere: refused, naming each
+  const lacking = await start({ port: 0, root, effects: path.join(fx, 'portal.json') })
+  try {
+    const r = await fetch(lacking.url + '/api/particles')
+    expect(r.status).toBe(404)
+    expect((await r.json()).error).toContain('the sheets glow, spark, which no game\'s scene catalogues for it: give each as --sheet <key>=<path of its sheet json>')
+  } finally {
+    await lacking.close()
+  }
+  fs.rmSync(loose, { recursive: true })
+})
+
+// An index: a file of no effects of its own listing a family of files in a folder, one using a force
+// generator and a driver of another, as tools/workshop/assets/effects/explosions/explosions.json does.
+test('an effects file that lists others: each listed file in the summary, each saved into itself, checked with the whole set', async () => {
+  const loose = fs.mkdtempSync(path.join(os.tmpdir(), 'listed-'))
+  fs.mkdirSync(path.join(loose, 'fire'))
+  fs.writeFileSync(path.join(loose, 'library.json'), JSON.stringify({ cap: 100, files: ['fire/torch.json', 'fire/forces.json'], effects: {} }, null, 2))
+  const torch = { effects: { torch: [{ life: [1, 1], shape: 'puff', every: '0.1 / heat', forces: { rise: 1 } }] } }
+  const forces = { drivers: { heat: 1 }, forceGenerators: { rise: [{ g: -2 }] }, effects: { ember: [{ life: [2, 2], shape: 'spark' }] } }
+  fs.writeFileSync(path.join(loose, 'fire/torch.json'), JSON.stringify(torch, null, 2) + '\n')
+  fs.writeFileSync(path.join(loose, 'fire/forces.json'), JSON.stringify(forces, null, 2) + '\n')
+  const s = await start({ port: 0, root, effects: path.join(loose, 'library.json') })
+  const save = async (b: unknown) => {
+    const r = await fetch(s.url + '/api/particles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) })
+    return { status: r.status, body: await r.json() }
+  }
+  try {
+    const [f] = (await (await fetch(s.url + '/api/particles')).json()).files
+    expect(f.listed.map((l: { file: string }) => l.file)).toEqual([path.join(loose, 'fire/torch.json'), path.join(loose, 'fire/forces.json')])
+    expect(f.listed[0].effects).toEqual(torch)
+    expect(f.listed[1].effects).toEqual(forces)
+    // a listed file's effect saved into that file, the others untouched
+    const lit = [{ life: [3, 3], shape: 'glow', every: '0.2 / heat', forces: { rise: 2 } }]
+    const index = fs.readFileSync(path.join(loose, 'library.json'), 'utf8')
+    expect(await save({ file: path.join(loose, 'fire/torch.json'), effects: { torch: lit } })).toEqual({ status: 200, body: { written: true } })
+    expect(JSON.parse(fs.readFileSync(path.join(loose, 'fire/torch.json'), 'utf8')).effects.torch).toEqual(lit)
+    expect(fs.readFileSync(path.join(loose, 'library.json'), 'utf8')).toBe(index)
+    expect(JSON.parse(fs.readFileSync(path.join(loose, 'fire/forces.json'), 'utf8'))).toEqual(forces)
+    // a listed file's drivers saved into it
+    expect((await save({ file: path.join(loose, 'fire/forces.json'), drivers: { heat: 2 } })).body).toEqual({ written: true })
+    expect(JSON.parse(fs.readFileSync(path.join(loose, 'fire/forces.json'), 'utf8')).drivers).toEqual({ heat: 2 })
+    // refused, nothing written: the generator and the driver another listed file uses taken away, and a
+    // file the index does not list
+    const before = fs.readFileSync(path.join(loose, 'fire/forces.json'), 'utf8')
+    expect((await save({ file: path.join(loose, 'fire/forces.json'), forceGenerators: {} })).status).toBe(400)
+    expect((await save({ file: path.join(loose, 'fire/forces.json'), drivers: {} })).status).toBe(400)
+    expect(fs.readFileSync(path.join(loose, 'fire/forces.json'), 'utf8')).toBe(before)
+    expect((await save({ file: path.join(loose, 'other.json'), effects: { torch: lit } })).status).toBe(400)
+    // a new effect saved into the index itself, checked with the files it lists
+    expect((await save({ file: f.file, effects: { glowing: [{ life: [1, 1], shape: 'glow', forces: { rise: 1 } }] } })).body).toEqual({ written: true })
+    expect(JSON.parse(fs.readFileSync(path.join(loose, 'library.json'), 'utf8')).effects.glowing).toHaveLength(1)
+  } finally {
+    await s.close()
+  }
+  fs.rmSync(loose, { recursive: true })
+})
+
+test('an effects file a game names: the stage of the game\'s first scene that names it, its sheets and catalogue key, saved into the game\'s file', async () => {
+  const s = await start({ port: 0, root, effects: path.join(root, 'games/fireworks/assets/effects.json') })
+  try {
+    const r = await (await fetch(s.url + '/api/particles')).json()
+    const [f] = r.files
+    expect(f).toMatchObject({
+      file: 'games/fireworks/assets/effects.json', key: 'fx', scenes: ['fireworks/show', 'fireworks/yard'],
+      plugins: ['particle3d', 'lights3d', 'render3d'], render3d: { tone: 'neutral', bloom: { strength: 1 } }, dt: 0.02,
+    })
+    expect(f.world).toEqual({
+      particle3d: { effects: 'fx', hold: 0.1 },
+      loader: { assets: { puff: { type: 'sheet', url: '/games/fireworks/assets/puff.json' }, fx: { type: 'json', url: '/given/effects/effects.json' } } },
+      lights3d: { grid: [8, 4], slices: 8 },
+    })
+    const file = path.join(root, 'games/fireworks/assets/effects.json')
+    const was = fs.readFileSync(file, 'utf8')
+    const smoke = [{ life: [3, 3], g: -2 }]
+    const saved = await fetch(s.url + '/api/particles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ file: f.file, effects: { smoke } }) })
+    expect(await saved.json()).toEqual({ written: true })
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).effects.smoke).toEqual(smoke)
+    fs.writeFileSync(file, was)
+  } finally {
+    await s.close()
+  }
 })
 
 test('an effect\'s layers saved in place into the effects file, the rest byte for byte, a new effect added, and refused when particle3d would refuse it', async () => {
@@ -760,6 +911,34 @@ test('an effect\'s layers saved in place into the effects file, the rest byte fo
   }
   expect((await post('/api/particles/fireworks', { file: 'games/fireworks/show.scene.json', effects: { pop } })).status).toBe(400)
   expect((await post('/api/particles/fireworks', { file: 'games/fireworks/assets/effects.json', effects: {} })).status).toBe(400)
+  expect(fs.readFileSync(file, 'utf8')).toBe(before)
+  fs.writeFileSync(file, was)
+})
+
+test('the file\'s drivers and force generators saved whole, with or without an effect, and refused when particle3d would refuse them', async () => {
+  const file = path.join(root, 'games/fireworks/assets/effects.json')
+  const name = 'games/fireworks/assets/effects.json'
+  const was = fs.readFileSync(file, 'utf8')
+  const drivers = { amplitude: 1, double: 'amplitude * 2' }
+  const forceGenerators = { cone: [{ pull: 'amplitude', at: [0, 0, -2] }, { swirl: 1.5, axis: [0, 0, 1] }] }
+  const pop = [{ n: [30, 40], life: [0.5, 1], every: '0.2 / amplitude', forces: { cone: 'double' } }]
+  expect(await post('/api/particles/fireworks', { file: name, drivers, forceGenerators, effects: { pop } })).toEqual({ status: 200, body: { written: true } })
+  const now = JSON.parse(fs.readFileSync(file, 'utf8'))
+  expect(now.drivers).toEqual(drivers)
+  expect(now.forceGenerators).toEqual(forceGenerators)
+  expect(now.effects.pop).toEqual(pop)
+  // smoke's lines as they were, byte for byte
+  const text = fs.readFileSync(file, 'utf8')
+  expect(text.slice(text.indexOf('"smoke"'), text.indexOf('"smoke"') + 40)).toBe(was.slice(was.indexOf('"smoke"'), was.indexOf('"smoke"') + 40))
+  // a driver alone, with no effect changed
+  expect((await post('/api/particles/fireworks', { file: name, drivers: { ...drivers, amplitude: 3 } })).body).toEqual({ written: true })
+  expect(JSON.parse(fs.readFileSync(file, 'utf8')).drivers.amplitude).toBe(3)
+  const before = fs.readFileSync(file, 'utf8')
+  // refused, and nothing written: a driver the layers name taken away, a driver that is no expression, a
+  // generator the layers are in taken away, an entry with a field that is none of its own, and nothing given
+  for (const b of [{ drivers: { amplitude: 1 } }, { drivers: { ...drivers, double: '2 *' } }, { forceGenerators: {} }, { forceGenerators: { cone: [{ speed: 1 }] } }, { drivers: [1] }, {}]) {
+    expect((await post('/api/particles/fireworks', { file: name, ...b })).status).toBe(400)
+  }
   expect(fs.readFileSync(file, 'utf8')).toBe(before)
   fs.writeFileSync(file, was)
 })

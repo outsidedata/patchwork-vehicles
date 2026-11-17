@@ -9,7 +9,9 @@
 // row's position and turned to its facing, the fields its kind's `reads` names `pos` and `yaw`, and
 // added to render3d's scene. The model is asked of the
 // loader once, and the row is drawn once it has landed. Every material is handed to
-// `render3d.dress` once, and every mesh casts and takes shadows. The model is taken off the scene
+// `render3d.dress` once, and every mesh casts and takes shadows and is marked moving
+// (`userData.moving`), so lights3d draws its shadow each frame apart from the still scene's, which it
+// draws once. The model is taken off the scene
 // when its row ends, and `close` takes every one off.
 //
 // The clips. Every clip the rig lists is read out of the model's animations once per model and rig
@@ -19,8 +21,8 @@
 // than a frame (its own closest two keys) from its table `dur` throws, naming it. A mirrored clip is
 // built from its source here: the tracks of Left and Right bones swapped, x positions negated and
 // the quaternions' y and z negated, which is the source's pose reflected across the body's x. They
-// are built again when the rig's `clips`, `mask` or `meshes` change, compared by content, since the
-// editor writes a file in place.
+// are built again when the rig's `clips`, `mask` or `meshes` change, compared by content, since a
+// file written while the game runs is refilled in place.
 //
 // The mixer is scrubbed, never run. Every action is always playing; each frame writes each action's
 // `time` and weight from the row, then calls `mixer.update(0)`, which evaluates every action at
@@ -80,7 +82,7 @@
 // Props. `kinds.<kind>.props: [{ model, bone, at, turn }]` hangs loader models on the body. Each row
 // gets its own `plugins.loader.model(model)` clone per prop, each asked of the loader once, made
 // once every one has landed and added to render3d's scene, not under the bone; every material is
-// dressed and every mesh casts and takes shadows, as the body's. Each is placed at the world frame of
+// dressed and every mesh casts and takes shadows and is marked moving, as the body's. Each is placed at the world frame of
 // `bone` (the first bone whose name ends with it) with that frame's scale taken off, since a Mixamo
 // armature is scaled to centimetres and a prop is modelled in metres, then moved by `at` (metres)
 // and turned by `turn` (degrees, an XYZ Euler), both in the bone's scale-free frame. A row's props
@@ -289,13 +291,16 @@ export function anim() {
     return false
   }
 
-  // Every material handed to render3d once, and every mesh casting and taking shadows.
+  // Every material handed to render3d once, and every mesh casting and taking shadows, marked moving
+  // (a body posed every frame and the props it holds go where its row goes), so lights3d draws its
+  // shadow into its moving atlas each frame.
   function dress(root: THREE.Object3D, plugins: Plugins, each: (mesh: THREE.Mesh) => void = () => {}) {
     root.traverse(o => {
       const mesh = o as THREE.Mesh
       if (!mesh.isMesh) return
       mesh.castShadow = true
       mesh.receiveShadow = true
+      mesh.userData.moving = true
       for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
         if (dressed.has(m)) continue
         dressed.add(m)

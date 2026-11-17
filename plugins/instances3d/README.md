@@ -40,6 +40,10 @@ its normal, as a placed tree does.
    draws itself, and `mods: { instances: [...], behaviors: [...] }` naming the plugins that hand it rows
    and geometry.
 3. For lod3d, name `instances3d` in `world.lod3d.mods.behaviors` and give each layer a `mesh` look.
+4. For particle3d, name `instances3d` in `world.particle3d.mods.behaviors` and give a layer
+   `"mesh": { "rows": [...], "look": { ... }, "seed"?: n }`: each particle is one instance of one of the
+   look's rows, where it flies, turned by its spin and at its size, so debris is real rocks that tumble,
+   fall and bounce.
 
 ```json
 "instances3d": {
@@ -52,6 +56,8 @@ its normal, as a placed tree does.
 
 - **lod3d**: `instances3d.lod3d.ts` delivers lod3d the `mesh` word, so a layer's instances are drawn
   here (demo_lod3d).
+- **particle3d**: `instances3d.particle3d.ts` delivers particle3d the `mesh` word, so a layer's
+  particles are drawn here as meshes (the particle workshop's `explosion`).
 - **box3d**: `box3d.instances3d.ts` hands it every body row and the `body` geometry (demo_box3d).
 - **shapes3d**: `shapes3d.instances3d.ts` hands it every shapes3d row and the `form` geometry, the same
   shapes solids draws.

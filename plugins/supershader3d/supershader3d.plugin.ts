@@ -6,9 +6,14 @@
 // library (`ONE-SHADER.md` in the library's pro-ng says the whole system).
 //
 // `world.supershader3d`:
-//   looks   the catalogue name of the looks JSON (a `json` entry; `preload` it).
+//   looks   the catalogue name of the looks JSON (a `json` entry; `preload` it), or none where the `looks` mod
+//           names it.
+//   glowmap { resolution, cells }, or none: the glow the camera sees made each frame into a texture another
+//           plugin lights the scene from (The glowmap, below).
 //   mods    behaviors  the plugins that deliver the shared textures the looks read (The shared
 //                      textures, below).
+//           looks      one: `(world) → name`, the catalogue name of the looks JSON, from the plugin that makes the
+//                      scene's place (world3d's, `world3d.supershader3d.ts`), in place of `looks`.
 //
 // The shared textures. The file's `needs` names each shared texture the looks read, and this keeps a
 // table from that word to the function that makes it, `(plugins) → THREE.Texture`, bound as the
@@ -18,8 +23,8 @@
 // `world.supershader3d.mods.behaviors`, each exporting `behaviors(plugins)`, `{ <word>: make }`, laid
 // over the table in the list's order, a later one's taking the place of an earlier one's, a delivered
 // `noise` the place of its own; `courses`, the buildings' course table the wall looks read
-// (`csCourses`), is the plugin's that cuts the buildings. A need nothing delivers throws, naming the
-// word and the key.
+// (`csCourses`), is world3d's, which draws the buildings (`world3d.supershader3d.ts`). A need nothing delivers throws,
+// naming the word and the key.
 //
 // The file. `materials` are the scene's materials in the order a vertex's `lookId` counts them,
 // each `{ name, look, call, colour }`: its look's name, the draw call that draws it (`solid`,
@@ -28,15 +33,17 @@
 // or null where no material is drawn by it, and `all`, every material behind one switch, for a
 // program that draws any of them (the ground's). `vertexPars` and `vertexMain` are the vertex side:
 // the attributes `lookId`, `lookInfo` and the slots `s0`, `s1`, `s2` and `s3`, copied to varyings, and the
-// world position and normal. `uniforms` is every material's settings, `L<id>_<name>`, with its value;
-// `needs` which shared textures the looks read (`noise`, `random`, `courses`); `pictures` the stack's
+// world position and normal. `settings` is every material's settings, `{ width, materials }`,
+// `materials[id]` the material's in its look's order, each `{ name, type, value }`, `type` `float` or
+// `vec3` (The settings); `needs` which shared textures the looks read (`noise`, `random`, `courses`); `pictures` the stack's
 // layers in order, each `{ asset, file, set, source, colour }`, `asset` the catalogue name of the
 // picture, a `texture` entry, which the bake cut to `picture` pixels square.
 //
 // What it makes, on the first tick the file has landed: the shared textures the looks need, from the
 // table (The shared textures); and one MeshPhysicalMaterial
 // per call that draws anything, dressed by render3d, so every splice the scene's plugins register
-// lands on it, and then patched: the vertex side after `common` and `project_vertex`; the whole
+// lands on it, and then patched: the vertex side after `common` and `project_vertex`, `lookTime` declared
+// ahead of it so a look's own `vertex` code reads the clock as its fragment code does; the whole
 // fragment preamble right before `void main`, after everything three declares; after `map_fragment`
 // the uv's screen derivatives, taken once where every pixel runs them so a picture read inside a
 // look's branch still knows its sharpness, then `lookRun(id)` and the look's colour and alpha; the
@@ -58,6 +65,31 @@
 // of the catalogue throws, naming it and the file. Before the stack is drawn, and on a page with no
 // renderer, the sampler is unbound and a picture reads black.
 //
+// A looks file baked with a `stack` (`scripts/bake.ts`'s looks tool writes one) holds every picture
+// again as one GPU-compressed KTX2 array, its mips made by the bake, and each layer's mean: the
+// catalogue's `stack.asset`, which must be a `.ktx2` texture entry (the loader's KTX2), is asked of the
+// loader and bound as `lookPictures` as it lands, with repeat wrap, trilinear filtering and the GPU's
+// anisotropy, and `lookMeans` is the file's. Nothing is drawn, read back or mipmapped on the page, and
+// the pictures' own entries are not asked for. A stack that failed reads black; the loader writes the
+// failure once. A file with no `stack` is drawn from its pictures as above.
+//
+// The settings. A GPU holds only so many uniforms a program (MAX_FRAGMENT_UNIFORM_VECTORS, 1024
+// vectors on many), and a scene of many materials, each with its own settings, passes it, so no
+// setting is a uniform: the bake (`scripts/pack-looks.ts`) writes each material's look to read its
+// settings out of one table, `lookSettings`, with `texelFetch(lookSettings, ivec2(<slot>, <id>), 0)`,
+// `.r` for a float and `.rgb` for a vec3. The table is a float RGBA DataTexture `width` texels across
+// and a row a material, the row's texels the material's settings in order, nearest filtered with no
+// mips, made from the file as it lands, on a page with no renderer too. The program holds one sampler
+// however many materials and settings the scene has.
+//
+// The glowmap. With `world.supershader3d.glowmap`, `{ resolution, cells }`, the glow the camera sees is made each
+// frame into one float texture another plugin lights the scene from, so a thing in a glowing material casts its glow
+// by being drawn: the scene drawn again small, each glowing pixel's glow by its material's own `lookRun`, summed into
+// cells (each its power, area, place and facing). `supershader3d.glowmap.ts` says it and the texture's layout. It is
+// drawn by the scene's
+// outermost draw, through the camera that draws it, hooked on the scene's `onBeforeRender` once the file has landed.
+// lights3d lights the scene from it through its mod `supershader3d.lights3d.ts` (`world.lights3d.mods.glow`).
+//
 // A geometry drawn by a call's material carries, on each vertex, `lookId` (its material's number),
 // `lookInfo` (three numbers a look seeds itself from: its material, its thing's row and its part,
 // so no two parts are alike), `uv` in metres, and the slots `s0` (3 numbers), `s1` (3), `s2` (4) and
@@ -71,17 +103,29 @@
 // `lookGy` itself before calling `lookRun` (the ground's, `supershader3d.terrain3d.ts`); `uniforms`,
 // the one set every material and such a program binds, `lookView` (0 shaded, 1 each piece its own
 // colour, 2 the relief, 3 the normal), `lookDebug` (1 draws every material in its flat colour),
-// `lookPictures`, `lookMeans`, the shared textures and every setting; and `ready()`, whether the file
-// has landed and every picture has landed or failed. Its mods deliver its looks to solids
+// `lookTime` (the looks' clock: seconds since the file landed, on by `prefabs.engine.dt` each tick
+// after, which a look that moves reads on either side, the vertex side's declared by the plugin and the fragment
+// side's by the file; the library's `LOOKS.md` says how), `lookPictures`,
+// `lookMeans`, `lookSettings` and the shared textures; `setting(material, name)`, a
+// setting's value, a number or `[r, g, b]`, and `set(material, name, value)`, which writes it into the
+// table for the next frame, each throwing on a material or setting the file does not hold and `set`
+// on a value of the wrong type; and `ready()`, whether the file has landed and every picture has
+// landed or failed; `glowmap()`, the glowmap as the last frame drew it (`{ texture, cells }`), undefined without
+// one. Its mods deliver its looks to solids
 // (`supershader3d.solids.ts`) and to terrain3d (`supershader3d.terrain3d.ts`). It is listed before
 // every plugin that reads it, which each checks with `ahead`. `close` disposes every material and
 // texture it made.
 import type * as THREE from 'three'
 import type { Plugins } from '#engine/browser.ts'
-import { modsOf, provided } from '#addons/scenemanager/scenemanager.addon.ts'
+import { mod, modsOf, provided } from '#addons/scenemanager/scenemanager.addon.ts'
+import { makeGlowmap, type Glowmap, type GlowSettings } from './supershader3d.glowmap.ts'
+
+export type { Glowmap, GlowSettings }
 
 export type Call = 'solid' | 'relief' | 'seeThrough'
 export type Shader = { ids: number[]; fragmentPars: string; features: Record<string, boolean> }
+// One setting of a material, a texel of the settings table (The settings).
+export type Setting = { name: string; type: 'float' | 'vec3'; value: number | number[] }
 export type Looks = {
   about: string
   picture: number
@@ -89,14 +133,25 @@ export type Looks = {
   vertexPars: string
   vertexMain: string
   calls: { solid: Shader | null; relief: Shader | null; seeThrough: Shader | null; all: Shader | null }
-  uniforms: Record<string, { type: 'float' | 'vec3'; value: number | number[] }>
+  settings: { width: number; materials: Setting[][] }
   needs: string[]
   pictures: { asset: string; file: string; set: string; source: string; colour: boolean }[]
+  // every picture of `pictures` again, in its order, as one GPU-compressed KTX2 array with its mips: the
+  // catalogue's entry `asset`, the file `file` in the pictures' folder; and each layer's `lookMeans`
+  stack?: { asset: string; file: string; means: number[] }
 }
-type Settings = { looks: string; mods?: { behaviors?: string | string[] } }
+type Settings = { looks?: string; glowmap?: GlowSettings; mods?: { behaviors?: string | string[]; looks?: string } }
 // A shared texture's maker (The shared textures), and what a mod delivers, by word.
 export type Shared = (plugins: Plugins) => THREE.Texture
 export type Behaviors = (plugins: Plugins) => Record<string, Shared>
+// The `looks` mod: the catalogue name of the looks file the plugin that makes the scene's place hands it.
+export type LooksOf = (world: Record<string, any>) => string
+
+// The catalogue name of the scene's looks file: the `looks` mod's, or `world.supershader3d.looks`.
+function looksOf(world: Record<string, any>, s: Settings): string {
+  const from = mod<LooksOf>(world, 'supershader3d', 'looks')
+  return from ? from(world) : s.looks!
+}
 
 const CALLS: Call[] = ['solid', 'relief', 'seeThrough']
 // The uniform each shared texture is bound as.
@@ -202,7 +257,7 @@ export function chunks(three: typeof import('three')) {
 // A call's material: three's physical material patched to take every input from the look.
 export function patch(shader: { vertexShader: string; fragmentShader: string }, looks: Looks, part: Shader, swaps: ReturnType<typeof chunks>) {
   shader.vertexShader = shader.vertexShader
-    .replace('#include <common>', `#include <common>\n${looks.vertexPars}`)
+    .replace('#include <common>', `#include <common>\nuniform float lookTime;\n${looks.vertexPars}`)
     .replace('#include <project_vertex>', `#include <project_vertex>\n${looks.vertexMain}`)
   if (!shader.fragmentShader.includes('void main() {')) throw new Error('supershader3d: three\'s fragment shader has no "void main() {"')
   shader.fragmentShader = shader.fragmentShader
@@ -246,6 +301,51 @@ export function supershader3d() {
   // the pictures: whether every one has landed or failed, and the stack drawn from them
   let landed = false
   let stack: THREE.DataArrayTexture | undefined
+  // the settings table (The settings)
+  let settings: THREE.DataTexture | undefined
+  // the glowmap (The glowmap), the scene whose hooks draw it and the hooks it had, and how deep the scene's draws are
+  let glow: ReturnType<typeof makeGlowmap> | undefined
+  let hooked: { scene: THREE.Scene; before: THREE.Scene['onBeforeRender']; after: THREE.Scene['onAfterRender'] } | undefined
+  let depth = 0
+
+  // The glowmap made, and drawn by the scene's outermost draw each frame through the camera that draws it.
+  function glowing(plugins: Plugins, file: Looks, s: GlowSettings) {
+    const t = three!
+    const scene = plugins.render3d.scene as THREE.Scene
+    const own = new Set<THREE.Material>(Object.values(materials))
+    glow = makeGlowmap(t, s, file, uniforms, own)
+    const g = glow
+    const before = scene.onBeforeRender, after = scene.onAfterRender
+    hooked = { scene, before, after }
+    scene.onBeforeRender = function (renderer, s3, camera, target, material, group) {
+      depth++
+      if (depth === 1) g.draw(renderer, scene, camera)
+      before.call(this, renderer, s3, camera, target, material, group)
+    }
+    scene.onAfterRender = function (renderer, s3, camera, geometry, material, group) {
+      after.call(this, renderer, s3, camera, geometry, material, group)
+      depth--
+    }
+  }
+
+  // A setting's texel written: a float in red, a colour in red, green and blue.
+  function write(id: number, at: number, value: number | number[]) {
+    const data = settings!.image.data as Float32Array
+    const k = (id * looks!.settings.width + at) * 4
+    if (Array.isArray(value)) data.set(value, k)
+    else data[k] = value
+    settings!.needsUpdate = true
+  }
+
+  // A setting of the file by its material's name and its own, and where it is in the table.
+  function find(material: string, name: string) {
+    const id = ids.get(material)
+    if (id === undefined) throw new Error(`supershader3d: the looks file holds no material ${material}`)
+    const row = looks!.settings.materials[id]
+    const at = row.findIndex(s => s.name === name)
+    if (at < 0) throw new Error(`supershader3d: material ${material} (look ${looks!.materials[id].look}) has no setting ${name}; it has ${row.map(s => s.name).join(', ') || 'none'}`)
+    return { id, at, setting: row[at] }
+  }
 
   // The materials, the shared textures and the pictures, once the file has landed.
   function install(plugins: Plugins, file: Looks) {
@@ -254,6 +354,7 @@ export function supershader3d() {
     file.materials.forEach((m, id) => ids.set(m.name, id))
     uniforms.lookView = { value: 0 }
     uniforms.lookDebug = { value: 0 }
+    uniforms.lookTime = { value: 0 }
     uniforms.lookPictures = { value: null }
     uniforms.lookMeans = { value: new Array(Math.max(file.pictures.length, 1)).fill(0.2) }
     // the table of shared textures: its own, and each delivered word laid over the last
@@ -285,9 +386,13 @@ export function supershader3d() {
       if (!bound) throw new Error(`supershader3d: the looks read the shared texture ${need}, which no look's shared chunk binds (${Object.keys(BOUND).join(', ')})`)
       uniforms[bound] = { value: make(plugins) }
     }
-    for (const [name, u] of Object.entries(file.uniforms)) {
-      uniforms[name] = { value: Array.isArray(u.value) ? new t.Vector3(...u.value) : u.value }
-    }
+    const { width, materials: rows } = file.settings
+    const grid = new t.DataTexture(new Float32Array(width * Math.max(rows.length, 1) * 4), width, Math.max(rows.length, 1), t.RGBAFormat, t.FloatType)
+    grid.magFilter = grid.minFilter = t.NearestFilter
+    grid.generateMipmaps = false
+    settings = grid
+    rows.forEach((row, id) => row.forEach((s, at) => write(id, at, s.value)))
+    uniforms.lookSettings = { value: grid }
     const swaps = chunks(t)
     for (const call of CALLS) {
       const part = file.calls[call]
@@ -318,9 +423,29 @@ export function supershader3d() {
     pictures(plugins, file)
   }
 
+  // The stack the bake wrote as one GPU-compressed KTX2 array (The pictures), bound as the loader hands
+  // it over, with the means the bake worked out: nothing drawn, read back or mipmapped on the page.
+  // The texture is the loader's, which keeps it; `close` leaves it.
+  function compressed(plugins: Plugins, file: Looks, baked: NonNullable<Looks['stack']>) {
+    const it = plugins.loader.catalogued(baked.asset)
+    if (it?.type !== 'texture' || !/\.ktx2$/i.test(it.url)) throw new Error(`supershader3d: the looks' pictures are the stack ${baked.asset} (${baked.file}), which is no .ktx2 texture entry of the loader's catalogue`)
+    plugins.loader.load(baked.asset).then((tex: THREE.Texture) => {
+      if (looks !== file) return
+      const renderer = plugins.render3d.renderer as THREE.WebGLRenderer | undefined
+      tex.wrapS = tex.wrapT = three!.RepeatWrapping
+      tex.magFilter = three!.LinearFilter
+      tex.minFilter = three!.LinearMipmapLinearFilter
+      if (renderer) tex.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      tex.needsUpdate = true
+      uniforms.lookPictures.value = tex
+      uniforms.lookMeans.value = baked.means
+    }, () => {}).finally(() => { if (looks === file) landed = true })
+  }
+
   // Every picture asked of the loader; once all have landed or failed, the stack, where there is a
   // renderer and a page to draw on.
   function pictures(plugins: Plugins, file: Looks) {
+    if (file.stack) return compressed(plugins, file, file.stack)
     for (const p of file.pictures) {
       if (plugins.loader.catalogued(p.asset)?.type !== 'texture') throw new Error(`supershader3d: the looks read the picture ${p.asset} (${p.file}), which is no texture entry of the loader's catalogue`)
     }
@@ -365,28 +490,62 @@ export function supershader3d() {
   return {
     uniforms,
     tick(plugins: Plugins) {
-      if (looks) return
-      const s = plugins.wire.scene.world!.supershader3d as Settings
+      // the looks' clock, once they are made: on by the frame's seconds each tick
+      if (looks) {
+        uniforms.lookTime.value += plugins.wire.scene.prefabs.engine.dt
+        return
+      }
+      const world = plugins.wire.scene.world!
+      const s = world.supershader3d as Settings
+      const name = looksOf(world, s)
       three ??= plugins.render3d.THREE as typeof import('three')
-      const file = plugins.loader.get(s.looks) as Looks | undefined
+      const file = plugins.loader.get(name) as Looks | undefined
       if (!file) {
-        if (asked !== s.looks) { asked = s.looks; plugins.loader.load(s.looks) }
+        if (asked !== name) { asked = name; plugins.loader.load(name) }
         return
       }
       install(plugins, file)
+      if (s.glowmap && plugins.render3d.scene) {
+        if (!file.calls.all) throw new Error('supershader3d: world.supershader3d.glowmap needs the looks file\'s `all` call, which this one has not; bake it again')
+        glowing(plugins, file, s.glowmap)
+      }
     },
+    // The glowmap as this frame drew it (The glowmap), or undefined where the scene gives none or before it is drawn.
+    glowmap: (): Glowmap | undefined => glow?.map(),
     looks: () => looks,
     material: (call: Call) => materials[call],
     idOf: (name: string) => ids.get(name),
     callOf: (name: string): Call | undefined => { const id = ids.get(name); return id === undefined ? undefined : looks!.materials[id].call },
     glsl: () => (looks?.calls.all ? free(looks.calls.all.fragmentPars, looks.vertexPars) : undefined),
+    setting(material: string, name: string): number | number[] {
+      const { id, at, setting } = find(material, name)
+      const data = settings!.image.data as Float32Array
+      const k = (id * looks!.settings.width + at) * 4
+      return setting.type === 'vec3' ? [data[k], data[k + 1], data[k + 2]] : data[k]
+    },
+    set(material: string, name: string, value: number | number[]) {
+      const { id, at, setting } = find(material, name)
+      const given = Array.isArray(value) ? (value.length === 3 ? 'vec3' : '') : 'float'
+      if (given !== setting.type) throw new Error(`supershader3d: material ${material}'s setting ${name} is a ${setting.type}, and was handed ${JSON.stringify(value)}`)
+      write(id, at, value)
+    },
     ready: () => !!looks && landed,
     close() {
+      if (hooked) {
+        hooked.scene.onBeforeRender = hooked.before
+        hooked.scene.onAfterRender = hooked.after
+        hooked = undefined
+      }
+      glow?.dispose()
+      glow = undefined
+      depth = 0
       for (const call of CALLS) { materials[call]?.dispose(); delete materials[call] }
       for (const t of made) t.dispose()
       made.length = 0
       stack?.dispose()
       stack = undefined
+      settings?.dispose()
+      settings = undefined
       for (const k of Object.keys(uniforms)) delete uniforms[k]
       ids.clear()
       looks = undefined

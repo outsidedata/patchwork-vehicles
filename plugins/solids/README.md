@@ -67,7 +67,7 @@ by node; `blink(blinks, now)` lights blinking paints by the page's clock.
 - **shapes3d**: the mod `shapes3d.solids.ts` (`mods: { models: 'shapes3d' }`) hands a plain model of
   each of its kinds that gives a `look`.
 - **loader**: the model files, and the pictures paints lay.
-- **lights3d**: draws the point lights a model hangs, however many.
+- **lights3d**: draws the point and spot lights a model hangs, however many, and their shadows.
 
 ## Keywords
 

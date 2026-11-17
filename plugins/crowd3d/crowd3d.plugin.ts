@@ -103,7 +103,9 @@
 // clone of the glb's, dressed by render3d (`dress`) with a surface that skins each vertex by four
 // bones of the copy's row of the pose, the body's first row plus `gl_InstanceID`; it has no instance
 // matrices, and render3d's between-steps does not move it. The shadow casts through a depth material
-// dressed with the same surface. It is never culled whole, since its people stand anywhere.
+// dressed with the same surface. It is never culled whole, since its people stand anywhere, and it is
+// marked moving (`userData.moving`), so lights3d draws its shadow each frame into its moving atlas, in
+// every face of every shadowed light, since it stands wherever its people do.
 //
 // Items. A place is a name for one bone of the Mixamo skeleton (PLACES): `hips`, `chest` and `back`
 // (Spine2), `neck`, `head`, `leftArm`, `leftForearm`, `leftHand`, `leftThigh`, `leftShin`,
@@ -776,6 +778,9 @@ export function crowd3d() {
       mesh.castShadow = true
       mesh.receiveShadow = true
       mesh.frustumCulled = false
+      // its people walk and are posed on the GPU: lights3d draws its shadow into the moving atlas,
+      // every frame
+      mesh.userData.moving = true
       scene!.add(mesh)
       return { mesh }
     }

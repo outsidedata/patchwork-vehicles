@@ -128,7 +128,9 @@ model.
    Bodies are read from the library (`PATCHWORK_LIBRARY`, else `~/patchwork-library`), clips from the
    clip collection (`PATCHWORK_CLIPS`, else `~/troupe-collection`), each from the shell or the repo's
    `.env`. Specular/gloss materials (Adobe Fuse, Mixamo) are turned into metal/rough
-   so skin and cloth do not come out as polished metal. The touch measure and reader also run on their
+   so skin and cloth do not come out as polished metal. The rig's `textures`
+   (`{ color, normal, roughness, emission }`) caps each type of map at that many pixels on its longer
+   side, 512 for a type left out. The touch measure and reader also run on their
    own, over a list of clips as their FBX have them (`anim.touches.py`'s and `anim.touches.mjs`'s
    headers), which the library's touch catalogue is made by.
 5. In the kind's `<kind>.sim.ts`, call `animate(me, w, dt)` every step and apply the travel it
@@ -141,6 +143,9 @@ model.
 
 - **loader**: reads the rig file (`json`) and the models (`model`).
 - **render3d**: anim draws into its scene and dresses every material through `render3d.dress`.
+- **lights3d**: every mesh anim draws, a body and the props it holds, is marked moving
+  (`userData.moving`), so lights3d draws its shadow each frame into its moving atlas, while the still
+  scene's shadows are drawn once.
 - **ragdoll3d**: the mod `anim.ragdoll3d.ts` (`world.ragdoll3d.mods: { model: 'anim', pose: 'anim' }`)
   lays limp bodies on the models anim draws. ragdoll3d comes after anim in `plugins`.
 - **ik3d**: the mod `anim.ik3d.ts` (`world.ik3d.mods: { body: 'anim' }`) bends the limbs of anim's

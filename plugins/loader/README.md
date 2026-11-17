@@ -69,8 +69,27 @@ its first tick and the rest on `load` or `on`. Images are decoded by the scene's
   and `fonts()` says whether every font of the catalogue has landed or failed; the ui waits on it
   before it draws. In node or jsdom nothing is installed and a font is `{ family }`, its name.
 - `model`: a self-contained `.glb` decoded with three's glTF loader and meshopt decoder (so gltfpack
-  output works); `model(name)` is `{ scene, animations }`, cloned with its skeleton per call.
+  output works); `model(name)` is `{ scene, animations }`, cloned with its skeleton per call, its
+  geometry and materials shared by every copy. In a page a meshopt glb's buffers are unpacked in
+  three workers, and at most four models fetch and decode at once, the rest queued in order.
+- Nothing lands the moment it decodes: each tick hands over what has decoded, in order, for four
+  milliseconds, sending each model's and texture's pictures to the GPU (`renderer.initTexture`)
+  before it lands, so a big batch of models arrives over several frames and the first frame that
+  draws one uploads nothing.
+- What the ui draws comes first: no model starts until every font and every `preload` entry
+  `for: "ui"` has landed or failed, and those land ahead of anything else waiting, so a loading
+  screen is up within a frame or two.
 - `sound`: decoded through `plugins.audio.context`; `sound(name)` is the AudioBuffer.
+- `preloads()`: `{ done, of }`, how many of the first tick's entries (every `preload` and font) have
+  landed or failed.
+- `shaders()`: how many things are still having their shaders compiled, through the scene's
+  `world.loader.mods.shaders` (render3d's `render3d.loader.ts`); 0 when it names none.
+- The loading screen, `loader.ui.ts`: delivers the ui the word `loading`. A `world.ui` panel giving
+  `loading: { fill, pictures, bar, lines, shaders, fade }` covers the canvas with the game's art and
+  logo (`texture` entries `for: "ui"`, preloaded), a bar of `preloads()`, and tips one at a time; once
+  every file is in and while `shaders()` is above 0, its `shaders` line ("Compiling shaders") in place
+  of the tips and the bar filling as they finish; then fades. The scene names it in `world.ui.mods.behaviors: ['loader']`, lists `loader`
+  before `ui`, and gives the panel `modal` and a high `layer`. Its header has a whole example.
 - `beside(name, path)`: the bytes of a file an entry's file names but the catalogue does not (a music
   project's samples, a sound's stems), or undefined when missing.
 - `load(name)` never throws: a failure rejects, is written to the console once as `loader <name>: …`,

@@ -25,7 +25,9 @@
 //   The upper half: `upper` at `upperW` and `was` at `wasW`, each clip's tracks of the bones from the
 //     row's `upperBone` (`wasBone`) up as a clip of their own, bound to the model root, weighted as
 //     `partsOf` weighs them, over the body's two (anim's upper layer, its mask each move's own bone).
-//
+//   The additive layers (`adds`): once the mixer has posed the body and its hips are pinned, each laid
+//     on top by hand as `motion3d.play.ts`'s `posed` lays it (Additive layers), so the page and the server
+//     draw the same body.
 //
 // Pinning. The row carries the body's travel, so the hips must not carry it again. The hips are the
 // bone the clips key that has no bone above it. A one-shot that carries travel has their horizontal
@@ -135,6 +137,7 @@ type Drawing = {
   reached: Map<string, THREE.Object3D> // a carried limb's target eased in, by its end bone
   carried: number // the prop its carry sets this frame, by its place in its kind's props, or −1
   aimed: Aimed | undefined // the last aim, before its turn; none when not aimed
+  laid: { node: THREE.Object3D; quaternion: THREE.Quaternion; position: THREE.Vector3 }[] // each bone the last layers changed, as it stood before them
 }
 // The last aim of a body: before its turn, the prop's forward and its anchor bone's turn; after it and
 // before the bend, the anchor bone's frame (its scale taken off) and each of its carry's limbs' end
@@ -325,6 +328,7 @@ export function motion3d() {
     b.actions.clear()
     b.turned = []
     b.short = []
+    b.laid = []
   }
 
   // Whether the loader's model has landed, asking for it once.
@@ -384,7 +388,7 @@ export function motion3d() {
     const b: Drawing = {
       root, kit, key, mixer: new T.AnimationMixer(root), actions: new Map(), rest, hips, bind: hips && [hips.position.clone(), hips.quaternion.clone()],
       sockets: new Map(), bones: new Map(), props: undefined, hung: undefined, row: r, limp: false, aimed: undefined,
-      turned: [], short: [], reached: new Map(), carried: -1,
+      turned: [], short: [], reached: new Map(), carried: -1, laid: [],
     }
     place(b, r.data, reads)
     b.root.updateMatrixWorld(true)
@@ -459,7 +463,7 @@ export function motion3d() {
     return m
   }
 
-  const action = (b: Drawing, p: Part) => {
+  const action = (b: Drawing, p: Part & { slot: Exclude<Part['slot'], 'add'> }) => {
     const key = `${p.slot} ${p.bone ?? ''} ${p.clip}`
     let a = b.actions.get(key)
     if (!a) {
@@ -477,13 +481,73 @@ export function motion3d() {
   function weigh(b: Drawing, rig: Rig, parts: Part[], moves: Moves) {
     for (const a of b.actions.values()) a.setEffectiveWeight(0)
     for (const p of parts) {
-      const a = action(b, p)
+      if (p.slot === 'add') continue
+      const a = action(b, { ...p, slot: p.slot })
       a.time = p.t
       a.setEffectiveWeight(p.w)
     }
     putBack(b)
+    unlay(b)
     b.mixer.update(0)
     pin(b, rig, parts.filter(p => p.slot === 'to' || p.slot === 'from'), moves)
+    for (const p of parts) if (p.slot === 'add') addOn(b, p)
+  }
+
+  // Each track of a clip as this model draws it, its bone and an interpolant of it, by the bone an
+  // additive layer is laid from (none: all of them); made once per kit.
+  const layered = new WeakMap<Drawn, Map<string, { node: THREE.Object3D; quat: boolean; at: THREE.Interpolant }[]>>()
+  function layerOf(b: Drawing, drawn: Drawn, bone: string | undefined) {
+    let byBone = layered.get(drawn)
+    if (!byBone) layered.set(drawn, (byBone = new Map()))
+    const key = bone ?? ''
+    let got = byBone.get(key)
+    if (got) return got
+    const T = three!
+    got = []
+    for (const track of drawn.slots.to.tracks) {
+      const { nodeName, propertyName } = T.PropertyBinding.parseTrackName(track.name)
+      if (propertyName !== 'quaternion' && propertyName !== 'position') continue
+      const node = T.PropertyBinding.findNode(b.root, nodeName) as THREE.Object3D | null
+      if (!node || !(node as THREE.Bone).isBone) continue
+      let under = bone === undefined
+      for (let o: THREE.Object3D | null = node; !under && o && (o as THREE.Bone).isBone; o = o.parent) if (o.name.endsWith(bone!)) under = true
+      if (!under) continue
+      got.push({ node, quat: propertyName === 'quaternion', at: (track as THREE.KeyframeTrack & { createInterpolant(): THREE.Interpolant }).createInterpolant() })
+    }
+    byBone.set(key, got)
+    return got
+  }
+
+  // An additive layer laid on the pose the mixer and the pin left (`motion3d.play.ts`, Additive layers):
+  // each bone it keys turned on by the turn its clip makes from its first frame to its playhead, at its
+  // weight, and moved on by the move it makes.
+  function addOn(b: Drawing, p: Part) {
+    const T = three!
+    const drawn = b.kit.clips.get(p.clip)
+    if (!drawn) throw new Error(`motion3d: the model has no clip ${p.clip}`)
+    for (const { node, quat, at: track } of layerOf(b, drawn, p.bone)) {
+      if (!b.laid.some(l => l.node === node)) b.laid.push({ node, quaternion: node.quaternion.clone(), position: node.position.clone() })
+      if (quat) {
+        const q0 = new T.Quaternion().fromArray(track.evaluate(0))
+        const qt = new T.Quaternion().fromArray(track.evaluate(p.t))
+        node.quaternion.multiply(new T.Quaternion().slerp(q0.invert().multiply(qt), p.w))
+      } else {
+        const p0 = new T.Vector3().fromArray(track.evaluate(0))
+        const pt = new T.Vector3().fromArray(track.evaluate(p.t))
+        node.position.add(pt.sub(p0).multiplyScalar(p.w))
+      }
+    }
+  }
+
+  // Each bone the last frame's layers turned or moved, put back as the mixer and the pin left it: three's
+  // mixer writes a bone only when what it would write changes, so a layer would otherwise be laid on the
+  // one before it.
+  function unlay(b: Drawing) {
+    for (const l of b.laid) {
+      l.node.quaternion.copy(l.quaternion)
+      l.node.position.copy(l.position)
+    }
+    b.laid = []
   }
 
   function pin(b: Drawing, rig: Rig, parts: Part[], moves: Moves) {

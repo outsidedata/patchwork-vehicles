@@ -111,7 +111,7 @@ test('the planes are made again when world.flight3d changes, in place deep insid
     const first = drawn(scene)[0].uuid
     frame()
     expect(drawn(scene)[0].uuid).toBe(first)
-    // Edited in place, as the editor does: the same object, a number deep inside it changed.
+    // Edited in place, as a dev page's panel does: the same object, a number deep inside it changed.
     world.flight3d.planes.monoplane.look.spin = 41
     frame()
     const second = drawn(scene)[0].uuid

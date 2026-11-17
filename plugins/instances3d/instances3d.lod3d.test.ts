@@ -146,7 +146,7 @@ test('a Drawing is stale once world.instances3d\'s cutout, coverage or behaviors
   p.come()
   const d = draw({ asset: 'trees', lods: [0], shadow: 0, leaf: 0 }, made(p.plugins))!
   expect([d.stale(), d.stale()]).toEqual([false, false])
-  // Written in place, as the editor writes a scene: a number, and an entry deep in the mods.
+  // Written in place, as a dev page's panel writes a scene: a number, and an entry deep in the mods.
   s.cutout = 0.5
   expect(d.stale()).toBe(true)
   s.cutout = 0.4
@@ -170,7 +170,7 @@ test('the kinds world.instances3d names are drawn by Instances made again when w
   const first = tick()
   expect(first).toBeDefined()
   expect(tick() === first).toBe(true)
-  // One number deep in a look, written in place as the editor writes a scene.
+  // One number deep in a look, written in place as a dev page's panel writes a scene.
   s.kinds.rock.shape.lumpy[1] = 0.2
   const again = tick()
   expect([again === first, first.parent === null]).toEqual([false, true])

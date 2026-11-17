@@ -17,10 +17,18 @@
 //   mods      instances  `instances(plugins)` → `{ kind, at, rot }[]`, where each row of a kind is this frame
 //             behaviors  `behaviors()` → `{ <word>: Geometry }`, the geometry of a look that gives that word
 //
-// A spec: `{ name, rows, seed, shells, look, lean?, hollows? }`: `name` named in what it throws, `rows` the
-// rows of the look drawn, `seed` the boulders' seed, `shells` each shell's outer reach in metres, nearest
+// A spec: `{ name, rows, seed, shells, look, lean?, hollows?, gpu? }`: `name` named in what it throws, `rows`
+// the rows of the look drawn, `seed` the boulders' seed, `shells` each shell's outer reach in metres, nearest
 // first, `lean` how far an instance with no turn leans along its normal (its row's own, foot / rise off its
 // model, where it gives none), `hollows` the most boxes `frame` is handed.
+//
+// `gpu: { uniforms, glsl }` places every instance on the GPU, for a placer whose things are on the GPU
+// already (gpuparticle3d's particles, `instances3d.gpuparticle3d.ts`): `glsl` declares what it reads and
+// defines `void inPlace( float slot, out vec3 at, out vec4 rot, out float size )`, each instance's place, turn
+// [x, y, z, w] and size from the number it is handed, its slot; `uniforms` are handed to every program as
+// they are, so the placer writes their `value` once a frame. Such an Instances draws in one shell, and is
+// handed its instances by `place(row, slots)`, each row's slots in place of the last, in place of `add`,
+// `remove` and `clear`, which throw on it. Its shadows are cast from where the GLSL places it.
 //
 // Models. Only the LODs a look names are read, each copied with its node's transform, every LOD of a row
 // moved so its finest LOD's lowest point is on y = 0 and its middle on the axis; a row missing a LOD
@@ -41,6 +49,7 @@
 //   add(instances, shell)  draws them in that shell; hands back what `remove` is handed
 //   remove(added)          takes them out
 //   clear()                takes every instance out
+//   place(row, slots)      for a spec with `gpu`: that row's instances, one a slot `inPlace` is handed
 //   frame(boxes)           once a frame after the instances have moved: the boxes `{ at, rot, half }`
 //                          nothing is drawn inside, and only the slots written sent to the GPU
 //   show()                 puts what it draws on render3d's scene, and everything it makes after
@@ -59,9 +68,11 @@ import { check, geometriesOf, wordOf, type Look, type RockSurface, type Shape } 
 type Three = typeof THREE
 export type Instance = { row: string; at: number[]; rot?: number[]; normal?: number[]; spin?: number; size?: number; tint?: number; sink?: number }
 export type Box = { at: number[]; rot: number[]; half: number[] }
-export type Spec = { name: string; rows: string[]; seed: number; shells: number[]; look: Look; lean?: number; hollows?: number; slots?: number[] }
+export type Gpu = { uniforms: object; glsl: string }
+export type Spec = { name: string; rows: string[]; seed: number; shells: number[]; look: Look; lean?: number; hollows?: number; slots?: number[]; gpu?: Gpu }
 export type Instances = {
   add(instances: Instance[], shell: number): unknown
+  place(row: string, slots: ArrayLike<number>): void
   remove(added: unknown): void
   clear(): void
   frame(boxes: Box[]): void
@@ -156,6 +167,34 @@ function rock(s: RockSurface, three: Three): Splice {
       ].join('\n'),
     },
   }
+}
+
+// A spec's `gpu`: each instance placed, turned and sized by the placer's `inPlace` from its slot, its normal
+// turned with it, before three's instance matrix (left whole) and the mesh's own.
+const PLACED = (gpu: Gpu) => [
+  'attribute float inSlot;',
+  gpu.glsl,
+  'vec3 inPAt; vec4 inPRot; float inPSize;',
+  'vec3 inPTurn( vec4 q, vec3 v ) { vec3 t = 2.0 * cross( q.xyz, v ); return v + q.w * t + cross( q.xyz, t ); }',
+].join('\n')
+const placed = (gpu: Gpu): Splice => ({
+  uniforms: gpu.uniforms,
+  vertex: {
+    common: PLACED(gpu),
+    beginnormal_vertex: 'inPlace( inSlot, inPAt, inPRot, inPSize );\nobjectNormal = inPTurn( inPRot, objectNormal );',
+    begin_vertex: 'inPlace( inSlot, inPAt, inPRot, inPSize );\ntransformed = inPAt + inPTurn( inPRot, transformed * inPSize );',
+  },
+})
+// The depth and distance materials a `gpu` spec's meshes cast their shadows by, placed as they are.
+function placedShadow<M extends THREE.Material>(m: M, gpu: Gpu): M {
+  m.onBeforeCompile = (shader: { vertexShader: string; uniforms: Record<string, unknown> }) => {
+    Object.assign(shader.uniforms, gpu.uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${PLACED(gpu)}`)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ninPlace( inSlot, inPAt, inPRot, inPSize );\ntransformed = inPAt + inPTurn( inPRot, transformed * inPSize );')
+  }
+  m.customProgramCacheKey = () => `instances3d placed ${gpu.glsl}`
+  return m
 }
 
 function both(a: Splice | undefined, b: Splice | undefined): Splice | undefined {
@@ -265,8 +304,13 @@ export function instances3d() {
     }
     const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>()
     const hollow = spec.hollows === undefined ? undefined : { inHollow: { value: Array.from({ length: spec.hollows }, () => new t.Matrix4()) }, inHollows: { value: 0 } }
-    const clear = hollow && hollowOf(spec.hollows!, hollow)
+    const clear = both(hollow && hollowOf(spec.hollows!, hollow), spec.gpu && placed(spec.gpu))
     const dress = <M extends THREE.Material>(m: M, splice?: Splice): M => { const surface = both(splice, clear); return plugins.render3d.dress(m, surface ? { surface } : {}) }
+    if (spec.gpu && spec.shells.length !== 1) throw new Error(`${name} is placed on the GPU, and it draws in one shell, not ${spec.shells.length}`)
+    const shadows = spec.gpu && {
+      depth: placedShadow(new t.MeshDepthMaterial({ depthPacking: t.RGBADepthPacking }), spec.gpu),
+      distance: placedShadow(new t.MeshDistanceMaterial(), spec.gpu),
+    }
     const parts: Record<string, Part[][]> = {}
     const word = wordOf(look)
     if (look.asset !== undefined) {
@@ -339,6 +383,10 @@ export function instances3d() {
       const m = new t.InstancedMesh(p.geometry, p.material, cap)
       m.name = p.name
       if (p.depth) m.customDepthMaterial = p.depth
+      if (shadows) {
+        m.customDepthMaterial = shadows.depth
+        m.customDistanceMaterial = shadows.distance
+      }
       m.count = 0
       m.instanceColor = new t.InstancedBufferAttribute(new Float32Array(cap * 3), 3)
       m.castShadow = casts
@@ -412,8 +460,30 @@ export function instances3d() {
       }
     }
 
+    const onGpu = (what: string) => { if (spec.gpu) throw new Error(`${name} is placed on the GPU, and ${what} is not: its instances are handed by place(row, slots)`) }
     const it: Instances = {
+      place(row, list) {
+        if (!spec.gpu) throw new Error(`${name} is not placed on the GPU: place(row, slots) is for a spec with gpu`)
+        const k = slots[row]?.[0]
+        if (!k) throw new Error(`${name} has no row ${row}`)
+        while (k.cap < list.length) grow(k)
+        k.count = list.length
+        for (const m of k.meshes) {
+          let a = m.geometry.getAttribute('inSlot') as THREE.InstancedBufferAttribute | undefined
+          if (!a || a.count < k.cap) {
+            a = new t.InstancedBufferAttribute(new Float32Array(k.cap), 1)
+            m.geometry.setAttribute('inSlot', a)
+          }
+          ;(a.array as Float32Array).set(list)
+          a.addUpdateRange(0, list.length)
+          a.needsUpdate = true
+          m.instanceColor!.array.fill(1)
+          m.instanceColor!.needsUpdate = true
+          m.count = list.length
+        }
+      },
       add(list, shell) {
+        onGpu('add')
         const items: Item[] = []
         if (shell >= drawn.length) return items
         for (const instance of list) {
@@ -435,6 +505,7 @@ export function instances3d() {
         return items
       },
       remove(added) {
+        onGpu('remove')
         for (const item of added as Item[]) {
           if (item.slot < 0) continue
           const k = item.slots
@@ -455,6 +526,7 @@ export function instances3d() {
         }
       },
       clear() {
+        onGpu('clear')
         for (const shells of Object.values(slots)) for (const k of shells) {
           for (const item of k.items) item.slot = -1
           k.items.length = 0
@@ -482,6 +554,7 @@ export function instances3d() {
         meshes.clear()
         for (const g of geometries) g.dispose()
         for (const m of materials) m.dispose()
+        if (shadows) { shadows.depth.dispose(); shadows.distance.dispose() }
         made.delete(it)
       },
     }

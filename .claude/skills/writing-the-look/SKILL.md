@@ -1,6 +1,6 @@
 ---
 name: writing-the-look
-description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), trees and rocks on the land (`lod3d`, drawn by `instances3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO and exposure that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under the trees) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
+description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), trees and rocks on the land (`lod3d`, drawn by `instances3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO, exposure, screen-space reflections and mirrors that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under the trees) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
 ---
 
 # Writing the look
@@ -247,9 +247,18 @@ each:
   `particle3d` or `particle2d` from its `.sim.ts`, one actor) and `world.particle3d` or
   `world.particle2d`, `{ effects, hold }`, with `effects` a catalogue entry of the effects file. A rule spawns an effect with `emit(w, effect, at, spawn)` from
   `particle3d.sim.ts` or `particle2d.sim.ts`, and a page with the browser half's own `emit`. A
-  particle with `gain` above 1 is brighter than white and blooms under render3d's `bloom`.
-- render3d's own look: `shadows`, `background`, `ao`, `bloom`, `pixelRatio`, and `tone` and
-  `exposure`. A plugin adds to every frame through `splice` and `dress`, `pass` for an effect pass
+  particle with `gain` above 1 is brighter than white and blooms under render3d's `bloom`. The two
+  read their files alike: the same fields, own shapes, force generators, drivers, carried effects,
+  lamps, words and attachments, each in its own space (metres with y up; the stage's pixels with y
+  down). particle3d's lamps are lit by lights3d; particle2d's by light2d, through
+  `world.light2d.mods: { lights: ['particle2d'] }`. What a particle bounces off is a `solids` mod:
+  shapes3d's for particle3d, tilemap's walls for particle2d.
+- render3d's own look: `shadows`, `background`, `ao`, `bloom`, `pixelRatio`, `tone` and
+  `exposure`, and `ssr`, screen-space reflections on every shiny standard or physical surface, falling
+  back to the reflection it had where a ray leaves the screen. A flat mesh with `userData.mirror =
+  { resolution }` is a live mirror, the scene drawn from its reflected camera each frame (its header,
+  Reflections; `games/demo_render3d`). Many lamps, their shadows, lit fog and reflection probes are
+  lights3d's (`using-lights3d`). A plugin adds to every frame through `splice` and `dress`, `pass` for an effect pass
   on the light before the tone mapping, `finish` for a pass on the screen's colours after it,
   `ratio` to draw at another resolution live, shown as hard blocks or smoothed, and `overlay` for a
   cockpit or a held tool (its header).
@@ -269,7 +278,9 @@ each:
   that cut it. `world.light2d` holds `layer`, `ambient`, `kinds`, `budget`, `falloff` and
   `flicker`. A row of a listed kind gives its kind's light, and carries its own `light` field only
   for what changes. Its layer is the last of `world.render2d.layers`. An actor sets another ambient
-  for the next draw with `plugins.light2d.ambient(a)` in its `tick`.
+  for the next draw with `plugins.light2d.ambient(a)` in its `tick`. The plugins
+  `world.light2d.mods.lights` names hand it lights of their own, each its point on the stage
+  (particle2d's lamps), listed before it.
 - render2d's own look: `world.render2d.background`. In an actor's `tick`, `background(colour)`,
   `parallax(name, fx, fy)` and `mosaic(size, names)`.
 - `cover3d` draws nothing: it answers a rule's question of where a mover can hide.

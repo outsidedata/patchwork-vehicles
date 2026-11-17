@@ -289,7 +289,9 @@ The group's material is a clone of the glb's, dressed by render3d (`dress`) with
 skins each vertex by four bones from that copy's row of the pose. The row is the body's first row
 plus `gl_InstanceID`. There are no instance matrices, and render3d's between-steps does not move the
 mesh. Shadows are cast through a depth material and a distance material dressed with the same
-surface. A group is never culled as a whole, because its people can stand anywhere.
+surface. A group is never culled as a whole, because its people can stand anywhere. It is marked
+moving (`userData.moving`), so lights3d draws its shadow every frame into its moving atlas, in every
+face of every shadowed light, while the still scene's shadows are drawn once.
 
 ### The items
 

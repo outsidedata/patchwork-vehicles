@@ -164,6 +164,7 @@ A layer's pixel is `size / px` metres. Make it fine enough for the narrowest str
 | `smooth` | the mean of the pixel and ±radius/2 along x and z |
 | `bench` | the ground under the nearest point of the path: it follows the hill along the path and is flat across it. This is how a road is cut |
 | `surface` | no height: paints `surface` (it must be a key of `surfaces`) |
+| `erase` | takes the ground away: where any layer's erasure is at least a half, `heightAt` and `rawAt` answer `ERASED` (−1e9), so a shapes3d shape standing there (a basement) is always the higher. The strokes, the land record and the look read the ground whole (`land.whole`), the finest ring leaves out each cell with a corner on erased ground, and every coarser ring draws it whole. `land.erased(x, z)` says which |
 
 ### Surfaces
 

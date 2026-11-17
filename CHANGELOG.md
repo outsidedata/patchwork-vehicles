@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-11-17-3866e37
+
+- gpuparticle3d — a new plugin: plays particle3d's effects on the GPU, so an effect can throw far more particles.
+- world3d — a new plugin: drops a whole baked place into a scene, with its looks, its shapes, its paths, its player start and the people who live and walk there.
+- particle3d — effects can push particles with forces, react to what the game is doing, bounce, use meshes and flipbooks, light the world with lamps and ride along on other things.
+- particle2d — 2D effects can do everything 3D effects can.
+- lights3d — lights cast soft shadows cheaply, fog drifts, clumps and lies low on the ground, rectangle lights and glowing surfaces light the scene, and shiny surfaces reflect the room around them.
+- render3d — shiny surfaces reflect what is on screen, and any flat mesh can be a mirror.
+- supershader3d — a scene can use any number of looks, and a look can move over time.
+- loader — models load faster and smoother, textures can be KTX2, and a game can show a loading screen.
+- ui — a game can show a loading screen while its art arrives.
+- terrain3d — the ground can have holes cut in it.
+- nav3d — people can be spread across a spot instead of all walking to one point.
+- npc3d — people in a world3d place go about their day between the places they belong.
+- shapes3d — shapes can be turned and tilted any way, and can be made of any triangles.
+- motion3d — moves read buffered input and can be cancelled, jumps carry the speed they are taken at, attacks bend onto their target, and climbers follow a leaning shape.
+- kinematics3d — a kind sets how much of its running speed a jump carries.
+- box3dvehicle — vehicles can have their own wheel and hub models, and their smoke, sparks and skids follow the engine, the speed and the slide.
+- anim — a game caps how large each kind of a character's textures may be.
+- lod3d — trees and rocks thin out by the camera's height as well as its distance.
+- yarn workshop — the particle workshop opens on any effects file and comes with explosions, a waterfall, flipbooks and more.
+- yarn particle-views — a new command: takes pictures of particle effects from the cameras you list.
+- yarn particle-costs — a new command: measures what every part of a particle effect costs.
+- yarn particle-score — a new command: judges a particle effect against the design rules.
+- yarn bake — a game's bake can bake its effects' flipbooks and its looks.
+- yarn serve — a game's server no longer restarts for files outside the repo, and says which file restarted it.
+- yarn health — checks the tools a KTX2 bake needs.
+- stations.py — a new script: renders a model in Blender from listed camera spots, one picture each.
+- layoutviewer — a new tool: views and checks an animal's bones and muscles.
+- using-lights3d skill — a new skill: lighting a 3D scene with lamps, shadows, fog and probes.
+- using-render3d skill — a new skill: getting the most out of the 3D renderer, reflections and mirrors included.
+- using-supershader3d skill — a new skill: drawing a baked place or model with its own looks.
+- using-the-loader skill — a new skill: loading a game's art, moving its bake to KTX2 and adding a loading screen.
+- tuning-particles skill — covers forces, flipbooks and building a burst.
+- using-the-dev-page skill — shows how to cap the frame rate to judge motion.
+
 ## 2026-11-06-b6183dd
 
 - supershader3d — any material can read the extra numbers its model carries on each vertex, not only a wall's.

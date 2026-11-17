@@ -47,7 +47,23 @@ then the bake. Nothing in motion3d's code changes for a new motion.
      walking about), what it plays against.
    - `behavior`: how kinematics3d moves the body while it plays: `move` (none named) or `jump` (a
      jump, on `"press": "jump"`). A body in the air is moved by kinematics3d's fall, whatever its
-     behavior; a motion that plays then says `"when": ["!ground"]`.
+     behavior; a motion that plays then says `"when": ["!ground"]`. The jump leaves the ground on its
+     clip's takeoff; the rule's `jumpHeld` let go while rising keeps kinematics3d's `jump.cut` of its rise.
+   - `then`: a motion of the same activity, or `"<activity>.<motion>"` for one of another (a weapon put
+     away, then the next drawn).
+   - `add`: laid on top of whatever plays, at its `weight`, from its `over` bone up: a flinch on `"press":
+     "hit"` over a run, breathing on `"when": ["!pushed"]`.
+   - `warp`: `{ reach, turn }`, an attack bent so its blow lands on the row's `target` (the rule sets it).
+
+   An activity may give `solid` (`{ over, at, facing, points }`) instead of being offered by a station:
+   the sides of plain solid boxes offer it, so running into a box vaults it or mantles onto it with no
+   space placed. Its `points` stand off the side where the clips measure them (`point { out }`,
+   `line { out, down }`, `plane { out }`); the scene names `faces: "shapes3d"` in `world.motion3d.mods`.
+
+   The file's `buffer`, `{ hold, cancel }`, holds keys the rule `queue`s until a move may play them;
+   `cancel[<key playing>][<key pressed>]` is when one may cut the one playing: seconds, `"NN%"`, or
+   `"strike"`, where the clip's blow lands. A clip of the rig gives `markers`, each a time or a window
+   `[from, to]` (`"strike-0.08"`), which `drive` writes to the row's `markers` and `windows`.
 
    The order matters: ground motions are looked for top to bottom, so a strafe goes above `run` and
    `walk`, and a fast one above the slow one.

@@ -77,7 +77,7 @@
 //     as `vehicle · <name>`: drawn by core's box3dvehicle on still rows, a `box3dvehicle` row naming
 //     the vehicle (row 1), its chassis row at rest at the origin (`standing` high, unturned) and its
 //     wheel rows where its springs hold them at rest (`wheelAt` at each axle's `sag`), with the look
-//     plugins the server names (particle3d for an exhaust) and nothing that moves it: no gravity, no
+//     plugins the server names (particle3d, for a scene that attaches effects to its sources) and nothing that moves it: no gravity, no
 //     land. Its interactions are those of the kind `box3dvehicle` whose points box3dvehicle hands;
 //     "vehicle" shows it alone with every point of its look. Its points are its look's `points` in the
 //     chassis's frame, read and written by `/api/vehicle` (the scene file that gives the look), each a
@@ -1931,7 +1931,7 @@ const marks = (() => {
     const names = Object.keys(c.fleet.vehicles[c.name].look.points ?? {})
     $('#hud').textContent = `vehicle · ${c.name}  ·  ${car.files.join(', ')}\n${Math.round(tris).toLocaleString()} tris · ${meshes} meshes on the chassis · ${names.length} points\n` +
       `chassis bounds ${size.x.toFixed(3)} × ${size.y.toFixed(3)} × ${size.z.toFixed(3)} m\n` +
-      `drawn by box3dvehicle, its look ${car.model ? `the model ${car.model}` : 'drawn in code'}, on still rows (${car.scene})${c.order.includes('particle3d') ? ', its exhaust by particle3d' : ''}` +
+      `drawn by box3dvehicle, its look ${car.model ? `the model ${car.model}` : 'drawn in code'}, on still rows (${car.scene})${c.order.includes('particle3d') ? ', its effects by particle3d' : ''}` +
       (a ? `\n${a.body} in its ${a.name} (${a.file})` : '')
     bounds(m, box, size)
     if (showEmpties) dots(stepNow(), names)

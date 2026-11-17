@@ -62,9 +62,9 @@ hands on `gripL`/`gripR`, feet on `footL`/`footR`).
 ## Running it
 
 ```
-node --experimental-strip-types tools/workshop/workshop.server.ts
+yarn workshop <game>
 ```
-then `http://localhost:5180/?game=<game>` (also `&model=<key>&body=<kind>`). One background process;
+which starts the server and opens `http://127.0.0.1:5180/?game=<game>` (also `&model=<key>&body=<kind>`). One background process;
 restart it after changing the server. A page change needs only a reload. Its tests:
 `yarn vitest run tools/workshop` and `yarn vitest run plugins/solids` and `yarn vitest run plugins/ik3d plugins/anim/anim.ik3d.test.ts plugins/interact`
 and `yarn vitest run plugins/box3dvehicle/box3dvehicle.plugin.test.ts plugins/box3dvehicle/box3dvehicle.interact.test.ts`.

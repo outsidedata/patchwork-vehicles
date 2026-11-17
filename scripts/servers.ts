@@ -5,7 +5,7 @@
 // starts one that had stopped by itself, its server thrown or its scene file broken, once the file is
 // put right. `yarn serve <game>` runs one (`serve.ts`).
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 
 export type Event = { type: 'log'; game: string; line: string } | { type: 'servers'; running: Running[] }
@@ -19,13 +19,25 @@ export const GATHER = 300
 export const gameOf = (rel: string) => /^games\/([^/]+)\//.exec(rel)?.[1]
 
 // Whether a game on node may run the file, by its path from the repo: code of the four folders a
-// server imports, so not a test, an extension's or an actor's look, which only a page draws; and a
+// server imports, so not a test or an actor's look, which only a page draws; and a
 // data file of a game's folder. Never a hidden file or a text editor's backup, a page, a note, or what
 // a run of the simulator records.
+// Whether `file`, a path under `root` as the watcher names it, really is in the repo, its links followed: a file
+// reached through a link out of it (a game's builds in the system's temp folder, linked into its `assets/`) is not, so
+// its writes start no server again. A file just removed is placed by the nearest folder over it still there, since a
+// build clears its whole folder.
+export const inRepo = (root: string, file: string) => {
+  const real = realpathSync(root) + path.sep
+  for (let at = file, rest = ''; ; rest = path.join(path.basename(at), rest), at = path.dirname(at)) {
+    try { return path.join(realpathSync(at), rest).startsWith(real) } catch {}
+    if (path.dirname(at) === at) return true
+  }
+}
+
 export const runs = (rel: string) => {
   const name = rel.slice(rel.lastIndexOf('/') + 1)
   if (name.startsWith('.') || name.endsWith('~') || /\.(html|md)$/.test(name)) return false
-  if (/\.(test\.tsx?|extension\.tsx|components\.tsx|route\.ts|client\.tsx?)$/.test(name)) return false
+  if (/\.(test\.tsx?|client\.tsx?)$/.test(name)) return false
   if (/\.tsx?$/.test(name)) return /^(games|plugins|addons|engine)\//.test(rel)
   return /^games\//.test(rel)
 }

@@ -858,8 +858,7 @@ check here is run on every game whose seat controls anything.
   empty after every step and every seek, and reads the child again after each, since every seek boots
   a new truth (`proving-a-game`). A scene of N seats replays with N pages, each on a recorder seat
   of its own; the recorder holds one, so its seats are built in `addons/recorder/` first, with
-  `addons/recorder/recorder.addon.test.ts`, and a `player` row a recorder edit spawned is never taken
-  for a seat. Find: `grep -rln "recorder(" games/<game> --include='*.test.ts'`, read for those
+  `addons/recorder/recorder.addon.test.ts`. Find: `grep -rln "recorder(" games/<game> --include='*.test.ts'`, read for those
   checks and for the scene's `seats`, and `grep -rnF ".link.send(" games/<game>`.
 
 ## Migrating

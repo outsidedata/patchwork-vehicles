@@ -307,10 +307,10 @@ no game running. Click anything on the screen to change it, then save the change
 own files. It is served by the asset workshop's server:
 
 ```
-node --experimental-strip-types tools/workshop/workshop.server.ts
+yarn workshop ui <game>
 ```
 
-and opened at `http://localhost:5180/ui?game=<game>` (add `&screen=<screen>&state=<state>` to open on
+which starts the server and opens `http://127.0.0.1:5180/ui?game=<game>` (add `&screen=<screen>&state=<state>` to open on
 one). The full account is the header of `tools/workshop/ui.ts`.
 
 A game with no screens file is drawn from its config alone: a screen per scene that gives a

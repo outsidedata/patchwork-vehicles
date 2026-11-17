@@ -112,19 +112,19 @@ const before = take()
 if (before.length) console.log(`the page threw ${before.length} times while it loaded; the first: ${before[0].split('\n')[0]}`)
 
 const looks = await evaluate('window.__bench.looks')
-const uniforms = await evaluate('Object.keys(window.__page.client.plugins.supershader3d.uniforms)')
 const drawn = await evaluate(`(() => { const r = window.__page.client.plugins.render3d; const s = r.renderer.getDrawingBufferSize(new r.THREE.Vector2()); return 'drawn at pixel ratio ' + r.renderer.getPixelRatio() + ', ' + s.x + 'x' + s.y })()`)
 console.log(`${looks.materials.length} materials, ${looks.pictures.length} pictures, ${['solid', 'relief', 'seeThrough'].filter(c => looks.calls[c]).length} draw calls; a floor ${height} m under the eye, looked down on by ${pitch}°, ${drawn}, each measured over ${each} s\n`)
 
-// The swatch wears `name`, with the uniforms `off` set to 0 meanwhile; then the frames over `each`
+// The swatch wears `name`, with its settings `off` set to 0 meanwhile and put back after; then the frames over `each`
 // seconds, once the swatch has taken the material and been drawn with its program ready (three
 // draws nothing with a program still compiling in parallel) and three frames have been drawn since.
 async function measure(name, off = []) {
-  await evaluate(`(() => {
-    const u = window.__page.client.plugins.supershader3d.uniforms
-    for (const k of ${JSON.stringify(off)}) u[k].value = 0
+  const was = await evaluate(`(() => {
+    const s = window.__page.client.plugins.supershader3d
+    const was = ${JSON.stringify(off)}.map(k => s.setting(${JSON.stringify(name)}, k))
+    for (const k of ${JSON.stringify(off)}) s.set(${JSON.stringify(name)}, k, 0)
     window.__scenes.get('floor').rows.find(r => r.kind === 'swatch').data.material = ${JSON.stringify(name)}
-    return true
+    return was
   })()`)
   const t0 = Date.now()
   let compiled
@@ -157,7 +157,7 @@ async function measure(name, off = []) {
     requestAnimationFrame(tick)
   })`)
   const threw = take()
-  await evaluate(`(() => { const u = window.__page.client.plugins.supershader3d.uniforms; for (const k of ${JSON.stringify(off)}) u[k].value = 1; return true })()`)
+  await evaluate(`(() => { const s = window.__page.client.plugins.supershader3d; ${JSON.stringify(off)}.forEach((k, i) => s.set(${JSON.stringify(name)}, k, ${JSON.stringify(was)}[i])); return true })()`)
   const fps = frames.n / (frames.ms / 1000)
   return { fps, ms: frames.ms / frames.n, ready, threw: threw.length, first: threw[0]?.split('\n')[0] }
 }
@@ -169,7 +169,7 @@ rows.push({ material: 'none', look: 'a plain unlit grey', call: '', ...baseline 
 const screen = baseline.fps
 looks.materials.forEach((m, id) => {
   rows.push({ material: m.name, look: m.look, call: m.call, off: [] })
-  for (const u of uniforms.filter(k => k.startsWith(`L${id}_`) && k.endsWith('On'))) rows.push({ material: m.name, look: m.look, call: m.call, off: [u], offName: u.slice(`L${id}_`.length, -2) })
+  for (const { name } of looks.settings.materials[id].filter(s => s.type === 'float' && s.name.endsWith('On'))) rows.push({ material: m.name, look: m.look, call: m.call, off: [name], offName: name.slice(0, -2) })
 })
 for (const r of rows.slice(1)) Object.assign(r, await measure(r.material, r.off))
 for (const r of rows) r.over = r.ms - baseline.ms

@@ -186,7 +186,7 @@
 // isometric map's objects are `tileheight` pixels a cell both ways, as Tiled writes them, and an
 // offset on its screen goes on a cell's diamond.
 //
-// The editor writes a file while the game runs: `written` hands this half the file's new text, or a
+// A file written while the game runs, by the workshop or a dev page's panel: `written` hands this half the file's new text, or a
 // `pixels` file's new bytes, which become its bytes, and every decoded copy that read that url — a
 // json, a palette, a sheet or a pack of it, a map or a tileset of it, a picture — is refilled in place from it, so every rule and actor
 // already holding one reads what the file now says. A file the new text names that the process does
@@ -870,40 +870,6 @@ type Cut = { pages: string[]; frames: Record<string, Frame>; order: string[]; cl
 // Which of the two a sheet file at `url` is: a Tiled tileset, or an Aseprite or TexturePacker JSON.
 export const shapeOf = (file: any, url: string): 'tileset' | 'atlas' =>
   file.type === 'tileset' || /\.tsj$/i.test(url) ? 'tileset' : 'atlas'
-
-// Where a file of the loader's names another file: the path of the name in the file, the name, and
-// the url it names, from the file's own folder (`beside`). A Tiled map, a file whose `type` is `map`,
-// the one `readMap` opens, names each tileset it names by `source`, what a tileset it holds names, and
-// each image layer's image, groups too, as `readMap` opens them; a Tiled tileset, any `.tsj` or a file
-// whose `type` says so (`shapeOf`), names its image and each tile's; and an Aseprite or TexturePacker
-// pack names its page and its other packs, as `read` opens them. A file whose JSON is no object names
-// nothing. What a copy of a sheet renames, and what a scene's files reach.
-export type Named = { at: (string | number)[]; name: string; url: string }
-export function namesIn(file: any, url: string): Named[] {
-  if (file === null || typeof file !== 'object' || Array.isArray(file)) return []
-  const out: Named[] = []
-  const name = (at: (string | number)[], v: unknown) => { if (typeof v === 'string') out.push({ at, name: v, url: beside(url, v) }) }
-  const tileset = (ts: any, at: (string | number)[]) => {
-    name([...at, 'image'], ts.image)
-    ;((ts.tiles ?? []) as any[]).forEach((t, k) => name([...at, 'tiles', k, 'image'], t.image))
-  }
-  if (file.type === 'map') {
-    ;((file.tilesets ?? []) as any[]).forEach((t, k) => (t.source !== undefined ? name(['tilesets', k, 'source'], t.source) : tileset(t, ['tilesets', k])))
-    const walk = (list: any[], at: (string | number)[]) => list.forEach((l, k) => {
-      if (l.type === 'imagelayer') name([...at, k, 'image'], l.image)
-      if (l.type === 'group') walk(l.layers ?? [], [...at, k, 'layers'])
-    })
-    walk(file.layers ?? [], ['layers'])
-    return out
-  }
-  if (shapeOf(file, url) === 'tileset') {
-    tileset(file, [])
-    return out
-  }
-  name(['meta', 'image'], file.meta?.image)
-  ;((file.meta?.related_multi_packs ?? []) as unknown[]).forEach((p, k) => name(['meta', 'related_multi_packs', k], p))
-  return out
-}
 
 // A frame whose whole is its box, upright, with nothing trimmed.
 const whole = (id: string, page: number, box: [number, number, number, number], anchor: [number, number]): Frame =>

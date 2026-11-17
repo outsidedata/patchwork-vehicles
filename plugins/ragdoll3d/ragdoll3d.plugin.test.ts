@@ -1,5 +1,5 @@
 // The browser half of ragdoll3d, handed a scene of its own whose `world.ragdoll3d` the test edits as
-// the editor does, in place. The scene names no mods, so a frame whose numbers pass their check throws
+// a dev page's panel does, in place. The scene names no mods, so a frame whose numbers pass their check throws
 // that it names no `model`; a frame whose numbers were checked again and are out of shape throws
 // naming the number. Which of the two a frame throws says whether the numbers were checked again.
 import { expect, test } from 'vitest'
@@ -27,7 +27,7 @@ function page() {
   return { world, tick: () => me.tick(plugins) }
 }
 
-test('world.ragdoll3d is checked again when it changes in place deep inside it, as the editor changes it, and a fresh copy is checked as it stands', () => {
+test('world.ragdoll3d is checked again when it changes in place deep inside it, as a dev page\'s panel changes it, and a fresh copy is checked as it stands', () => {
   const { world, tick } = page()
   expect(tick).toThrow(NO_MODEL)
   expect(tick).toThrow(NO_MODEL)

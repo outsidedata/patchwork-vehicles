@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { boot, type Row, type Scene, type W } from '#engine/engine.ts'
 import { loader, written } from '#plugins/loader/loader.sim.ts'
-import { animate, play, pose, posed } from './motion3d.play.ts'
+import { animate, open, play, pose, posed, timesOf } from './motion3d.play.ts'
 
 const measure = (dur: number) => ({ dur, forward: 0, left: 0, yaw: 0, travel: [[0, 0, 0, 0], [dur, 0, 0, 0]] })
 const RIG = {
@@ -49,6 +49,60 @@ test('a pose is its clip held at its frame: the playhead at its time, not moving
   pose(row, w, 'extend')
   expect([d.clip, d.clipT, d.from, d.fromT, d.blend]).toEqual(['kick', 0.7, 'kick', 0.4, 0])
   expect(() => pose(row, w, 'dab')).toThrow('motion3d: body\'s rig has no pose dab')
+})
+
+// ---------------------------------------------------------------- moments
+
+// A body whose `kick` swings its right foot fastest between its frames 6 and 7, and whose `hop` stands on
+// both feet to 0.3 s and 0.4 s, and comes down on its left at 0.9 s.
+function measured() {
+  const frames = 12, fps = 10
+  const still = Array.from({ length: frames }, () => [0, 1, 0, 0, 0.5, 0])
+  const swung = still.map((r, f) => (f === 7 ? [0, 1, 0, 0, 0.5, 0.6] : f > 7 ? [0, 1, 0, 0, 0.5, 0.6] : r))
+  const plant = (point: string, from: number, to: number) => ({ point, from, to, at: [0, 0, 0], on: 'ground' })
+  const rig = {
+    clips: { kick: { markers: { blow: 'strike', window: ['strike', '100%'] } }, hop: { markers: { up: 'takeoff', down: 'landing' } }, idle: { loop: true, markers: { up: 'takeoff', down: 'landing' } } },
+    roles: {},
+    table: { kick: measure(1.2), hop: measure(1.2), idle: measure(2) },
+    ends: { model: { kick: { fps, handL: still, handR: still, footL: still, footR: swung }, hop: { fps, handL: still, handR: still, footL: still, footR: still }, idle: { fps, handL: still, handR: still, footL: still, footR: still } } },
+    touches: {
+      model: {
+        kick: { case: 'kick', loop: false, dur: 1.2, plants: [] },
+        hop: { case: 'jump', loop: false, dur: 1.2, plants: [plant('soleL', 0, 0.3), plant('soleR', 0, 0.4), plant('soleL', 0.9, 1.2), plant('soleR', 1, 1.2)] },
+        idle: { case: 'idle', loop: true, dur: 2, plants: [plant('soleL', 0, 2), plant('soleR', 0, 2)] },
+      },
+    },
+  }
+  written('test/motion3d-moments/rig.json', JSON.stringify(rig))
+  written('test/motion3d-moments/motion.json', JSON.stringify({ moves: 0.05, turns: 30 }))
+  const asset = (url: string) => ({ type: 'json', url, preload: true })
+  const scene: Scene = {
+    world: {
+      motion3d: { kinds: { body: { rig: 'rig', motion: 'motion', model: 'model', fade: 0.2, reads: READS } } },
+      loader: { assets: { rig: asset('test/motion3d-moments/rig.json'), motion: asset('test/motion3d-moments/motion.json') } },
+    },
+    prefabs: { loader: {}, body: { pos: [0, 0, 0], yaw: 0 }, probe: {} },
+    actors: [{ is: 'loader' }, { is: 'body' }, { is: 'probe' }],
+  }
+  let w!: W
+  const t = boot(scene, { loader, body: {}, probe: { before(_me, _dt, got) { w = got } } })
+  t.step(0)
+  return { w, row: t.rows.find(r => r.kind === 'body') as Row }
+}
+
+test('a marker at the strike is where the fastest hand or foot moves fastest; the takeoff and the landing are where the feet leave the ground and come down', () => {
+  const { w, row } = measured()
+  expect(timesOf(w, row, 'kick')).toEqual({ markers: [{ name: 'blow', t: 0.7 }], windows: [{ name: 'window', from: 0.7, to: 1.2 }] })
+  expect(timesOf(w, row, 'hop').markers).toEqual([{ name: 'up', t: 0.4 }, { name: 'down', t: 0.9 }])
+  // Feet that never leave the ground take off at its start and land at its end.
+  expect(timesOf(w, row, 'idle').markers).toEqual([{ name: 'up', t: 0 }, { name: 'down', t: 2 }])
+  // Crossed as the playhead passes them; the window's close by its name and `.end`.
+  play(row, 'kick')
+  const crossed: string[] = []
+  for (let i = 0; i < 80; i++) crossed.push(...animate(row, w, 1 / 60).markers.map(m => m.name))
+  expect(crossed).toEqual(['blow', 'window', 'window.end'])
+  expect(open(w, row, 'kick', 0.69)).toEqual([])
+  expect(open(w, row, 'kick', 0.7)).toEqual(['window'])
 })
 
 // ---------------------------------------------------------------- posed
@@ -175,6 +229,26 @@ test('a row is posed once while nothing it is posed from changes, and posed agai
     samePose(now, body({ ...b.row.data }).posed(), what)
     last = now
   }
+})
+
+test('an additive layer turns each bone it keys on by the turn its clip makes from its first frame, at its weight, over the pose beneath', () => {
+  const base = body({ ...PLAYING, adds: [] })
+  const halfway = { name: 'walk.wave', clip: 'wave', t: 0.5, w: 0.5, most: 0.5, loop: true, ending: false, bone: null }
+  const laid = body({ ...PLAYING, adds: [halfway] })
+  // A joint's turn under its parent, from two joints' matrices in the body's frame.
+  const local = (pose: Map<string, THREE.Matrix4>, name: string, parent: string) => {
+    const q = new THREE.Quaternion()
+    new THREE.Matrix4().copy(pose.get(parent)!).invert().multiply(pose.get(name)!).decompose(new THREE.Vector3(), q, new THREE.Vector3())
+    return q
+  }
+  // The wave turns the chest about x by −0.4 a lap: halfway, −0.2 from its first frame, at half weight −0.1.
+  const want = local(base.posed(), 'Spine1', 'Spine').multiply(q([1, 0, 0], -0.1))
+  const got = local(laid.posed(), 'Spine1', 'Spine')
+  expect(got.angleTo(want)).toBeLessThan(1e-5)
+  // From a bone up: laid from the left arm, the chest is as it was.
+  const armOnly = body({ ...PLAYING, adds: [{ ...halfway, bone: 'LeftArm' }] })
+  expect(local(armOnly.posed(), 'Spine1', 'Spine').angleTo(local(base.posed(), 'Spine1', 'Spine'))).toBeLessThan(1e-6)
+  expect(local(armOnly.posed(), 'LeftArm', 'Spine1').angleTo(local(base.posed(), 'LeftArm', 'Spine1'))).toBeGreaterThan(0.1)
 })
 
 test('a row standing still is posed again when its rig file or its motion3d file is rewritten', () => {

@@ -363,6 +363,18 @@ Using a plugin, the whole of one top-level plugin in one place, `using-<plugin>`
 - `using-3d-physics`: box3d, box3dvehicle, walker, hitscan3d, volley3d, flight3d, ragdoll3d,
   interact, cover3d, shapes3d and nav3d, and which mods make a thing solid, stood on or hit in each.
 - `using-audiodaw`: songs written as data and played behind a game.
+- `using-the-loader`: how a scene's art comes down without stalling the game (four models at once,
+  meshopt workers, a few landing each tick with their textures sent to the GPU first), the loading
+  screen a game asks for through the ui's mods, and measuring a load.
+- `using-lights3d`: many point and spot lights, their shadows from a still atlas drawn once and a
+  moving atlas drawn each frame, lit fog, reflection
+  probes, particle3d's lamps, area lights (rectangles that shine a picture, and what glows in
+  supershader3d's materials), and what each costs.
+- `using-render3d`: the renderer's prefab, `dress` and splices, passes, the overlay, drawing between
+  steps, screen-space reflections and mirrors.
+- `using-supershader3d`: one shader for every surface, from the library's pro-ng looks, which the game's bake
+  composes into its looks file; drawing in it with or without world3d, and how world3d hands a pro-ng place to the
+  plugins that use it.
 
 ## Questions never asked
 

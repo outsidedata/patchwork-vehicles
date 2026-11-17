@@ -86,7 +86,11 @@
 //              these numbers, or, with `model`, `{ asset, at?, scale? }`, the loader catalogue's
 //              `model` entry `asset` drawn on the chassis in its place, its origin at `at` in the
 //              chassis's frame ([0, 0, 0] when left out) and `scale` metres to one of its units (1
-//              when left out). The bodies are the same whichever it is: the model is the look alone.
+//              when left out), turned `turn` first. With `wheel`, `{ left, right }`, each a model drawn
+//              on a wheel row of that side in place of the drawn wheel; with `hubs`, one `{ left, right }`
+//              an axle, a model at each wheel's middle steered with it and never rolled (its knuckle and
+//              fender); with `corners: false`, no spring, damper or arm drawn at any corner. The bodies
+//              are the same whichever it is: the models are the look alone.
 //              With `sound`, the engine is heard, from loops of it held at fixed rpms, played by the
 //              browser half through the `sound` mod (below), following the row's `rpm` and `throttle`.
 //              Its `points`, `{ <name>: [x, y, z] | { at, part?, turn? } }`, are named places of the
@@ -97,12 +101,12 @@
 //   hit        `{ speed, damage }`: a chassis moving at `speed` m/s or faster hits the bodies its box
 //              meets, each struck for `damage` for each m/s it moves (`hits`, below). With no `hit`,
 //              or no `bodies` and `strike` mods, no car hits anything.
-//   mods       `{ gravity: '<a>', land: '<a>', grip: '<a>', drag: '<a>', bodies: '<a>', strike: '<a>', sound: '<a>' }`, each the plugin whose mod gives box3dvehicle that
+//   mods       `{ gravity: '<a>', land: '<a>', grip: '<a>', drag: '<a>', bodies: '<a>', strike: '<a>', sound: '<a>', models: '<a>' }`, each the plugin whose mod gives box3dvehicle that
 //              function (`addons/scenemanager`'s mods): `gravity(w)` hands back the gravity the car's
 //              parts fall by, a vector (box3d's, `box3d.box3dvehicle.ts`, the gravity its world steps
 //              with), whose length is the g every spring's preload and every readout of the ride is
-//              worked out in (`pull`); `land(plugins)` is the browser half's, the ground its dust is
-//              thrown from. A car is box3d bodies, which fall by box3d's gravity and nothing else, so
+//              worked out in (`pull`); `land(plugins)` is the browser half's, the ground its tracks are
+//              laid on and its wheels' effects thrown at. A car is box3d bodies, which fall by box3d's gravity and nothing else, so
 //              its springs carry no weight a scene does not name: a car in a scene that names no
 //              `gravity` throws on its first step. `grip(w, x, z)` hands back how well the ground at
 //              [x, z] grips, a multiplier: each step every wheel row's `friction` (box3d's live
@@ -119,7 +123,10 @@
 //              crushes a body that comes apart and lays it down (`dismember3d.box3dvehicle.ts`).
 //              `sound(plugins)` is the browser half's: how the page decodes a file's bytes and holds a
 //              sound going and placed, each car's engine, `{ decode, hold }`, or undefined on a page with
-//              no Web Audio (audio's, `audio.box3dvehicle.ts`).
+//              no Web Audio (audio's, `audio.box3dvehicle.ts`). `models(plugins)` is the browser half's
+//              too: how the page makes a pro-ng glb into a mesh in the scene's one shader, `{ unpack,
+//              build }` (supershader3d's, `supershader3d.box3dvehicle.ts`), for every model a look names
+//              that names its own `looks`.
 // Driving. A car's driver is whatever writes its `throttle`, `brake`, `steer` and `gear`: a rule
 // writing them straight onto the row, or a seat through the car's acts, which a game's `player` row
 // passes on to the car it holds (`relay` in `plugins/player/player.sim.ts`). None is `open`, so a seat
@@ -240,25 +247,18 @@ export type Lights = {
   parking?: { radius: number; depth: number; glow: number }
 }
 export type Tracks = { colour: number; opacity: number; skid: number; slide: number; clear: number; step: number; life: number; max: number; lift: number }
-// A model drawn on the chassis in place of the body the look draws: the loader catalogue's `model`
-// entry `asset`, its origin at `at` in the chassis's frame, `scale` metres to one of its units.
-export type Model = { asset: string; at?: Vec3; scale?: number }
-// How often an effect bursts for the engine's rpm: `[rpm, rate]` points in rising rpm, joined by
-// straight lines and held past their ends (`along`), the rate particle3d runs the effect at.
-export type Rpm = [rpm: number, rate: number][]
-// One tailpipe: its tip `at` and the way it points `dir` in the chassis's frame, `pipe` round,
-// throwing particle3d's `effect`, and `rev` beside it while the throttle is held, both run at the
-// `rpm` curve's rate for the car's rpm when it has one.
-export type Exhaust = { at: Vec3; dir: Vec3; pipe: number; effect: string; rev?: string; rpm?: Rpm }
-// An effect thrown from under each wheel beside the dust: while the wheel is within `clear` metres of
-// the land and its tread goes faster than `speed[0]` m/s over it, until the wheel itself goes
-// `speed[1]` m/s or faster, run at the `rpm` curve's rate when it has one.
-export type Spray = { effect: string; clear: number; speed: [from: number, to: number]; rpm?: Rpm }
-// An effect thrown from under each wheel sliding sideways: while the wheel is within `clear` metres of
-// the land and goes faster than `speed` m/s across its own way (along its axle), along that sideways
-// way, run at the `rate` curve's rate for that sideways speed, `[[m/s, rate], …]`, when it has one, and
-// thrown with `force` times that sideways speed, when it has one.
-export type Skid = { effect: string; clear: number; speed: number; rate?: [speed: number, rate: number][]; force?: number }
+// A model drawn on the chassis in place of the body the look draws, or on a wheel row in place of the drawn
+// wheel, or at a wheel as its hub: the loader catalogue's `model` entry `asset`, its origin at `at` in the
+// chassis's or the wheel's frame, turned `turn` (a quaternion [x, y, z, w], none when left out) and `scale`
+// metres to one of its units. With `looks`, the catalogue's `json` entry of its own looks file, `asset` is a
+// pro-ng glb (a `binary` entry) drawn through the `models` mod, the looks file naming the material each of its
+// vertices' numbers counts.
+export type Model = { asset: string; at?: Vec3; turn?: Quat; scale?: number; looks?: string }
+// A model for each side of the car: `left` for a wheel on the car's −z, `right` for one on its +z.
+export type Sided = { left: Model; right: Model }
+// One tailpipe: its tip `at` and the way it points `dir` in the chassis's frame, `pipe` round. What it
+// blows is particle3d's (`box3dvehicle.particle3d.ts`).
+export type Exhaust = { at: Vec3; dir: Vec3; pipe: number }
 // A named point of the car, in the chassis's frame: where it is, at its place, or `{ at, part, turn }`,
 // riding the steering wheel with `part: 'steer'` and turned `turn`, a quaternion [x, y, z, w].
 export type Spot = { at: Vec3; part?: 'steer'; turn?: Quat }
@@ -302,12 +302,12 @@ export type Look = {
   lights?: Lights
   spare?: { lift: number }
   exhaust?: Exhaust[]
-  dust?: { effect: string; clear: number; speed: number }
-  sprays?: Spray[]
-  skid?: Skid
   tracks?: Tracks
   open?: Open
   model?: Model
+  wheel?: Sided
+  hubs?: Sided[]
+  corners?: boolean
   lock?: number
   points?: Record<string, Point>
   solid?: Solid

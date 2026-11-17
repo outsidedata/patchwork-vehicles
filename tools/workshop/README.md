@@ -7,10 +7,15 @@ plugins (so what you see is what the game draws), and writes your changes back i
 ## Start it
 
 ```
-node --experimental-strip-types tools/workshop/workshop.server.ts
+yarn workshop <game>                         # the asset workshop
+yarn workshop ui <game>                      # the UI workshop
+yarn workshop particles <game>               # the particle workshop (--effect <name>, --file <repo path>)
+yarn workshop particles --effects <path>     # the particle workshop on any effects file (--sheet <key>=<path>)
+yarn workshop poses                          # the pose lab
 ```
 
-Then open `http://127.0.0.1:5180/?game=<game>`, for example `?game=mech`. Add `&model=<name>` to open
+Each starts the server and opens its page in the browser. The asset workshop is at
+`http://127.0.0.1:5180/?game=<game>`, for example `?game=mech`. Add `&model=<name>` to open
 one model straight away, `&body=<kind>` to open one character, `&vehicle=<name>` to open one car
 (`?game=vehicles&vehicle=jeep`), or `&move=<name>&step=<n>` to open one move at one of its steps
 (`?game=demo_walker&move=floor&step=12`).
@@ -240,7 +245,58 @@ A game's particle effects played by core's particle3d on the game's own render3d
 and bloom), with no game running, on a grid of 1 m squares beside a 1.8 m figure. Add
 `&file=<path>` to open one effects file and `&effect=<name>` to open one effect.
 
-- **Left column:** every effect of the file; type a name to make a new one.
+Every control of the page is in its address, and the address changes as each is turned, so a copied
+address opens the page as it was. A value the page cannot take is named on it.
+
+| Key | What it sets |
+| --- | --- |
+| `effect` | the effect shown |
+| `drawer` | `particle3d` or `gpuparticle3d` |
+| `from` | `still` or `thrown` |
+| `scale` | the effect's scale |
+| `dir`, `to` | `x,y,z`: its dir, and where a beam ends |
+| `time` | how fast time runs, 0.05 to 2 |
+| `auto`, `every` | a burst thrown again (`1` or `0`), every so many whole seconds |
+| `grid` | the grid and the stick, `1` or `0` |
+| `background` | `rrggbb` |
+| `sky`, `sun`, `exposure` | the stage's light |
+| `camera`, `look` | `x,y,z`: where the camera stands, and the point it turns round |
+| `mute`, `solo`, `open` | layers by their card's number from 1: muted, played alone, opened |
+| `generator` | the force generator shown |
+| `d.<driver>` | a driver's number or expression, not yet saved |
+
+`/particles?effect=portal2&drawer=particle3d&time=0.25&solo=4&d.storm=3&camera=1.6,2.2,2.4&look=0.6,1.6,0`
+
+Any effects file, in a game or not, is opened by starting the workshop on it:
+
+```
+yarn workshop particles --effects <path> [--sheet <key>=<path>]… [--effect <name>]
+```
+
+which opens `/particles` (`--effect <name>` on one effect). A file a game's scene names is played in
+that scene's light, with its sheets. Any other is played on the workshop's own stage,
+`particles.stage.json` (neutral tone, bloom, lights3d for lamps), and each sheet its layers draw from is
+given with `--sheet`, its key as the layers name it and the path of its sheet json; the page names any
+that is missing. **Save** writes into that file.
+
+**Drawn by**, in the header, picks the plugin that plays the effects: particle3d, every particle on the
+CPU, or gpuparticle3d, every particle on the GPU, from the same file. Switching drops the particles in the
+air and throws the effect again on the other; the browser keeps the choice across reloads.
+
+- **Left column:** every effect of the file; type a name to make a new one. Under them, the file's
+  **Drivers**, each a name and its number or its expression of the others: type one, or drag across its
+  name, and every number of the file that names it moves as it does, in the particles in the air too.
+  Under those, the file's **Force generators**: pick one and the right column shows its entries, each
+  a card of every field an entry has: its gravity, drag, pull, swirl and swirl axis, the offset of the
+  point it pulls toward and turns about and what that is anchored to, its push along a direction, its
+  range and falloff, its noise (amplitude, frequency, turbulence and scroll), its wind and drag by
+  speed, the shell or the axis line its pull draws toward, and its strength over a particle's life and
+  over the effect's age; **Back to** the effect shows the layers again. `assets/effects/portal.json` has
+  both, and `assets/effects/explosions/blast.json` is a burst moved by five generators.
+- **From:** still, from the middle of the grid; or thrown, riding a small bomb box3d throws across the
+  stage, bouncing until it rests, then put back and thrown again (`thrown.ts`; how it is thrown, how it
+  bounces and how often are the `thrown` numbers of `particles.stage.json`). A stream runs on the bomb
+  as it flies, the way an effect on a moving thing does in a game; a burst is thrown with it each time.
 - **Under the stage:** an effect that bursts again and again plays without end; any other is thrown by
   **Throw**, and again every few seconds while its toggle is on. Beside it, the effect's `scale`, `dir`
   and `to`, and how fast time runs, to watch a quick burst slowly.
@@ -248,12 +304,63 @@ and bloom), with no game running, on a grid of 1 m squares beside a 1.8 m figure
   copy it, remove it, or add one. An open layer shows its main fields, then folders for Timing, Colour
   and fade, Picture, Where it starts, Forces and Light. A field left out shows greyed what particle3d
   does without it; × takes a field out. Every particle in the air takes a changed number on the next
-  step.
-- **Save to game** writes each changed effect into the effects file, checked by particle3d first,
-  leaving the rest of the file as it was. **Revert** drops every change.
+  step. Any number field takes an expression of the file's drivers in place of a number
+  (`0.2 / amplitude`), shown blue, and outlined red until it reads as one. Under Forces, **Force
+  generators** lists each of the file's with how hard it acts on this layer: one strength, or with a
+  second after `to`, a range each particle is rolled in; × takes the layer out of it. A field of stops
+  (**Colours over life**, **Opacity over life**, **Size over life**, and an entry's **Strength over
+  life** and **Strength over age**) is a line for each stop, where it is and its value, a colour picked
+  for a colour stop; **Add a stop** puts one after the last and × takes one out. **Shape** draws the layer as one of particle3d's own soft pictures (puff, puff2, glow, halo,
+  spark, streak, ring, star, bolt, bolt2), with no sheet needed, and **Each carries** gives every
+  particle of the layer its own running copy of another effect, which flies along with it: an
+  explosion's chunks each trailing smoke. A carried effect's **Beam to target** layer reaches from its
+  particle back to the point the particle was thrown from, so drawn as `bolt` it is lightning:
+  `assets/effects/portal.json`'s `arc`, carried inside its `ringsmoke`. A layer's words (a field that is none of particle3d's own, such as instances3d's
+  `mesh`) each show as a line of JSON. The stage lists instances3d and names it in
+  `world.particle3d.mods.behaviors`, and lights the stage with a sky and a sun, so a `mesh` layer draws
+  real lit rocks; its ground is y 0, which a layer with `bounce` bounces off. `assets/effects/smokebomb.json`'s
+  `explosion` uses all of these.
+- **Save to game** writes each changed effect, and the drivers and the force generators when they
+  changed, into the effects file, checked by particle3d first, leaving the rest of the file as it was.
+  **Revert** drops every change.
 
-A file of the game written on disk loads the page again on the same effect, unless there are changes
+The file written on disk loads the page again on the same effect, unless there are changes
 not yet saved.
+
+### Pictures of effects (`yarn particle-views`)
+
+```
+yarn particle-views <views.json> <out folder>
+```
+
+takes a picture of an effect from any camera, at any moment, with any of its layers off, in a headless
+Chrome, with nothing on the screen. `<views.json>` is a list of views, each one picture written as
+`<out folder>/<name>.png`:
+
+```json
+[
+  { "file": "assets/effects/smokebomb.json", "camera": [6, 3.5, 8], "target": [0, 1.2, 0], "preroll": 0.5 },
+  { "name": "blast-smoke", "file": "assets/effects/smokebomb.json", "effect": "explosion",
+    "camera": [0, 2, 12], "target": [0, 2, 0], "preroll": 1.5,
+    "only": [6, 10, 11], "off": { "chunktrail": [1] }, "stage": false, "size": [800, 800] }
+]
+```
+
+- `file`: the effects file, a path from the views file's folder. Each view names its own, so one views
+  file can go through many.
+- `effect`: the effect thrown. Left out, the view is one picture of every effect of the file.
+- `camera`, `target`: where the camera stands and the point it looks at, in metres, y up, the ground y 0.
+- `preroll`: the seconds the effect has run when the picture is taken. It is stepped by the scene's
+  `dt` from the moment it is thrown and rolled from `seed`, so a view is the same picture every time.
+- `off`, `only`: the layers not played, or the only ones played. A list is layers of `effect`, each its
+  place in the effect's list from 0; `{ "<effect>": [layers] }` reaches any effect of the file, the ones
+  `effect` names and the ones its particles carry.
+- Also `name`, `fov`, `size`, `at`, `dir`, `to`, `scale`, `seed`, `from` (`still` or `thrown`, riding the
+  bomb), `stage` (false leaves out the grid and the stick) and `sheets`; the header of
+  `scripts/particle-views.ts` says what each is when left out.
+
+The stage is the workshop's, `stage.ts`, which the page above plays on too. It prints each picture as it
+is written, with the particles and effects in the air in it.
 
 ## For agents
 

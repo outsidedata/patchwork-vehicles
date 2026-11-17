@@ -36,7 +36,7 @@ const LOOKS: Looks = {
   materials: [{ name: 'stone', look: 'rock', call: 'solid', colour: [0.5, 0.5, 0.5] }, { name: 'path', look: 'cobble', call: 'relief', colour: [0.4, 0.4, 0.4] }],
   vertexPars: 'attribute float lookId;\nattribute vec3 lookInfo;\n', vertexMain: 'vLookId = lookId;\n',
   calls: { solid: shaderOf([0]), relief: shaderOf([1]), seeThrough: null, all: shaderOf([0, 1]) },
-  uniforms: {}, needs: [], pictures: [],
+  settings: { width: 1, materials: [[], []] }, needs: [], pictures: [],
 }
 const LOOKS_URL = '/supershader3d-solids-test/main.looks.json'
 written(LOOKS_URL, JSON.stringify(LOOKS))

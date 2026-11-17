@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { boot, type Scene } from '#engine/engine.ts'
-import { asset, def, json, loader, namesIn, ready } from './loader.sim.ts'
+import { asset, def, json, loader, ready } from './loader.sim.ts'
 
 const DT = 1 / 60
 
@@ -834,8 +834,88 @@ test('a rewritten map naming a tileset the process has not read fetches it, then
 // A PNG is read into the pixels it was written from, whatever its colour type, depth, filters and
 // interlacing, with its text; what `encodePng` writes reads back the same, a pixel whose alpha is 0
 // keeping its colour; and a `pixels` entry is preloaded and read by a rule.
-import { png } from '#editor/test/png.ts'
+import { crc32, deflateSync } from 'node:zlib'
 import { decodePng, encodePng, pixels, pixelsAt, type Pixels } from './loader.sim.ts'
+
+// A PNG of pixels of any colour type and bit depth, each row filtered as the test says, interlaced
+// with Adam7 when asked, with a palette and a transparency chunk when given, so what `decodePng` makes
+// of it can be checked against the pixels it came from.
+type Png = {
+  width: number
+  height: number
+  // 0 grey, 2 RGB, 3 palette, 4 grey and alpha, 6 RGBA.
+  type: 0 | 2 | 3 | 4 | 6
+  depth: 1 | 2 | 4 | 8 | 16
+  // Each pixel's samples at the image's depth, a row at a time from the top.
+  samples: number[][]
+  palette?: [number, number, number][]
+  trns?: number[]
+  // The filter of each row, 0 to 4, round again when there are more rows; 0 when left out.
+  filters?: number[]
+  interlace?: boolean
+}
+
+const SAMPLES = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }
+const ADAM7 = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]]
+
+// A chunk as PNG lays one out, for `png` and for a test to put text into a file `png` wrote.
+const chunk = (name: string, body: Uint8Array) => {
+  const out = Buffer.alloc(12 + body.length)
+  out.writeUInt32BE(body.length, 0)
+  out.write(name, 4, 'latin1')
+  Buffer.from(body).copy(out, 8)
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length)
+  return out
+}
+
+// One row's samples packed at `depth` bits, big-endian as PNG writes them.
+function pack(samples: number[], depth: number): number[] {
+  if (depth === 16) return samples.flatMap(v => [v >> 8, v & 255])
+  if (depth === 8) return samples
+  const out = new Array(Math.ceil((samples.length * depth) / 8)).fill(0)
+  samples.forEach((v, i) => { out[(i * depth) >> 3] |= v << (8 - depth - ((i * depth) & 7)) })
+  return out
+}
+
+// A row filtered with `f` against the row above it, both packed, `back` bytes to a pixel.
+function filtered(f: number, row: number[], above: number[], back: number): number[] {
+  return row.map((x, i) => {
+    const a = i >= back ? row[i - back] : 0, b = above[i] ?? 0, c = i >= back ? above[i - back] ?? 0 : 0
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c)
+    const predicted = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][f]
+    return (x - predicted) & 255
+  })
+}
+
+function png(p: Png): Uint8Array {
+  const per = SAMPLES[p.type], back = Math.max(1, (per * p.depth) >> 3)
+  const lines: number[] = []
+  let k = 0
+  for (const [x0, y0, dx, dy] of p.interlace ? ADAM7 : [[0, 0, 1, 1]]) {
+    let above: number[] = []
+    for (let y = y0; y < p.height; y += dy) {
+      const pixels: number[] = []
+      for (let x = x0; x < p.width; x += dx) pixels.push(...p.samples[y].slice(x * per, (x + 1) * per))
+      if (!pixels.length) continue
+      const row = pack(pixels, p.depth)
+      const f = p.filters?.[k++ % p.filters.length] ?? 0
+      lines.push(f, ...filtered(f, row, above, back))
+      above = row
+    }
+  }
+  const head = Buffer.alloc(13)
+  head.writeUInt32BE(p.width, 0)
+  head.writeUInt32BE(p.height, 4)
+  head.set([p.depth, p.type, 0, 0, p.interlace ? 1 : 0], 8)
+  return new Uint8Array(Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', head),
+    ...(p.palette ? [chunk('PLTE', new Uint8Array(p.palette.flat()))] : []),
+    ...(p.trns ? [chunk('tRNS', new Uint8Array(p.trns))] : []),
+    chunk('IDAT', deflateSync(Buffer.from(lines))),
+    chunk('IEND', new Uint8Array()),
+  ]))
+}
 
 const px = (p: Pixels, x: number, y: number) => [...p.data.subarray((y * p.width + x) * 4, (y * p.width + x) * 4 + 4)]
 const all = (p: Pixels) => Array.from({ length: p.height }, (_, y) => Array.from({ length: p.width }, (_, x) => px(p, x, y)))
@@ -877,15 +957,6 @@ test('grey of 1 bit, grey and alpha of 16 bits and RGB with a transparent colour
   expect(all(keyed)[0]).toEqual([[10, 20, 30, 0], [10, 20, 31, 255]])
 })
 
-// A chunk as PNG lays one out, for a test to put text into a file the helper wrote.
-const chunk = (name: string, body: Uint8Array) => {
-  const out = Buffer.alloc(12 + body.length)
-  out.writeUInt32BE(body.length, 0)
-  out.write(name, 4, 'latin1')
-  Buffer.from(body).copy(out, 8)
-  out.writeUInt32BE(zlib.crc32(out.subarray(4, 8 + body.length)), 8 + body.length)
-  return out
-}
 // A PNG with chunks put in after its header.
 const withChunks = (file: Uint8Array, ...chunks: Buffer[]) => new Uint8Array(Buffer.concat([Buffer.from(file.subarray(0, 33)), ...chunks, Buffer.from(file.subarray(33))]))
 
@@ -1001,18 +1072,7 @@ test('a pixels entry that is not a PNG fails prepare with the reason', async () 
   await expect(loader.prepare(truth.rows[0], truth.world)).rejects.toThrow('loader bad: not a PNG')
 })
 
-test('what a file of the loader\'s names is what the loader opens of it: a tileset\'s pictures, any .tsj being one, and a pack\'s page and other packs', () => {
-  // A tileset, by its type or by being a .tsj without one, names its picture and each tile's.
-  const tiles = { image: 'grass.png', tiles: [{ id: 1, image: 'one.png' }] }
-  const want = [{ at: ['image'], name: 'grass.png', url: '/a/grass.png' }, { at: ['tiles', 0, 'image'], name: 'one.png', url: '/a/one.png' }]
-  expect(namesIn(tiles, '/a/set.tsj')).toEqual(want)
-  expect(namesIn({ ...tiles, type: 'tileset' }, '/a/set.json')).toEqual(want)
-  expect(namesIn({ meta: { image: 'p.png', related_multi_packs: ['b.json'] } }, '/a/s.json').map(n => n.url)).toEqual(['/a/p.png', '/a/b.json'])
-  expect(namesIn({ hall: { speed: 1 } }, '/a/defs.json')).toEqual([])
-  // A file whose JSON is no object names nothing; nor does a .tmj that is no map, which readMap does
-  // not open.
-  for (const nothing of [null, [], 3, 'map']) expect(namesIn(nothing, '/a/nothing.json')).toEqual([])
-  expect(namesIn({ tilesets: [{ firstgid: 1, source: 'set.tsj' }], layers: [] }, '/a/m.tmj')).toEqual([])
+test('a .tmj that is no Tiled map is not opened', () => {
   expect(() => readMap({ tilesets: [{ firstgid: 1, source: 'set.tsj' }], layers: [] }, '/a/m.tmj')).toThrow('tilemap /a/m.tmj is no Tiled map')
 })
 

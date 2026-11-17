@@ -18,7 +18,8 @@ import { written } from '#plugins/loader/loader.sim.ts'
 import { motion3d } from './motion3d.plugin.ts'
 
 const DT = 1 / 60
-const RIG = { clips: { sit: { loop: true } }, roles: {}, table: { sit: { dur: 1, forward: 0, left: 0, yaw: 0, travel: [[0, 0, 0, 0], [1, 0, 0, 0]] } } }
+const still = (dur: number) => ({ dur, forward: 0, left: 0, yaw: 0, travel: [[0, 0, 0, 0], [dur, 0, 0, 0]] })
+const RIG = { clips: { sit: { loop: true }, twitch: { loop: true } }, roles: {}, table: { sit: still(1), twitch: still(1) } }
 // The rider's carry: the stick's `butt` set at the shoulder, the hand reaching its `grip`, while `sit`
 // plays. The arm's pole points down.
 const CARRY = { prop: 'stick', anchor: { bone: 'Shoulder', at: [0, 0, 0.1], turn: [0, 0, 0], point: 'butt' }, limbs: [{ bones: ['Arm', 'ForeArm', 'Hand'], target: 'grip', pole: [0, -1, 0] }] }
@@ -88,7 +89,13 @@ function figure() {
   const arm = bone('Arm', [10, 0, 0], shoulder)
   const fore = bone('ForeArm', [0, -25, 0], arm)
   bone('Hand', [0, -25, 0], fore)
-  const sit = new THREE.AnimationClip('sit', -1, [new THREE.VectorKeyframeTrack('Hand.position', [0, 1], [0, -25, 0, 0, -25, 0])])
+  const sit = new THREE.AnimationClip('sit', -1, [
+    new THREE.VectorKeyframeTrack('Hand.position', [0, 1], [0, -25, 0, 0, -25, 0]),
+    new THREE.QuaternionKeyframeTrack('Arm.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]),
+  ])
+  // The twitch turns the arm about z from 0.3 to 1.1 over its second.
+  const zq = (a: number) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a).toArray()
+  const twitch = new THREE.AnimationClip('twitch', -1, [new THREE.QuaternionKeyframeTrack('Arm.quaternion', [0, 1], [...zq(0.3), ...zq(1.1)])])
   const stick = new THREE.Group()
   const butt = new THREE.Object3D()
   butt.name = 'butt'
@@ -96,7 +103,7 @@ function figure() {
   grip.name = 'grip'
   grip.position.set(0, 0, 0.3)
   stick.add(butt, grip)
-  return { root, stick, animations: [sit] }
+  return { root, stick, animations: [sit, twitch] }
 }
 
 // A page's plugins on the booted yard, its scene listing `plugins`, render3d's three and scene handed it,
@@ -159,6 +166,24 @@ test('a body held to a point of a space is drawn on it as the page draws the spa
   close(held(root, prop), grip)
 })
 
+test('an additive layer is laid on the pose the mixer leaves, by its clip\'s turn from its first frame at its weight, the same every frame', async () => {
+  const { p, root } = await page()
+  stage(p)
+  // Halfway through the twitch at half weight: the arm turned on from where `sit` holds it by half of
+  // (0.7 − 0.3) about z.
+  p.wire.rows[1].data.adds = [{ name: 'ride.twitch', clip: 'twitch', t: 0.5, w: 0.5, most: 0.5, loop: true, ending: false, bone: null }]
+  const m = motion3d()
+  const want = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.2)
+  for (let i = 0; i < 3; i++) {
+    m.tick(p)
+    expect(root.getObjectByName('Arm')!.quaternion.angleTo(want)).toBeLessThan(1e-5)
+  }
+  // Taken off: the arm as `sit` holds it.
+  p.wire.rows[1].data.adds = []
+  m.tick(p)
+  expect(root.getObjectByName('Arm')!.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6)
+})
+
 test('a kind\'s props are hung once while they stay the same, a fresh copy of them included, and again when a number deep in them is written in place', async () => {
   const { p, root, prop } = await page()
   stage(p)
@@ -170,7 +195,7 @@ test('a kind\'s props are hung once while they stay the same, a fresh copy of th
   m.tick(p)
   m.tick(p)
   expect(hung).toBe(1)
-  // One number of the stick's offset written in place, in the list it was hung by, as the editor writes a
+  // One number of the stick's offset written in place, in the list it was hung by, as a dev page's panel writes a
   // scene: the stick is hung again, 0.2 m along the hand's z.
   const rider = p.wire.scene.world.motion3d.kinds.rider
   rider.props[0].at[2] = 0.2

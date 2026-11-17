@@ -3,7 +3,12 @@
 //
 //   node --experimental-strip-types tools/workshop/workshop.server.ts
 //
-// and open http://localhost:5180/?game=<game>. A game is read from its own files and nothing else:
+// and open http://localhost:5180/?game=<game>. Run as
+//
+//   node --experimental-strip-types tools/workshop/workshop.server.ts --effects <path> [--sheet <key>=<path>]…
+//
+// it is the particle workshop on that one effects file, anywhere on disk, with no game chosen: open
+// http://localhost:5180/particles. A game is read from its own files and nothing else:
 // its manager scene, `games/<game>/<game>.scene.json`, and each scene that names (`scenemanager`'s
 // `scenes`), or the manager alone when it names none, each scene loaded whole by scenemanager's own
 // `child` (`loaded.ts`): the manager's world and prefabs under it, and the partial it `extends`
@@ -40,6 +45,8 @@
 //                        drawn by the game's own looks on core's ui plugin, tuned and saved, no game running.
 //   /particles           the particle workshop, `particles.html` (`particles.ts`): a game's particle effects
 //                        played by core's particle3d on a stage, each layer tuned live and saved, no game running.
+//   /views               the views page, `views.html` (`views.ts`): the effects file given by `--effects` on
+//                        the particle workshop's stage alone, which `yarn particle-views` takes pictures of.
 //   /library/characters/…   the library's rigged characters (`PATCHWORK_LIBRARY`, else ~/patchwork-library),
 //                        each `characters/<name>/<name>.fbx` and the textures beside it, the bodies the
 //                        pose lab poses.
@@ -111,11 +118,18 @@
 //                              a scene's ui file or its definitions file (`scenes.ts`'s `set`), the
 //                              layout kept, every file written only once every edit applied. Hands back
 //                              `written`, the files changed.
+//   GET  /api/particles        the effects file given by `--effects` as the particle workshop draws it
+//                              (`givenSummary`), one entry of `/api/particles/<game>`'s shape; a 404
+//                              when none was given, or a sheet it draws from is catalogued nowhere.
+//   POST /api/particles        `{ file, effects, drivers, forceGenerators }`, saved into the given file as below.
+//   /given/effects/…, /given/sheet/<key>/…   the given effects file's folder, and each given sheet's.
 //   GET  /api/particles/<game> the game's effects files as the particle workshop draws them
 //                              (`particlesSummary`): each file, its scenes, what it holds and the stage.
 //   POST /api/particles/<game> `{ file, effects: { <name>: [layers] } }`: each effect's layers set in place
 //                              in the effects file, the layout kept, checked by particle3d's own `check`
-//                              before it is written. Hands back `written`.
+//                              before it is written. With `drivers` or `forceGenerators`, the file's
+//                              drivers or force generators set whole; a save gives at least one of the
+//                              three. Hands back `written`.
 //   GET  /api/events           server-sent events: `changed <path>` for each file of `games/` written,
 //                              150 ms after its last write, so a half-written export is not read.
 // `start({ port, root, packs, library })` runs it on any port against any root, which is how its test
@@ -125,11 +139,12 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import os from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
 import { check, type Interaction, type Step } from '../../plugins/interact/interact.sim.ts'
-import { check as particleCheck } from '../../plugins/particle3d/particle3d.plugin.ts'
+import { check as particleCheck, drawers } from '../../plugins/particle3d/particle3d.plugin.ts'
+import { prepare } from '../../addons/scenemanager/scenemanager.addon.ts'
 import { instanced } from '../../scripts/instance.ts'
 import { readPoints, writePoints, type Point } from './glb.ts'
 import { besideOf, readBeside, setBeside } from './beside.ts'
@@ -165,15 +180,26 @@ const transform = stripTypeScriptTypes as unknown as (code: string, options: { m
 
 type Json = any
 
-export function start({ port, root, packs: given, library }: { port: number; root: string; packs?: string; library?: string }): Promise<{ url: string; close(): Promise<void> }> {
+export function start({ port, root, packs: packsGiven, library, effects: effectsGiven, sheets: sheetsGiven }: {
+  port: number; root: string; packs?: string; library?: string; effects?: string; sheets?: Record<string, string>
+}): Promise<{ url: string; close(): Promise<void> }> {
   const here = path.join(root, 'tools/workshop')
   const gamesDir = path.join(root, 'games')
   // The root's `.env` (`.env.example` lists it: `BLENDER` for a bake), under what the shell set.
   if (fs.existsSync(path.join(root, '.env'))) process.loadEnvFile(path.join(root, '.env'))
+  // The effects file the particle workshop opens on, and the sheets it draws from, each a whole path.
+  const given = effectsGiven === undefined ? undefined : {
+    effects: path.resolve(effectsGiven),
+    sheets: Object.fromEntries(Object.entries(sheetsGiven ?? {}).map(([k, f]) => [k, path.resolve(f)])),
+  }
+  if (given) {
+    if (!fs.existsSync(given.effects)) throw new Error(`no effects file ${given.effects}`)
+    for (const [k, f] of Object.entries(given.sheets)) if (!fs.existsSync(f)) throw new Error(`no sheet ${k} at ${f}`)
+  }
   // The Mixamo packs, `packs/` in the clip collection (`PATCHWORK_CLIPS`, else ~/troupe-collection), each
   // a folder of FBX clips. Only this folder and the folders directly in it are read, so the held view can
   // try any pack clip on a body before it is baked.
-  const packs = given ?? path.join((process.env.PATCHWORK_CLIPS ?? '~/troupe-collection').replace(/^~(?=$|\/)/, os.homedir()), 'packs')
+  const packs = packsGiven ?? path.join((process.env.PATCHWORK_CLIPS ?? '~/troupe-collection').replace(/^~(?=$|\/)/, os.homedir()), 'packs')
   // The library, whose rigged characters the pose lab poses.
   const lib = library ?? (process.env.PATCHWORK_LIBRARY ?? '~/patchwork-library').replace(/^~(?=$|\/)/, os.homedir())
   const characters = path.join(lib, 'characters')
@@ -287,10 +313,10 @@ export function start({ port, root, packs: given, library }: { port: number; roo
   //            the files that give its look (`vehicleFiles`), which a save of its points writes; `model`,
   //            its look's model's catalogue key, or null for a look drawn in code; and how the page
   //            draws it still, as the game draws it: `plugins`, the look plugins it lists for it,
-  //            `box3dvehicle` and, when the scene lists `particle3d` and the look has an exhaust or dust,
-  //            `particle3d`; and `world`, their numbers: `box3dvehicle`, the scene's fleet with this
-  //            vehicle alone and no `mods` (no gravity, no land: nothing moves it, no dust and no tracks
-  //            are thrown), and with `particle3d`, the scene's `world.particle3d`.
+  //            `box3dvehicle` and, when the scene lists `particle3d` and attaches effects to its sources
+  //            (`world.particle3d.attach`), `particle3d`; and `world`, their numbers: `box3dvehicle`, the
+  //            scene's fleet with this vehicle alone and no `mods` (no gravity, no land: nothing moves it
+  //            and no tracks are laid), and with `particle3d`, the scene's `world.particle3d`.
   //   workshop the url of the game's own workshop file, `games/<game>/<game>.workshop.ts`, when it has
   //            one: its moves (the page's Moves) and the models it marks (the page's Marks).
   function summary(game: string) {
@@ -314,7 +340,7 @@ export function start({ port, root, packs: given, library }: { port: number; roo
       if (lists('box3dvehicle') && w.interact?.kinds?.box3dvehicle && w.box3dvehicle?.vehicles) {
         for (const [name, v] of Object.entries(w.box3dvehicle.vehicles as Record<string, Json>)) {
           if (vehicles.has(name)) continue
-          const smokes = lists('particle3d') && !!(v.look?.exhaust?.length || v.look?.dust)
+          const smokes = lists('particle3d') && !!w.particle3d?.attach?.length
           const fleet = { ...w.box3dvehicle, vehicles: { [name]: v } }
           delete fleet.mods
           vehicles.set(name, {
@@ -596,14 +622,20 @@ export function start({ port, root, packs: given, library }: { port: number; roo
   //   scenes    every scene that names it.
   //   effects   the file as it is on disk.
   //   world     what the page builds its stage from, the first scene's: `particle3d` its own numbers,
-  //             `loader` its catalogue cut to the sheets (the only files an effect draws from), and
-  //             `lights3d` when the scene lists lights3d, which draws a particle's `light`.
+  //             `loader` its catalogue cut to the sheets (the only files an effect draws from) and the
+  //             effects file itself (whose `files` particle3d reads from beside it), and
+  //             `lights3d` when the scene lists lights3d, which draws an effect's `lamp`.
   //   plugins   the plugins the stage lists, in the scene's order: particle3d, lights3d when the scene
   //             lists it, render3d.
   //   render3d  the scene's render3d prefab, so the tone, the exposure and the bloom are the game's.
   //   dt        the scene's step, which particle3d moves every effect by.
+  //   thrown    the thrown source's numbers, the stage file's `thrown` (`particles.stage.json`,
+  //             `thrown.ts`): the body box3d throws across the stage for an effect to ride.
+  //   listed    each file the effects file lists (`files`), in its order: `file`, its path as `file` is
+  //             written, and `effects`, the file as it is on disk. particle3d plays their effects, force
+  //             generators and drivers as the effects file's own, and a save of one of them writes it.
   function particlesSummary(game: string) {
-    const files = new Map<string, { file: string; key: string; scenes: string[]; effects: Json; world: Json; plugins: string[]; render3d: Json; dt: number }>()
+    const files = new Map<string, { file: string; key: string; scenes: string[]; effects: Json; world: Json; plugins: string[]; render3d: Json; dt: number; thrown: Json; listed: Listed[] }>()
     for (const s of scenesOf(game)) {
       const lists = (s.scene.plugins ?? []) as string[]
       const w = s.scene.world ?? {}
@@ -616,12 +648,14 @@ export function start({ port, root, packs: given, library }: { port: number; roo
       if (had) { had.scenes.push(s.name); continue }
       const full = inside(root, file)
       if (!full || !full.startsWith(gamesDir + path.sep) || !fs.existsSync(full)) throw new Error(`${s.name}'s effects file ${file} is not a file of games/`)
-      const sheets = Object.fromEntries(Object.entries((w.loader.assets ?? {}) as Record<string, Json>).filter(([, e]) => e.type === 'sheet'))
-      const plugins = lists.filter(p => p === 'particle3d' || p === 'lights3d' || p === 'render3d')
+      const sheets = Object.fromEntries(Object.entries((w.loader.assets ?? {}) as Record<string, Json>).filter(([k, e]) => e.type === 'sheet' || k === key))
+      const plugins = lists.filter(p => p === 'particle3d' || p === 'instances3d' || p === 'lights3d' || p === 'render3d')
+      const effects = read(full)
       files.set(file, {
-        file, key, scenes: [s.name], effects: read(full),
-        world: { particle3d: w.particle3d, loader: { ...w.loader, assets: sheets }, ...(plugins.includes('lights3d') ? { lights3d: w.lights3d } : {}) },
+        file, key, scenes: [s.name], effects, listed: listedOf(full, effects),
+        world: { particle3d: w.particle3d, loader: { ...w.loader, assets: sheets }, ...(plugins.includes('instances3d') ? { instances3d: w.instances3d } : {}), ...(plugins.includes('lights3d') ? { lights3d: w.lights3d } : {}), ...(w.shipped ? { shipped: w.shipped } : {}) },
         plugins, render3d: s.scene.prefabs?.render3d ?? {}, dt: s.scene.prefabs?.engine?.dt ?? 1 / 60,
+        thrown: read(STAGE).thrown,
       })
     }
     return { files: [...files.values()] }
@@ -632,23 +666,133 @@ export function start({ port, root, packs: given, library }: { port: number; roo
   // `effects.<name>` (`scenes.ts`'s `set`), the rest of the file and its layout kept; an effect it does
   // not have yet is added at the end. The file as it would be written is checked by particle3d's own
   // `check`, and written only when it passes and parses; hands back whether it was written.
-  function particlesSaving(game: string, b: { file?: unknown; effects?: unknown }): { written: boolean } {
+  function particlesSaving(game: string, b: Saved): Promise<{ written: boolean }> {
     const s = particlesSummary(game)
-    const found = s.files.find(f => f.file === b.file)
-    if (!found) throw new Error(`${String(b.file)} is none of ${game}'s effects files: ${s.files.map(f => f.file).join(', ')}`)
-    if (!b.effects || typeof b.effects !== 'object' || Array.isArray(b.effects) || !Object.keys(b.effects).length) throw new Error('effects is each effect changed, by name, its list of layers')
-    const full = path.join(root, found.file)
+    const found = s.files.find(f => f.file === b.file || f.listed.some(l => l.file === b.file))
+    if (!found) throw new Error(`${String(b.file)} is none of ${game}'s effects files, nor a file one lists: ${s.files.flatMap(f => [f.file, ...f.listed.map(l => l.file)]).join(', ')}`)
+    return listedWriting(path.join(root, found.file), found, b)
+  }
+
+  // A file an effects file lists (`files`): its path as the page names it (`label`), where it is, and
+  // the file as it is on disk.
+  type Listed = { file: string; full: string; effects: Json }
+  // Each file the effects file at `full`, read as `effects`, lists, from its folder, in its order.
+  function listedOf(full: string, effects: Json): Listed[] {
+    return ((effects.files ?? []) as string[]).map(rel => {
+      const at = path.resolve(path.dirname(full), rel)
+      if (!fs.existsSync(at)) throw new Error(`${label(full)} lists ${rel}, which is no file`)
+      return { file: label(at), full: at, effects: read(at) }
+    })
+  }
+  // The effects file `main` with the files it lists laid over it, as particle3d lays them when it reads
+  // it: one file of every effect, force generator and driver, listing none.
+  function gathered(main: Json, listed: Json[]): Json {
+    const { files: _, ...whole } = main
+    whole.effects = Object.assign({}, main.effects, ...listed.map(l => l.effects))
+    if (main.forceGenerators || listed.some(l => l.forceGenerators)) whole.forceGenerators = Object.assign({}, main.forceGenerators, ...listed.map(l => l.forceGenerators))
+    if (main.drivers || listed.some(l => l.drivers)) whole.drivers = Object.assign({}, main.drivers, ...listed.map(l => l.drivers))
+    return whole
+  }
+  // A save into the effects file at `main`, of the summary entry `found`, or into a file it lists, as
+  // `b.file` names it; the file written checked with every other of the set as it is on disk, gathered as
+  // particle3d gathers them, so a layer may be in a force generator or name a driver of another file.
+  function listedWriting(main: string, found: { file: string; effects: Json; world: Json; listed: Listed[] }, b: Saved): Promise<{ written: boolean }> {
+    if (b.file === found.file) return effectsWriting(main, found.world, b, now => gathered(now, found.listed.map(l => l.effects)))
+    const into = found.listed.find(l => l.file === b.file)
+    if (!into) throw new Error(`${String(b.file)} is neither ${found.file} nor a file it lists: ${found.listed.map(l => l.file).join(', ')}`)
+    return effectsWriting(into.full, found.world, b, now => gathered(found.effects, found.listed.map(l => (l === into ? now : l.effects))))
+  }
+
+  // Each effect of `effects` set in place in the effects file at `full`, and the file's `drivers` and
+  // `forceGenerators` set whole when they are given, checked by particle3d's own `check` against
+  // `world.particle3d` and the words the scene's mods deliver (its mods loaded as a truth loads them),
+  // and written only when it passes and parses. A save gives at least one of the three. `whole` hands
+  // back what is checked, from the file as it would be written: the set of files it is one of, gathered.
+  type Saved = { file?: unknown; effects?: unknown; drivers?: unknown; forceGenerators?: unknown }
+  async function effectsWriting(full: string, world: Json, b: Saved, whole: (now: Json) => Json): Promise<{ written: boolean }> {
+    const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+    if (b.effects === undefined && b.drivers === undefined && b.forceGenerators === undefined) throw new Error('a save is effects, each effect changed, by name, its list of layers; drivers, the file\'s drivers; or forceGenerators, the file\'s force generators')
+    if (b.effects !== undefined && (!record(b.effects) || (!Object.keys(b.effects).length && b.drivers === undefined && b.forceGenerators === undefined))) throw new Error('effects is each effect changed, by name, its list of layers')
+    if (b.drivers !== undefined && !record(b.drivers)) throw new Error('drivers is the file\'s drivers, each a number or an expression by name')
+    if (b.forceGenerators !== undefined && !record(b.forceGenerators)) throw new Error('forceGenerators is the file\'s force generators, each a list of entries by name')
     let text = fs.readFileSync(full, 'utf8')
-    for (const [name, layers] of Object.entries(b.effects as Record<string, unknown>)) {
+    if (b.drivers !== undefined) text = set(text, ['drivers'], b.drivers)
+    if (b.forceGenerators !== undefined) text = set(text, ['forceGenerators'], b.forceGenerators)
+    for (const [name, layers] of Object.entries((b.effects ?? {}) as Record<string, unknown>)) {
       if (!Array.isArray(layers) || !layers.every(l => l && typeof l === 'object' && !Array.isArray(l))) throw new Error(`${name} is a list of layers, each an object`)
       text = set(text, ['effects', name], layers)
     }
     const now = JSON.parse(text) // never write a file that does not parse
-    particleCheck(now, found.world.particle3d)
+    // a game's own plugins' mods are found in its folder, the effects file's game's
+    const game = /^games\/([^/]+)\//.exec(label(full))?.[1]
+    await prepare({}, [], game ? { ...world, scenemanager: { ...world.scenemanager, home: pathToFileURL(path.join(gamesDir, game) + '/').href } } : world)
+    particleCheck(whole(now), world.particle3d, drawers(world), world)
     if (text === fs.readFileSync(full, 'utf8')) return { written: false }
     fs.writeFileSync(full + '.tmp', text)
     fs.renameSync(full + '.tmp', full)
     return { written: true }
+  }
+
+  // The effects file the server was started on (`--effects <path>`), as the particle workshop draws it:
+  // one entry in the shape `particlesSummary` gives, `file` its path as given, from the root where it is
+  // under it. Its stage is that of the first scene of any game that names the file, so a game's file is
+  // seen in the game's own light; a file no game names is seen on the workshop's own stage,
+  // `particles.stage.json`. Its catalogue is the scene's sheets, the sheets given (`--sheet <key>=<path>`,
+  // over the scene's of the same key) and the file itself, each given file served from its own folder
+  // (`/given/effects/…`, `/given/sheet/<key>/…`). Throws naming each sheet a layer of the file, or of a
+  // file its `files` lists, draws from that the catalogue has not.
+  const STAGE = fileURLToPath(new URL('./particles.stage.json', import.meta.url))
+  const label = (full: string) => (full.startsWith(root + path.sep) ? path.relative(root, full) : full)
+  // The game scene that names the given file, found by reading every game's scenes: half a second, so
+  // kept until a file under games/ is written (the watcher below forgets it).
+  type Named = { game: string; f: ReturnType<typeof particlesSummary>['files'][number] } | undefined
+  let scanned: { named: Named } | undefined
+  function givenSummary() {
+    if (!given) throw new Error('the workshop was started on no effects file: run it with --effects <path>')
+    const effects = read(given.effects)
+    if (!scanned) {
+      const games = fs.existsSync(gamesDir) ? fs.readdirSync(gamesDir, { withFileTypes: true })
+        .filter(d => d.isDirectory() && fs.existsSync(path.join(gamesDir, d.name, `${d.name}.scene.json`))).map(d => d.name).sort() : []
+      let found: Named
+      for (const game of games) {
+        let files: ReturnType<typeof particlesSummary>['files']
+        try { files = particlesSummary(game).files } catch { continue }
+        const f = files.find(x => path.join(root, x.file) === given.effects)
+        if (f) { found = { game, f }; break }
+      }
+      scanned = { named: found }
+    }
+    const { named } = scanned
+    const stage = read(STAGE)
+    const key = named?.f.key ?? 'effects'
+    const sheets: Record<string, Json> = Object.fromEntries(Object.entries((named?.f.world.loader.assets ?? {}) as Record<string, Json>).filter(([k]) => k !== key))
+    for (const [k, full] of Object.entries(given.sheets)) sheets[k] = { type: 'sheet', url: `/given/sheet/${encodeURIComponent(k)}/${encodeURIComponent(path.basename(full))}` }
+    const drawn = new Set<string>()
+    const take = (e: Json) => {
+      for (const layers of Object.values((e?.effects ?? {}) as Record<string, Json[]>)) for (const l of layers) if (l && typeof l.sheet === 'string') drawn.add(l.sheet)
+    }
+    const listed = listedOf(given.effects, effects)
+    take(effects)
+    for (const l of listed) take(l.effects)
+    const lacking = [...drawn].filter(k => !sheets[k])
+    if (lacking.length) throw new Error(`${label(given.effects)} draws from the sheet${lacking.length === 1 ? '' : 's'} ${lacking.join(', ')}, which no game's scene catalogues for it: give each as --sheet <key>=<path of its sheet json>`)
+    const world = named ? named.f.world : stage.world
+    return {
+      files: [{
+        file: label(given.effects), key,
+        scenes: named ? named.f.scenes.map(s => `${named!.game}/${s}`) : [],
+        effects, listed,
+        world: {
+          ...world,
+          particle3d: { ...world.particle3d, effects: key },
+          loader: { assets: { ...sheets, [key]: { type: 'json', url: `/given/effects/${encodeURIComponent(path.basename(given.effects))}` } } },
+        },
+        plugins: named ? named.f.plugins : stage.plugins,
+        render3d: named ? named.f.render3d : stage.render3d,
+        dt: named ? named.f.dt : stage.dt,
+        thrown: stage.thrown,
+      }],
+    }
   }
 
   // ---- events ----
@@ -657,6 +801,7 @@ export function start({ port, root, packs: given, library }: { port: number; roo
   const timers = new Map<string, NodeJS.Timeout>()
   const watcher = fs.existsSync(gamesDir) ? fs.watch(gamesDir, { recursive: true }, (_e, name) => {
     if (!name || name.endsWith('.tmp')) return
+    scanned = undefined
     const rel = path.join('games', name.toString())
     clearTimeout(timers.get(rel))
     timers.set(rel, setTimeout(() => {
@@ -664,6 +809,26 @@ export function start({ port, root, packs: given, library }: { port: number; roo
       for (const c of clients) c.write(`data: changed ${rel}\n\n`)
     }, DEBOUNCE))
   }) : undefined
+  // The effects file given and each file it lists (`files`) as the server starts, watched where each is,
+  // under games/ or not, sent as changed by the path the page knows it by. Which files are watched is
+  // asked again at each change, so a file the given one lists from then on is sent too when it is in a
+  // folder already watched.
+  const givenFiles = (): string[] => {
+    if (!given) return []
+    try { return [given.effects, ...listedOf(given.effects, read(given.effects)).map(l => l.full)] } catch { return [given.effects] }
+  }
+  const givenWatchers = [...new Set(givenFiles().map(f => path.dirname(f)))].map(dir => fs.watch(dir, (_e, name) => {
+    if (!name) return
+    const full = path.join(dir, name.toString())
+    if (!givenFiles().includes(full)) return
+    const rel = label(full)
+    if (rel.startsWith('games' + path.sep)) return // the watch on games/ sends it
+    clearTimeout(timers.get(rel))
+    timers.set(rel, setTimeout(() => {
+      timers.delete(rel)
+      for (const c of clients) c.write(`data: changed ${rel}\n\n`)
+    }, DEBOUNCE))
+  }))
 
   // ---- the server ----
 
@@ -811,6 +976,7 @@ export function start({ port, root, packs: given, library }: { port: number; roo
       if (p === '/poses') return file(res, path.join(here, 'poses.html'))
       if (p === '/ui') return file(res, path.join(here, 'ui.html'))
       if (p === '/particles') return file(res, path.join(here, 'particles.html'))
+      if (p === '/views') return file(res, path.join(here, 'views.html'))
       if (parts[0] === 'library' && parts[1] === 'characters') {
         const full = inside(characters, parts.slice(2).join('/'))
         return full ? file(res, full) : send(res, 403, { error: 'outside the library\'s characters' })
@@ -1029,13 +1195,25 @@ export function start({ port, root, packs: given, library }: { port: number; roo
             try { return send(res, 200, { written: uiSaving(parts[2], b.edits) }) } catch (e) { return send(res, 400, { error: (e as Error).message }) }
           }
         }
+        if (parts[1] === 'particles' && parts.length === 2) {
+          if (req.method === 'GET') {
+            try { return send(res, 200, givenSummary()) } catch (e) { return send(res, 404, { error: (e as Error).message }) }
+          }
+          if (req.method === 'POST') {
+            const b = await body(req)
+            try {
+              const [found] = givenSummary().files
+              return send(res, 200, await listedWriting(given!.effects, found, b))
+            } catch (e) { return send(res, 400, { error: (e as Error).message }) }
+          }
+        }
         if (parts[1] === 'particles' && parts.length === 3) {
           if (req.method === 'GET') {
             try { return send(res, 200, particlesSummary(parts[2])) } catch (e) { return send(res, 404, { error: (e as Error).message }) }
           }
           if (req.method === 'POST') {
             const b = await body(req)
-            try { return send(res, 200, particlesSaving(parts[2], b)) } catch (e) { return send(res, 400, { error: (e as Error).message }) }
+            try { return send(res, 200, await particlesSaving(parts[2], b)) } catch (e) { return send(res, 400, { error: (e as Error).message }) }
           }
         }
         if (parts[1] === 'characters' && parts.length === 2 && req.method === 'GET') return send(res, 200, charactersOf())
@@ -1068,6 +1246,13 @@ export function start({ port, root, packs: given, library }: { port: number; roo
         const full = inside(path.join(root, parts[0]), parts.slice(1).join('/'))
         return full ? file(res, full, url.searchParams.has('instance')) : send(res, 403, { error: `outside ${parts[0]}` })
       }
+      // The given effects file's folder, and each given sheet's, whose pages are beside it.
+      if (parts[0] === 'given' && given) {
+        const dir = parts[1] === 'effects' ? path.dirname(given.effects)
+          : parts[1] === 'sheet' && given.sheets[parts[2]] ? path.dirname(given.sheets[parts[2]]) : undefined
+        const full = dir && inside(dir, parts.slice(parts[1] === 'effects' ? 2 : 3).join('/'))
+        return full ? file(res, full) : send(res, 403, { error: 'outside the given files\' folders' })
+      }
       if (parts[0] === 'packs') {
         const full = inside(packs, parts.slice(1).join('/'))
         return full && full.toLowerCase().endsWith('.fbx') && path.dirname(path.dirname(full)) === packs ? file(res, full) : send(res, 403, { error: 'not a pack clip' })
@@ -1087,6 +1272,7 @@ export function start({ port, root, packs: given, library }: { port: number; roo
       url: `http://localhost:${bound}`,
       close: () => new Promise(closed => {
         watcher?.close()
+        for (const w of givenWatchers) w.close()
         for (const c of clients) c.end()
         for (const t of timers.values()) clearTimeout(t)
         server.close(() => closed())
@@ -1097,5 +1283,20 @@ export function start({ port, root, packs: given, library }: { port: number; roo
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-  start({ port: Number(process.env.WORKSHOP_PORT ?? 5180), root }).then(s => console.log(`workshop at ${s.url}`))
+  // `--effects <path>`: the particle workshop opens on that effects file; `--sheet <key>=<path>`, as
+  // many as it draws from, a sheet it names by `key` that no game's scene catalogues for it.
+  const args = process.argv.slice(2)
+  let effects: string | undefined
+  const sheets: Record<string, string> = {}
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '--effects' && args[i + 1]) effects = args[++i]
+    else if (a === '--sheet' && /^[^=]+=.+$/.test(args[i + 1] ?? '')) {
+      const [k, ...rest] = args[++i].split('=')
+      sheets[k] = rest.join('=')
+    } else throw new Error(`${a} is not --effects <path> or --sheet <key>=<path>`)
+  }
+  if (Object.keys(sheets).length && !effects) throw new Error('--sheet is a sheet of the effects file given by --effects, and none was given')
+  start({ port: Number(process.env.WORKSHOP_PORT ?? 5180), root, effects, sheets }).then(s =>
+    console.log(effects ? `particle workshop on ${effects} at ${s.url}/particles` : `workshop at ${s.url}`))
 }

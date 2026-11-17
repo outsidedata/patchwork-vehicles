@@ -27,8 +27,8 @@
 //                      spins down over a second and a half. Wheel n (or the steer node holding it) is
 //                      drawn up its leg by how far it is pressed in.
 // The page's clock counts a frame as a tenth of a second at most. Every mesh casts and takes shadows,
-// its material dressed by render3d. A plane goes with its row, and when `world.flight3d` changes, as the
-// editor does in place while a value of it is dragged, every plane is made again: a copy of it is taken
+// its material dressed by render3d. A plane goes with its row, and when `world.flight3d` changes, as a
+// dev page's panel does in place while a value of it is dragged, every plane is made again: a copy of it is taken
 // when it changes and walked against it each frame.
 // One of these per client: the planes drawn are this scene's.
 import type { Row } from '#engine/engine.ts'

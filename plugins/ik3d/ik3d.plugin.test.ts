@@ -371,7 +371,7 @@ test('what throws: no body mod, ik3d before anim, render3d before ik3d, a bone, 
   expect(() => page({ ik: shoulder => ({ anchor: { ...anchorOf(shoulder, 0), at: [0, 0] } }) }).frame()).toThrow(/anchor.at is not three numbers/)
 })
 
-test('world.ik3d is checked again when it changes in place deep inside it, as the editor changes it, and a fresh copy of good numbers frames as before', () => {
+test('world.ik3d is checked again when it changes in place deep inside it, as a dev page\'s panel changes it, and a fresh copy of good numbers frames as before', () => {
   const p = page()
   p.frame()
   p.frame()

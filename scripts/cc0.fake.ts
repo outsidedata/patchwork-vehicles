@@ -68,16 +68,19 @@ export function composeScene(materials, shared) {
   const callOf = (m) => (m.look.seeThrough ? 'seeThrough' : m.look.shadow ? 'relief' : 'solid');
   const wrapped = materials.map((m, id) => {
     const sets = [];
+    const declare = [];
     for (const [name, def] of Object.entries(m.look.params || {})) {
       const v = m.settings && name in m.settings ? m.settings[name] : valueOf(def);
       const type = typeOf(v);
       if (!type) throw new Error(\`look \${m.lookName}: setting \${name} is not a number or a colour [r, g, b]\`);
       uniforms[\`L\${id}_\${name}\`] = { type, value: Array.isArray(v) ? [...v] : v };
+      declare.push(\`uniform \${type} L\${id}_\${name};\`);
       sets.push(\`  p_\${name} = L\${id}_\${name};\`);
     }
     for (const [name, p] of Object.entries(m.look.pictures || {})) sets.push(\`  t_\${name} = \${pictureAt(p)};\`);
     for (const s of m.look.shared || []) for (const n of NEEDS[s] || []) needs.add(n);
     return {
+      declare: declare.join('\\n'),
       run: \`void look_\${id}(inout Look k) {\\n\${sets.join('\\n')}\\n\${m.look.body}\\n}\\n\`,
       shadow: m.look.shadow ? \`float lookShadow_\${id}(vec3 Lview) {\\n\${m.look.shadow}\\n}\\n\` : '',
       hasShadow: !!m.look.shadow,
@@ -94,7 +97,7 @@ export function composeScene(materials, shared) {
     const dispatch = \`switch (id) {\\n\${ids.map((id) => \`    case \${id}: look_\${id}(k); break;\`).join('\\n')}\\n  }\`;
     const withShadow = ids.filter((id) => wrapped[id].hasShadow);
     const shadowDispatch = withShadow.length ? \`switch (id) {\\n\${withShadow.map((id) => \`    case \${id}: return lookShadow_\${id}(Lview);\`).join('\\n')}\\n  }\` : '';
-    const fragmentPars = \`\${BASE}\\n\${sharedNames.map((s) => shared[s]).join('\\n')}\\n\${code}\\n\${ids.map((id) => wrapped[id].run).join('\\n')}\\n\${ids.map((id) => wrapped[id].shadow).join('\\n')}\\n\` +
+    const fragmentPars = \`\${BASE}\\n\${ids.map((id) => wrapped[id].declare).join('\\n')}\\n\${sharedNames.map((s) => shared[s]).join('\\n')}\\n\${code}\\n\${ids.map((id) => wrapped[id].run).join('\\n')}\\n\${ids.map((id) => wrapped[id].shadow).join('\\n')}\\n\` +
       \`Look lookRun(int id) {\\n  Look k = lookStart();\\n  \${dispatch}\\n  return k;\\n}\\n\` +
       \`float lookShadow(int id, vec3 Lview) {\\n  \${shadowDispatch}\\n  return 1.0;\\n}\\n\`;
     return { ids, fragmentPars, features };

@@ -196,9 +196,9 @@
 // the rebuild in hand has got, `{ done, total }` units, or undefined; `shown()`, whether the rings are
 // on the scene; `prepare(x, z)`, `prepared()` and `unprepare()` (Prepared places); `task(url, input)`
 // (Workers); `bake(meshes, x, z, cover)` and `baked()` (Baked rings); `focus(x, z)` (Near maps);
-// `carry(list)` (What the ground carries); and `ground`, once there is a land: `{ height, raw, depth, at, cover, spray, mark, ramp,
+// `carry(list)` (What the ground carries); and `ground`, once there is a land: `{ height, raw, depth, at, cover, drivers, mark, ramp,
 // rules, edits, ray, mix, layers, shown, prepare, prepared, unprepare, task }` over this client's
-// land, `at` its land record, `cover`, `spray` and `mark` its paint's, `rules` the land's own check,
+// land, `at` its land record, `cover`, `drivers` and `mark` its paint's, `rules` the land's own check,
 // which knows its biomes, `ray(origin, dir)` marched out to the camera's far plane and `mix(x, z)` each
 // biome's share there by name, `layers(x, z)` each ground layer's weight there by name, `shown()`,
 // `prepare(x, z)`, `unprepare()` and `task` as above, and
@@ -279,7 +279,7 @@ function alike(a: unknown, b: unknown): boolean {
   return true
 }
 // The settings the rings were laid out for, and those the baked rings and near maps were made for:
-// copies, taken when they change, since the editor edits `world.terrain3d` in place.
+// copies, taken when they change, since a dev page's panel edits `world.terrain3d` in place.
 type Laid = { rings: Settings['rings']; shadowReach: number; seabed: boolean }
 type Baking = { bake: BakeSettings | null; rings: Settings['rings']; maps: Maps | null }
 // Everything of a field the material is made from, copied when it is made, and the bake settings it
@@ -586,6 +586,9 @@ export function terrain3d() {
   let shown: (Shown | undefined)[] = []
   let job: Job | undefined
   let scene: THREE.Scene | undefined
+  // render3d's `prepare`: a ring on the scene given a ground material it has not drawn with is compiled
+  // before it is drawn with it, out of the frame until then, so the frame that swaps it does not stall.
+  let prepare: ((o: THREE.Object3D) => void) | undefined
   // The ground layers' maps still on their way (one count for the whole set), and the texture arrays
   // they were last drawn into (Ground layers).
   let waiting = 0
@@ -656,7 +659,7 @@ export function terrain3d() {
     ground: undefined as undefined | {
       height(x: number, z: number): number; raw(x: number, z: number): number; depth(x: number, z: number): number
       at(x: number, z: number): ReturnType<Land['analyse']>; cover(x: number, z: number): number
-      spray(x: number, z: number): string | false | undefined; mark(x: number, z: number): number | undefined
+      drivers(x: number, z: number): Record<string, number> | undefined; mark(x: number, z: number): number | undefined
       ramp(rule: Rule, x: number, z: number): number; rules: Land['rules']; edits(): ReturnType<Land['edits']>
       ray(origin: number[], dir: number[]): number[] | undefined; mix: Land['mix']; layers: Land['layers']; shown(): boolean
       prepare(x: number, z: number): void; prepared(): number[] | undefined; unprepare(): void
@@ -768,6 +771,7 @@ export function terrain3d() {
       }
       const { THREE: three, scene: on, camera } = plugins.render3d as { THREE: typeof import('three'); scene: THREE.Scene; camera?: THREE.PerspectiveCamera }
       scene = on
+      prepare = o => plugins.render3d.prepare(o)
       const prior = seen?.text
       if (changed(f) || (material && !looksAs(looks, f, baking))) remake(f, prior === undefined ? undefined : JSON.parse(prior), three, plugins)
       // a word a layer is of was not ready when the land was made: the material is tried again
@@ -1002,7 +1006,7 @@ export function terrain3d() {
       depth: (x, z) => me.land!.depth(x, z),
       at: (x, z) => me.land!.analyse(x, z),
       cover: (x, z) => me.land!.paint(x, z).cover,
-      spray: (x, z) => me.land!.paint(x, z).spray,
+      drivers: (x, z) => me.land!.paint(x, z).drivers,
       mark: (x, z) => me.land!.paint(x, z).mark,
       ramp: (rule, x, z) => me.land!.ramp(rule, x, z),
       rules: (list, what) => me.land!.rules(list, what),
@@ -1060,7 +1064,7 @@ export function terrain3d() {
     material = made
     slots = s
     looks = looked(f, baking)
-    if (carried(f) === carries) for (const b of shown) if (b) b.mesh.material = made
+    if (carried(f) === carries) for (const b of shown) if (b) dressAs(b.mesh, made)
     carries = carried(f)
     retire()
   }
@@ -1306,6 +1310,14 @@ export function terrain3d() {
     return false
   }
 
+  // A ring given the ground material `m`: one on the scene that drew with another is handed to
+  // render3d's `prepare`, so it is compiled before it is drawn with it.
+  function dressAs(mesh: THREE.Mesh, m: THREE.Material) {
+    const was = mesh.material
+    mesh.material = m
+    if (was !== m && mesh.parent) prepare!(mesh)
+  }
+
   function swap(j: Job, three: typeof import('three'), s: Settings) {
     const { c0, rings } = layout!
     for (const b of j.builds) {
@@ -1320,7 +1332,7 @@ export function terrain3d() {
         mesh = was.mesh
         mesh.geometry.dispose()
         mesh.geometry = g
-        mesh.material = material!
+        dressAs(mesh, material!)
       } else {
         mesh = new three.Mesh(g, material)
         mesh.receiveShadow = true

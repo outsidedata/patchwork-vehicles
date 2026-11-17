@@ -62,6 +62,10 @@ every one is `shown`. A `version` that moves takes every held tile again.
 - `budget`: milliseconds a frame taking tiles new to reach, nearest the camera first, at least one.
 - `hollows`: with `mods.hollows`, the most boxes, `{ at, rot, half }`, nearest the camera, handed each
   Drawing every frame (box3dvehicle's cars, so no grass grows inside one).
+- Height: `plugins.lod3d.height(h)` is the camera's height above the ground in metres, held until it
+  is called again. It starts at -1, where the shells are the x and z distances alone. At h ≥ 0 shell k
+  reaches ⌈√(rings[k]² − h²) / cell⌉ tiles, and is gone while rings[k] is not above h, so a camera
+  flying high draws the ground under it coarse. `height(-1)` puts the shells back.
 - Workers: where the page has `Worker`, a layer whose `seen` plugins all hand a `worker` is worked in
   a pool of lod3d's own module workers (`lod3d.worker.ts`), one fewer than the cores, with the same
   arithmetic, so a tile is the same to the bit. Elsewhere, as in node, every tile is worked on the

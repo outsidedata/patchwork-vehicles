@@ -18,7 +18,8 @@
 //
 // The rig file:
 //   clips   name to a file string, or `{ file, loop, markers, scale, rate, mirror, rebase }`: `loop` laps
-//           the clip; `markers` name to seconds, "peak" or "NN%"; `scale` multiplies the distance a
+//           the clip; `markers` name to a time, or to `[from, to]`, two times, a window open between
+//           them; a time is seconds, "NN%", or a moment the bake measured (Moments); `scale` multiplies the distance a
 //           one-shot carries; `rate` its playhead; `mirror: "<clip>"` the named clip mirrored across the
 //           body's x, its table row with `left` and `yaw` negated. A mirror of a mirror throws. `file`
 //           and `rebase` are the bake's.
@@ -42,6 +43,16 @@
 //   over(me, clip, bone)  the clip played over the body from `bone` up: the one playing there handed to
 //                     `was` to fade out, the new one fading in from 0
 //   under(me)         the upper half let go: the clip playing there fades out
+// The additive layers: `adds`, `[{ name, clip, t, w, most, loop, ending, bone }]`, clips laid on top of
+// whatever the body plays, each bone turned on by as much as the clip turns it from its own first
+// frame, at the layer's weight `w` (and moved on by as much as the clip moves it), from the bone `bone`
+// up, or the whole body with none: a flinch over a run, breathing over anything.
+//   lay(me, name, clip, { most, loop, bone })  the layer `name` begun on `clip` from 0, fading in to
+//                     `most` over `fade` (a layer of that name already on taken off first)
+//   lift(me, name)    the layer `name` let go: it fades out over `fade` and is taken off
+//   layStep(me, w, dt)  one step of every layer: its playhead on by dt·(the clip's `rate`); a loop laps;
+//                     a one-shot fades out over the `fade` before its end and is taken off there; a layer
+//                     let go fades out and is taken off; the markers each crossed, in order
 //   overStep(me, w, dt, next)  one step of the upper half: its playhead on by dt·(the clip's `rate`); a
 //                     loop laps and comes up to its whole share over `fade`; a one-shot comes up over
 //                     `fade` and is `ended` at its end: with no `next`, faded out over the `fade` before
@@ -57,15 +68,28 @@
 //   stop(me)          the clip let go: `done`, and fading out from where it stands, as `from` frozen at
 //                     its playhead with `blend` 0, into whatever plays next
 //   animate(me, w, dt)  one step: the playhead on by dt·(the clip's `rate`)·(the row's `rate`); the
-//                     markers it crosses, a loop's lap included, in order; a one-shot that carries travel
+//                     markers it crosses, a loop's lap included, in order (a window's opening by its name,
+//                     its closing by its name and `.end`; a mark at a clip's very start is passed as it
+//                     starts, not crossed); a one-shot that carries travel
 //                     its step's travel, `{ move: [x, z], yaw }` in world metres and radians, turned back
 //                     by the curve's yaw at the step's first playhead (when it keeps its turn) and by the
 //                     row's `yaw`; a one-shot `done` on the step it reaches its end; `blend` up by
 //                     dt/`fade`. A `limp` row is not played.
+//   timesOf(from, me, clip)  the clip's markers and windows in seconds on the row's body (Moments)
+//   open(from, me, clip, t)  the names of the clip's windows open `t` seconds in
 //   clipOf(rig, name), at(measure, t), carries(clip, { moves, turns }), rigOf(from, kind),
 //   readsOf(from, kind), numbersOf(from, kind), playKind(me), ends(from, me, segment, at?),
 //   touchOf(from, me, clip), plantsOf(from, me, clip), posed(from, me), skeletonOf(from, kind)
 //                     what the rest read, each as its comment says.
+//
+// Moments. A marker's time may name a moment the bake measured of the clip on the row's body, read off
+// its `ends` and `touches`, so a clip's timing comes from the clip itself:
+//   "peak"     the second its right hand moves fastest (the table's `peak`)
+//   "strike"   the second the fastest of its hands and feet moves fastest: where a blow lands
+//   "takeoff"  the second its last foot leaves the ground it stood on at the start: where a jump leaves it
+//   "landing"  the second a foot comes down again after the takeoff: where a jump lands
+// A clip whose feet never leave the ground has its takeoff and its landing at 0 and at its end. A moment
+// may be moved on or back by seconds, "strike-0.08", held within the clip.
 import type { Row, W } from '#engine/engine.ts'
 import type { Wire } from '#engine/browser.ts'
 import { Matrix4, Quaternion, Vector3 } from 'three'
@@ -77,7 +101,9 @@ import * as math from '#plugins/math/math.sim.ts'
 // at once.
 await MeshoptDecoder.ready
 
-export type Entry = string | { file?: string; loop?: boolean; markers?: Record<string, number | string>; scale?: number; rate?: number; mirror?: string; rebase?: { from: string; onto: string } }
+// A time in a clip: seconds, "NN%", or a moment the bake measured (Moments, the header).
+export type Time = number | string
+export type Entry = string | { file?: string; loop?: boolean; markers?: Record<string, Time | [Time, Time]>; scale?: number; rate?: number; mirror?: string; rebase?: { from: string; onto: string } }
 export type Measure = {
   frames?: number; dur: number; forward: number; left: number; yaw: number; rise?: number; height?: number; low?: number; peak?: number
   travel: number[][]
@@ -108,11 +134,14 @@ export type Clip = {
   loop: boolean
   scale: number
   rate: number
-  markers: { name: string; t: number }[]
+  markers: { name: string; at: Time }[]
+  windows: { name: string; from: Time; to: Time }[]
   dur: number
   measure: Measure
 }
 export type Marker = { name: string; clip: string }
+// A clip's markers and windows in seconds on one body.
+export type Times = { markers: { name: string; t: number }[]; windows: { name: string; from: number; to: number }[] }
 export type Travel = { move: number[]; yaw: number }
 export type Moves = { moves: number; turns: number }
 
@@ -138,16 +167,13 @@ const entryOf = (rig: Rig, name: string) => {
   return typeof e === 'string' ? { file: e } : e
 }
 
-// A marker's time in the clip: seconds, "peak", or "NN%".
-function timeOf(clip: string, marker: string, at: number | string, m: Measure): number {
-  if (typeof at === 'number') return at
-  if (at === 'peak') {
-    if (m.peak === undefined) throw new Error(`motion3d: ${clip}'s marker ${marker} is at its peak, and its table row gives none`)
-    return m.peak
-  }
-  const pct = /^(\d+(?:\.\d+)?)%$/.exec(at)
-  if (!pct) throw new Error(`motion3d: ${clip}'s marker ${marker} is at ${at}, which is no seconds, "peak" or "NN%"`)
-  return (Number(pct[1]) / 100) * m.dur
+// The moments a time may name (Moments, the header).
+const MOMENTS = ['peak', 'strike', 'takeoff', 'landing']
+
+// A time's check as the rig is read: seconds, "NN%" or a moment.
+function checkTime(clip: string, marker: string, at: Time) {
+  if (typeof at === 'number' ? Number.isFinite(at) : MOMENTS.includes(at) || /^\d+(?:\.\d+)?%$/.test(at) || /^(peak|strike|takeoff|landing)[+-]\d+(?:\.\d+)?$/.test(at)) return
+  throw new Error(`motion3d: ${clip}'s marker ${marker} is at ${JSON.stringify(at)}, which is no seconds, "NN%" or one of ${MOMENTS.join(', ')}, maybe moved by seconds ("strike-0.1")`)
 }
 
 export function clipOf(rig: Rig, name: string): Clip {
@@ -169,6 +195,19 @@ export function clipOf(rig: Rig, name: string): Clip {
     measure = m
   }
   if (!(measure.dur > 0)) throw new Error(`motion3d: ${name} lasts ${measure.dur} s`)
+  const markers: Clip['markers'] = [], windows: Clip['windows'] = []
+  for (const [n, at] of Object.entries(e.markers ?? {})) {
+    if (Array.isArray(at)) {
+      // The rig file is read from outside the program, so a window of other than two times is refused.
+      const given = (at as unknown[]).length
+      if (given !== 2) throw new Error(`motion3d: ${name}'s window ${n} gives ${given} times, not [from, to]`)
+      at.forEach(a => checkTime(name, n, a))
+      windows.push({ name: n, from: at[0], to: at[1] })
+    } else {
+      checkTime(name, n, at)
+      markers.push({ name: n, at })
+    }
+  }
   const clip: Clip = {
     name,
     source: own.mirror ?? name,
@@ -176,7 +215,8 @@ export function clipOf(rig: Rig, name: string): Clip {
     loop: e.loop ?? false,
     scale: e.scale ?? 1,
     rate: e.rate ?? 1,
-    markers: Object.entries(e.markers ?? {}).map(([n, at]) => ({ name: n, t: timeOf(name, n, at, measure) })).sort((a, b) => a.t - b.t),
+    markers,
+    windows,
     dur: measure.dur,
     measure,
   }
@@ -250,6 +290,46 @@ const FRESH = {
 }
 export function fill(d: any) {
   for (const [k, v] of Object.entries(FRESH)) d[k] ??= v
+  d.adds ??= []
+}
+
+// ---------------------------------------------------------------- additive layers
+
+// A layer laid on top of what the body plays (the header).
+export type Layer = { name: string; clip: string; t: number; w: number; most: number; loop: boolean; ending: boolean; bone: string | null }
+
+export function lay(me: Row, name: string, clip: string, { most = 1, loop = false, bone = null }: { most?: number; loop?: boolean; bone?: string | null } = {}) {
+  const d = me.data
+  fill(d)
+  d.adds = [...d.adds.filter((l: Layer) => l.name !== name), { name, clip, t: 0, w: 0, most, loop, ending: false, bone }]
+}
+
+export function lift(me: Row, name: string) {
+  const d = me.data
+  fill(d)
+  d.adds = d.adds.map((l: Layer) => (l.name === name ? { ...l, ending: true } : l))
+}
+
+export function layStep(me: Row, w: W, dt: number): Marker[] {
+  const d = me.data
+  fill(d)
+  const kind = playKind(me)
+  const { fade } = numbersOf(w, kind)
+  const per = (s: number) => (fade > 0 ? s / fade : Infinity)
+  const crossed: [number, Marker][] = []
+  const kept: Layer[] = []
+  for (const l of d.adds as Layer[]) {
+    const c = clipOf(rigOf(w, kind), l.clip)
+    const went = advance(c, timesOf(w, me, l.clip), l.t, dt * c.rate, crossed)
+    if (went.ended) continue
+    const up = l.ending ? l.w - l.most * per(dt) : Math.min(l.most, l.w + l.most * per(dt))
+    // A one-shot comes down over the fade before its end.
+    const w2 = l.loop ? up : Math.min(up, l.most * per(c.dur - went.t))
+    if (l.ending && !(w2 > 0)) continue
+    kept.push({ ...l, t: went.t, w: Math.max(0, w2) })
+  }
+  d.adds = kept
+  return crossed.sort((a, b) => a[0] - b[0]).map(([, m]) => m)
 }
 
 // The clip playing over the upper half handed to `was`, to fade out.
@@ -286,7 +366,7 @@ export function overStep(me: Row, w: W, dt: number, next = false): { markers: Ma
   let ended = false
   if (d.upper != null) {
     const u = clipOf(rigOf(w, kind), d.upper)
-    const went = advance(u, d.upperT, dt * u.rate, crossed)
+    const went = advance(u, timesOf(w, me, d.upper), d.upperT, dt * u.rate, crossed)
     d.upperT = went.t
     ended = went.ended
     if (went.ended && !next) {
@@ -410,6 +490,93 @@ export function plantsOf(from: W | Wire, me: Row, clip: string): Record<Limb, nu
   return out
 }
 
+// ---------------------------------------------------------------- moments
+
+// The second the fastest of a clip's hands and feet moves fastest, off its `ends` on the body: each
+// segment's far end (the wrist's or the ankle's next joint) frame to frame, leaving out the step into its
+// second frame and into its last, where a clip cut from a longer take jumps (the great sword's slide
+// throws a foot into its first frame) — a clip of under four frames reads them all.
+function strikeOf(from: W | Wire, me: Row, c: Clip): { t: number; limb: Limb } {
+  const kind = playKind(me)
+  const body = numbersOf(from, kind).model
+  const clip = rigOf(from, kind).ends?.[body]?.[c.source]
+  if (!clip) throw new Error(`motion3d: ${c.name}'s marker is at its strike, and ${kind}'s rig has no ends of ${c.source} for ${body}; bake it`)
+  let most = 0, at = 0, limb: Limb = 'handR'
+  for (const seg of ['handL', 'handR', 'footL', 'footR'] as Limb[]) {
+    const rows = clip[seg] as number[][] | undefined
+    if (!rows) throw new Error(`motion3d: ${kind}'s rig measures no segment ${seg} of ${c.source}`)
+    const edge = rows.length >= 4 ? 1 : 0
+    for (let f = 1 + edge; f < rows.length - edge; f++) {
+      const v = math.hypot(rows[f][3] - rows[f - 1][3], rows[f][4] - rows[f - 1][4], rows[f][5] - rows[f - 1][5])
+      if (v > most) { most = v; at = f / clip.fps; limb = seg }
+    }
+  }
+  // A mirrored clip strikes with the other side's limb.
+  return { t: Math.min(c.dur, at), limb: c.mirrored ? (limb.endsWith('L') ? limb.replace(/L$/, 'R') : limb.replace(/R$/, 'L')) as Limb : limb }
+}
+
+// Where a clip's blow lands, on the row's body: the second its strike comes, and the limb that strikes.
+export const blowOf = (from: W | Wire, me: Row, name: string) => strikeOf(from, me, clipOf(rigOf(from, playKind(me)), name))
+
+// When a clip's feet leave the ground they stood on at its start, and when one comes down again (Moments,
+// the header): the end of the later foot's first planted run, and the start of the first run after it.
+// Feet that never leave it take off at 0 and land at the end.
+function airOf(from: W | Wire, me: Row, c: Clip): { takeoff: number; landing: number } {
+  const p = plantsOf(from, me, c.name)
+  const feet = [p.footL, p.footR]
+  if (feet.some(runs => !runs.length) || feet.some(runs => runs[0][1] >= c.dur - 1e-6)) return { takeoff: 0, landing: c.dur }
+  const takeoff = Math.max(...feet.map(runs => runs[0][1]))
+  const after = feet.flatMap(runs => runs.filter(r => r[0] > takeoff).map(r => r[0]))
+  return { takeoff, landing: after.length ? Math.min(...after) : c.dur }
+}
+
+// A time in seconds on the row's body.
+function secondsOf(from: W | Wire, me: Row, c: Clip, marker: string, at: Time): number {
+  if (typeof at === 'number') return at
+  if (at === 'peak') {
+    if (c.measure.peak === undefined) throw new Error(`motion3d: ${c.name}'s marker ${marker} is at its peak, and its table row gives none`)
+    return c.measure.peak
+  }
+  // A moment moved on or back by seconds: "strike-0.1".
+  const by = /^(peak|strike|takeoff|landing)([+-]\d+(?:\.\d+)?)$/.exec(at)
+  if (by) return Math.max(0, Math.min(c.dur, secondsOf(from, me, c, marker, by[1]) + Number(by[2])))
+  if (at === 'strike') return strikeOf(from, me, c).t
+  if (at === 'takeoff') return airOf(from, me, c).takeoff
+  if (at === 'landing') return airOf(from, me, c).landing
+  return (Number(at.slice(0, -1)) / 100) * c.dur
+}
+
+const timed = new WeakMap<object, Map<string, Times>>()
+export function timesOf(from: W | Wire, me: Row, name: string): Times {
+  const kind = playKind(me)
+  const rig = rigOf(from, kind)
+  const c = clipOf(rig, name)
+  const body = numbersOf(from, kind).model
+  let byRig = timed.get(rig)
+  if (!byRig) timed.set(rig, (byRig = new Map()))
+  const key = `${body}\u0000${name}`
+  const had = byRig.get(key)
+  if (had) return had
+  const got: Times = {
+    markers: c.markers.map(m => ({ name: m.name, t: secondsOf(from, me, c, m.name, m.at) })).sort((a, b) => a.t - b.t),
+    windows: c.windows.map(win => ({ name: win.name, from: secondsOf(from, me, c, win.name, win.from), to: secondsOf(from, me, c, win.name, win.to) })),
+  }
+  for (const win of got.windows) if (!(win.from <= win.to)) throw new Error(`motion3d: ${name}'s window ${win.name} opens at ${win.from} s, after it closes at ${win.to} s`)
+  byRig.set(key, got)
+  return got
+}
+
+// A time in seconds on the row's body, of a time the motion3d file gives against a clip (a cancel point).
+export const secondsIn = (from: W | Wire, me: Row, name: string, what: string, at: Time): number => {
+  const c = clipOf(rigOf(from, playKind(me)), name)
+  checkTime(name, what, at)
+  return secondsOf(from, me, c, what, at)
+}
+
+export function open(from: W | Wire, me: Row, clip: string, t: number): string[] {
+  return timesOf(from, me, clip).windows.filter(win => win.from <= t && t < win.to).map(win => win.name)
+}
+
 // ---------------------------------------------------------------- the pose
 //
 // A kind's model as the browser half draws it is the glb its `glb` names, a loader `binary` entry of the
@@ -423,7 +590,8 @@ export function plantsOf(from: W | Wire, me: Row, clip: string): Record<Limb, nu
 // model from the row's fields this step: the clip and the one it fades from at their weights, each track
 // sampled as three's interpolants sample it, each joint's turn the running average three's mixer keeps,
 // short of a whole weight eased back toward its rest; the upper half's parts on the joints from their bone
-// up; and the hips pinned as `pin` pins them, by the body's two parts. A row is posed once a step whatever
+// up; the hips pinned as `pin` pins them, by the body's two parts; and each additive layer laid on top
+// (`added`). A row is posed once a step whatever
 // asks: the answer is kept on it until the fields it is posed from change, or the glb, the rig file, or
 // the motion file's moves and turns. It throws for a kind with no `glb`, and for a clip the glb has none of.
 
@@ -523,12 +691,13 @@ function readSkeleton(bytes: Uint8Array, kind: string): Skeleton {
   return { root, hips: bareBone(nodes[hipsAt].name), bones, clips }
 }
 
-export type Part = { slot: 'to' | 'from' | 'upper' | 'was'; clip: string; t: number; w: number; bone?: string }
+export type Part = { slot: 'to' | 'from' | 'upper' | 'was' | 'add'; clip: string; t: number; w: number; bone?: string }
 
 const SHARE = 0.999 // as anim's: the most of an upper bone the upper half holds, short of the 1 its weight s/(1 − s) cannot reach
 
 // The parts the row's fields draw: its clip at `blend`, and the one it fades from at the rest; over them
-// the upper half's two, each from its own bone up. The mixer keeps a running weighted average, so a part of
+// the upper half's two, each from its own bone up; and on top of all of them each additive layer (`add`)
+// at its weight, from its bone up or over the whole body. The mixer keeps a running weighted average, so a part of
 // share s over a base of weight 1 is given weight s/(1 − s): shares a and b get weights a·k and b·k,
 // k = s/(a + b)/(1 − s), s = min(0.999, a + b), so together they hold s of every bone under them.
 export function partsOf(d: any): Part[] {
@@ -542,6 +711,7 @@ function partsInto(d: any, into: Part[]): number {
   let n = 0
   const put = (slot: Part['slot'], clip: string, t: number, w: number, bone?: string) => {
     if (!(w > 0)) return
+    if (n === into.length) into.push({ slot: 'to', clip: '', t: 0, w: 0 })
     const p = into[n++]
     p.slot = slot
     p.clip = clip
@@ -561,10 +731,11 @@ function partsInto(d: any, into: Part[]): number {
     if (a > 0) put('upper', d.upper, d.upperT, a * k, d.upperBone)
     if (b > 0) put('was', d.was, d.wasT, b * k, d.wasBone)
   }
+  for (const l of (d.adds ?? []) as Layer[]) put('add', l.clip, l.t, l.w, l.bone ?? undefined)
   return n
 }
 
-// Four parts to write a row's into: `to`, `from`, `upper` and `was` are the most a row draws.
+// Parts to write a row's into: `to`, `from`, `upper` and `was`, and one more for each additive layer.
 const fresh = (): Part[] => Array.from({ length: 4 }, () => ({ slot: 'to', clip: '', t: 0, w: 0 }))
 
 // Whether the joint `name` is the bone whose name ends with `bone`, or under it.
@@ -639,7 +810,7 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     const q = [0, 0, 0, 1], p = [0, 0, 0]
     let wq = 0, wp = 0
     for (const part of parts) {
-      if (part.bone !== undefined && !within(sk, name, part.bone)) continue
+      if (part.slot === 'add' || (part.bone !== undefined && !within(sk, name, part.bone))) continue
       const r = sampled(rig, sk, part.clip, name, 'r', part.t)
       if (r) {
         if (wq === 0) q.splice(0, 4, ...r)
@@ -660,6 +831,8 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     local.set(name, { t: new Vector3().fromArray(p), q: new Quaternion().fromArray(q), s: new Vector3().fromArray(rest.s) })
   }
   pin(rig, sk, local.get(sk.hips)!, parts.filter(p => p.slot === 'to' || p.slot === 'from'), a)
+  // Each additive layer laid on top (`added`).
+  for (const part of parts) if (part.slot === 'add') added(rig, sk, names, local, part)
   // Each joint's matrix in the body's frame, its parent's first.
   const world = () => {
     const out = new Map<string, Matrix4>()
@@ -678,6 +851,24 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
   const out = world()
   lastPose.set(me, { sk, clips: rig.clips, table: rig.table, moves: a.moves, turns: a.turns, parts, bones: out })
   return out
+}
+
+// An additive layer laid on the pose (Additive layers, the header): each joint from the layer's bone up
+// (every joint, with none) turned on by the turn its clip makes from its first frame to its playhead,
+// taken to the layer's weight, `q · slerp(1, q₀⁻¹ · q_t, w)`, and moved on by the move it makes,
+// `p + w · (p_t − p₀)`. The browser half lays it the same way on the mixer's pose.
+function added(rig: Rig, sk: Skeleton, names: string[], local: Map<string, { t: Vector3; q: Quaternion }>, part: Part) {
+  for (const name of names) {
+    if (part.bone !== undefined && !within(sk, name, part.bone)) continue
+    const b = local.get(name)!
+    const r0 = sampled(rig, sk, part.clip, name, 'r', 0), rt = sampled(rig, sk, part.clip, name, 'r', part.t)
+    if (r0 && rt) {
+      const delta = new Quaternion().fromArray(r0).invert().multiply(new Quaternion().fromArray(rt))
+      b.q.multiply(new Quaternion().slerp(delta, part.w))
+    }
+    const p0 = sampled(rig, sk, part.clip, name, 'p', 0), pt = sampled(rig, sk, part.clip, name, 'p', part.t)
+    if (p0 && pt) b.t.add(new Vector3().fromArray(pt).sub(new Vector3().fromArray(p0)).multiplyScalar(part.w))
+  }
 }
 
 // The hips from the parts, each pinned as its clip is, weighted as the mixer weighs them: a loop's at
@@ -721,17 +912,24 @@ function pin(rig: Rig, sk: Skeleton, hips: { t: Vector3; q: Quaternion }, parts:
 
 // ---------------------------------------------------------------- a step
 
+// Every point a clip's markers mark: its markers, each window's opening by its name and its closing by
+// its name and `.end`.
+function marksOf(times: Times): { name: string; t: number }[] {
+  return [...times.markers, ...times.windows.flatMap(win => [{ name: win.name, t: win.from }, { name: `${win.name}.end`, t: win.to }])]
+}
+
 // Moves a playhead from t0 by `by` seconds of clip, each marker it crosses on `crossed` with how far
 // through the step; a one-shot stops at its end.
-function advance(c: Clip, t0: number, by: number, crossed: [number, Marker][]): { t: number; ended: boolean } {
+function advance(c: Clip, times: Times, t0: number, by: number, crossed: [number, Marker][]): { t: number; ended: boolean } {
   const reached = t0 + by
+  const marks = marksOf(times)
   if (!c.loop) {
     const t = Math.min(c.dur, reached)
-    for (const m of c.markers) if (t0 < m.t && m.t <= t) crossed.push([(m.t - t0) / by, { name: m.name, clip: c.name }])
+    for (const m of marks) if (t0 < m.t && m.t <= t) crossed.push([(m.t - t0) / by, { name: m.name, clip: c.name }])
     return { t, ended: t >= c.dur }
   }
   for (let lap = 0; lap * c.dur <= reached; lap++) {
-    for (const m of c.markers) {
+    for (const m of marks) {
       const at = m.t + lap * c.dur
       if (t0 < at && at <= reached) crossed.push([(at - t0) / by, { name: m.name, clip: c.name }])
     }
@@ -767,7 +965,7 @@ export function animate(me: Row, w: W, dt: number): { markers: Marker[]; travel:
   const c = clipOf(rig, d.clip)
   const t0 = d.clipT
   if (d.state === 'act') {
-    const moved = advance(c, t0, dt * c.rate * d.rate, crossed)
+    const moved = advance(c, timesOf(w, me, d.clip), t0, dt * c.rate * d.rate, crossed)
     d.clipT = moved.t
     const how = carries(c, movesOf(w, kind))
     if (how.carries) Object.assign(travel, travelOf(c, t0, moved.t, d[reads.yaw] ?? 0, how.turns))

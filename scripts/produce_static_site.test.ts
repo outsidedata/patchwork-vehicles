@@ -34,8 +34,11 @@ test('the page at the site\'s root runs the bundle, which holds every scene and 
   const open = page.match(/<body\b[^>]*>/)!
   expect(page.slice(open.index! + open[0].length).trimStart().startsWith(readFileSync(path.join(core, 'scripts/loading.html'), 'utf8').trimStart())).toBe(true)
   // The page's code is the one file and the chunks it shares with a worker; no module of the repo is a
-  // file of its own, and no `.ts` file is in the site.
-  expect(files.filter(f => f.endsWith('.js') && !f.startsWith('bundle/'))).toEqual([])
+  // file of its own, and no `.ts` file is in the site. The one `.js` outside the bundle is no module:
+  // the loader's KTX2 transcoder, which three's KTX2 reader fetches as text, beside its `.wasm`, at the
+  // url the loader names it by in the site.
+  expect(files.filter(f => f.endsWith('.js') && !f.startsWith('bundle/'))).toEqual(['core/plugins/loader/basis/basis_transcoder.js'])
+  expect(files).toContain('core/plugins/loader/basis/basis_transcoder.wasm')
   expect(files.filter(f => f.endsWith('.ts'))).toEqual([])
   const code = readFileSync(at('site', 'bundle/games/fresh/index.0.js'), 'utf8')
   for (const url of ['/main.sim.ts', '/body.client.ts?instance', '/player.client.ts?instance', '/core/plugins/scenemanager/scenemanager.plugin.ts']) expect(code, url).toContain(JSON.stringify(url))

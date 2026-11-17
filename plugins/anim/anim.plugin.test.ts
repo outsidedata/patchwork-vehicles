@@ -508,7 +508,7 @@ test('a row standing still is posed again when its rig file is rewritten, world.
   const unturned = posed(p.plugins.wire, p.row())
   expect(unturned).not.toBe(retabled)
   samePose(unturned, fresh(data, { rig: turned, numbers: { ...AIMED, turns: 200 } }), 'new turns')
-  // The aim's shares edited in place, as the editor edits a scene.
+  // The aim's shares edited in place, as a dev page's panel edits a scene.
   world.kinds.hero.aim!.bones.Spine = 1
   const reaimed = posed(p.plugins.wire, p.row())
   expect(reaimed).not.toBe(unturned)
@@ -864,7 +864,7 @@ test('props go with their row and on close, are made again when the kind\'s prop
   const p = page({ numbers: ARMED, rows: [{}, {}] })
   p.frame()
   const [a, b] = [p.me.props(2), p.me.props(3)]
-  // Written in place, as the editor writes a scene: the gun moves and is made again.
+  // Written in place, as a dev page's panel writes a scene: the gun moves and is made again.
   p.plugins.wire.scene.world.anim.kinds.hero.props[0].at = [0, 0, 0.3]
   p.frame()
   const moved = p.me.props(2)[0]
@@ -890,7 +890,7 @@ test('props are kept while the kind\'s props stay the same, a fresh copy of them
   const [gun, scabbard] = p.me.props(2)
   p.frame()
   expect(p.me.props(2).map((o, i) => o === [gun, scabbard][i])).toEqual([true, true])
-  // One number of one prop's offset written in place, in the list they were hung by, as the editor
+  // One number of one prop's offset written in place, in the list they were hung by, as a dev page's panel
   // writes a scene.
   const hero = p.plugins.wire.scene.world.anim.kinds.hero
   hero.props[0].at[2] = 0.3

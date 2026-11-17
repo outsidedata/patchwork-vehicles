@@ -73,7 +73,7 @@
 //   Building it: the model is drawn at `pose` by the `pose` mod, every other copy takes that copy's
 //   local rotations, bone by bone of the same name, and each point is set at its bone. The gravity
 //   is read then, from the `gravity` mod for the row's kind, so a body falls at the gravity it walked
-//   under and a gravity the editor changes reaches the next body; a kind it gives no gravity throws,
+//   under and a gravity a dev page's panel changes reaches the next body; a kind it gives no gravity throws,
 //   naming the kind.
 //   The blow is given as a velocity, where each point was a step ago: the point whose height is
 //   nearest `pos[1] + height` (the first in role order, on a tie) at `speed`, the rest at

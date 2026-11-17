@@ -21,7 +21,10 @@ const tool = (name: string, body: string) => {
 const fakes = () => ({
   BLENDER: tool('blender', 'echo "Blender 5.1.2"'),
   GLTFPACK: tool('gltfpack', 'while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done\nprintf "glTF EXT_texture_webp" > "$out"'),
-  MAGICK: tool('magick', 'printf "RIFF\\000\\000\\000\\000WEBPVP8 " > "$last"'),
+  // a WebP or a PNG written to its last argument; asked for a mean (`info:`), a mean
+  MAGICK: tool('magick', 'if [ "$last" = info: ]; then echo 0.25; else printf "RIFF\\000\\000\\000\\000WEBPVP8 " > "${last#PNG32:}"; fi'),
+  // a KTX2 written to its -output_file
+  BASISU: tool('basisu', 'while [ $# -gt 0 ]; do [ "$1" = -output_file ] && out=$2; shift; done\nprintf "\\253KTX 20\\273" > "$out"'),
   PATCHWORK_LIBRARY: path.join(root, 'library'),
 })
 
@@ -78,6 +81,12 @@ describe('tools', () => {
     expect(calls()).toContain(`blender --background --python x.py PATCHWORK_LIBRARY=${path.join(os.homedir(), 'lib')}`)
   })
 
+  it('bakes an effects file\'s flipbooks with core\'s flipbooks.py in Blender', async () => {
+    const script = path.resolve(import.meta.dirname, '../tools/workshop/flipbooks.py')
+    await tools(root, fakes(), root).flipbooks('/game/assets/fire.json')
+    expect(calls()).toContain(`blender --background --python ${script} -- /game/assets/fire.json PATCHWORK_LIBRARY=${path.join(root, 'library')}`)
+  })
+
   it('hands a bake a set\'s maps in the library, downloaded first', async () => {
     fakeLibrary(path.join(root, 'library'))
     fakeSet(path.join(root, 'library'), 'Rock007_4K-JPG', ROCK)
@@ -131,9 +140,17 @@ describe('looks', () => {
     expect(made.calls.all!.fragmentPars).not.toContain('float lookShadow(int id, vec3 Lview) {\n  \n  return 1.0;')
     expect(made.calls.all!.fragmentPars.match(/float lookShadow\(int id, vec3 Lview\)/g)).toHaveLength(1)
     expect(made.calls.solid!.fragmentPars).not.toContain('lookShadow_1')
-    // the settings as uniforms, the setting given over the look's own
-    expect(made.uniforms.L1_size).toEqual({ type: 'float', value: 0.2 })
-    expect(made.uniforms.L1_grey).toEqual({ type: 'vec3', value: [0.2, 0.2, 0.2] })
+    // the settings in the table, a row a material, the setting given over the look's own
+    expect(made.settings).toEqual({ width: 2, materials: [[], [{ name: 'size', type: 'float', value: 0.2 }, { name: 'grey', type: 'vec3', value: [0.2, 0.2, 0.2] }], []] })
+    // no setting a uniform: each call declares the one sampler, and the path's look reads its texels
+    for (const call of ['solid', 'relief', 'seeThrough', 'all'] as const) {
+      const f = made.calls[call]!.fragmentPars
+      expect(f).not.toMatch(/\bL\d+_/)
+      expect(f.startsWith('uniform highp sampler2D lookSettings;\n')).toBe(true)
+    }
+    for (const call of ['relief', 'all'] as const) {
+      expect(made.calls[call]!.fragmentPars).toContain('  p_size = texelFetch(lookSettings, ivec2(0, 1), 0).r;\n  p_grey = texelFetch(lookSettings, ivec2(1, 1), 0).rgb;')
+    }
     expect(made.needs).toEqual(['noise'])
     expect(made.vertexPars).toContain('attribute float lookId;')
   })
@@ -146,6 +163,32 @@ describe('looks', () => {
     expect(calls()).toContain(`magick ${path.join(dir, 'Rock007_4K_Color.jpg')} -resize 1024x1024! -quality 80 ${path.join(spec.pictures, 'Rock007_4K_Color.webp')} PATCHWORK_LIBRARY=${path.join(root, 'library')}`)
     expect(fs.readFileSync(path.join(spec.pictures, 'Rock007_4K_Color.webp'), 'latin1')).toMatch(/^RIFF.{4}WEBP/s)
     expect(downloads(path.join(root, 'library'))).toEqual(['Rock007_4K-JPG'])
+  })
+
+  it('writes every picture again as one GPU-compressed KTX2 stack beside them, with each colour picture\'s mean, named after the looks file', async () => {
+    const spec = prepared()
+    const made = await tools(root, fakes(), root).looks(spec)
+    expect(made.stack).toEqual({ asset: 'main_pictures', file: 'main.pictures.ktx2', means: [0.25] })
+    expect(fs.readFileSync(path.join(spec.pictures, 'main.pictures.ktx2'), 'latin1').slice(1, 7)).toBe('KTX 20')
+    const png = path.join(root, 'main.pictures.ktx2.0.png')
+    const picture = path.join(spec.pictures, 'Rock007_4K_Color.webp')
+    expect(calls()).toContain(`magick ${picture} -resize 1024x1024! PNG32:${png} PATCHWORK_LIBRARY=${path.join(root, 'library')}`)
+    expect(calls()).toContain(`basisu -etc1s -linear -mipmap -mip_linear -tex_type 2d -ktx2 -output_file ${path.join(spec.pictures, 'main.pictures.ktx2')} ${png} PATCHWORK_LIBRARY=${path.join(root, 'library')}`)
+    expect(calls()).toContain(`magick ${picture} -resize 1024x1024! -colorspace RGB -grayscale Rec709Luminance -format %[fx:mean] info: PATCHWORK_LIBRARY=${path.join(root, 'library')}`)
+  })
+
+  it('stacks several pictures as an array in their order, a picture that is not colour meaning 0.2, and leaves a file of no picture as it was', async () => {
+    const t = tools(root, fakes(), root)
+    const folder = path.join(root, 'looks')
+    fs.mkdirSync(folder)
+    for (const f of ['a.webp', 'b.webp']) fs.writeFileSync(path.join(folder, f), 'x')
+    const looks = { picture: 512, pictures: [{ asset: 'a', file: 'a.webp', set: 's', source: 'a.jpg', colour: true }, { asset: 'b', file: 'b.webp', set: 's', source: 'b.jpg', colour: false }] } as any
+    const made = await t.stack(looks, folder, path.join(root, 'town.looks.json'))
+    expect(made.stack).toEqual({ asset: 'town_pictures', file: 'town.pictures.ktx2', means: [0.25, 0.2] })
+    expect(calls().find(c => c.startsWith('basisu'))).toContain(`-tex_type 2darray -ktx2 -output_file ${path.join(folder, 'town.pictures.ktx2')} ${path.join(root, 'town.pictures.ktx2.0.png')} ${path.join(root, 'town.pictures.ktx2.1.png')}`)
+    const none = { picture: 512, pictures: [] } as any
+    expect(await t.stack(none, folder, path.join(root, 'bare.looks.json'))).toBe(none)
+    await expect(t.stack({ ...looks, pictures: [{ ...looks.pictures[0], file: 'gone.webp' }] }, folder, path.join(root, 'x.looks.json'))).rejects.toThrow(`the looks' picture gone.webp is not in ${folder}, which the stack is made from`)
   })
 
   it('throws naming a look the library lacks, a setting of the wrong kind, and a picture the set does not hold', async () => {

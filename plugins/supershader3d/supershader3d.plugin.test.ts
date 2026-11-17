@@ -1,8 +1,8 @@
 // supershader3d on a page of the test's own, through the loopback as `index.html` makes one, with
 // render3d handed a canvas stand-in and no renderer: the looks file of the test's own, three
 // materials (a stone, a cobbled path with a shadow of its own, a pane), lands and the plugin makes one
-// material a call, dressed by render3d and keyed by its call, with every setting a uniform, the
-// shared noise and random textures the file needs, a material's number and call by its name, and the
+// material a call, dressed by render3d and keyed by its call, every setting a texel of one float
+// table, read and changed by name, and none a uniform, the looks' clock on by the engine's dt each tick, the shared noise and random textures the file needs, a material's number and call by its name, and the
 // `all` shader with its varyings as plain globals; the pictures are asked of the loader and `ready`
 // once they have landed. Then the patch itself on three's own physical shader: every chunk the looks
 // reach into is there, swapped to read the look, and three's chunks still hold the lines the swaps
@@ -34,7 +34,7 @@ const BASE = 'flat varying float vLookId;\nvarying vec3 vLookInfo;\nvarying vec2
   'vec3 kitBump(vec3 pos, vec3 n, float h, float fd) { return n; }\nvec3 lookPerturb(vec3 n, vec3 nts, float fd) { return n; }\n'
 const shaderOf = (ids: number[], shadows: number[], features: Record<string, boolean> = {}) => ({
   ids,
-  fragmentPars: `${BASE}float p_size;\nuniform float L1_size;\n${ids.map(id => `void look_${id}(inout Look k) {\n  k.colour = vec3(${id}.0);\n}\n`).join('')}` +
+  fragmentPars: `uniform highp sampler2D lookSettings;\n${BASE}float p_size;\nvec3 p_grey;\n${ids.map(id => `void look_${id}(inout Look k) {\n${id === 1 ? '  p_size = texelFetch(lookSettings, ivec2(0, 1), 0).r;\n  p_grey = texelFetch(lookSettings, ivec2(1, 1), 0).rgb;\n' : ''}  k.colour = vec3(${id}.0);\n}\n`).join('')}` +
     `${shadows.map(id => `float lookShadow_${id}(vec3 Lview) {\n  return 0.5;\n}\n`).join('')}` +
     `Look lookRun(int id) {\n  Look k = lookStart();\n  switch (id) {\n${ids.map(id => `    case ${id}: look_${id}(k); break;`).join('\n')}\n  }\n  return k;\n}\n` +
     `float lookShadow(int id, vec3 Lview) {\n  ${shadows.length ? `switch (id) {\n${shadows.map(id => `    case ${id}: return lookShadow_${id}(Lview);`).join('\n')}\n  }` : ''}\n  return 1.0;\n}\n`,
@@ -56,7 +56,7 @@ const LOOKS: Looks = {
     seeThrough: shaderOf([2], [], { transmission: true }),
     all: shaderOf([0, 1, 2], [1], { transmission: true }),
   },
-  uniforms: { L1_size: { type: 'float', value: 0.15 }, L1_grey: { type: 'vec3', value: [0.2, 0.2, 0.2] } },
+  settings: { width: 2, materials: [[], [{ name: 'size', type: 'float', value: 0.15 }, { name: 'grey', type: 'vec3', value: [0.2, 0.3, 0.4] }], []] },
   needs: ['noise', 'random'],
   pictures: [{ asset: 'rockColour', file: 'Rock007_4K_Color.webp', set: 'Rock007_4K-JPG', source: 'Rock007_4K_Color.jpg', colour: true }],
 }
@@ -64,6 +64,10 @@ const LOOKS_URL = '/supershader3d-test/main.looks.json'
 written(LOOKS_URL, JSON.stringify(LOOKS))
 const COURSED_URL = '/supershader3d-test/coursed.looks.json'
 written(COURSED_URL, JSON.stringify({ ...LOOKS, needs: ['courses'] }))
+// The same looks baked with their pictures as one GPU-compressed stack.
+const STACK = { asset: 'rockStack', file: 'main.pictures.ktx2', means: [0.31] }
+const STACKED_URL = '/supershader3d-test/stacked.looks.json'
+written(STACKED_URL, JSON.stringify({ ...LOOKS, stack: STACK }))
 
 const sceneOf = (looks: string, assets: Record<string, unknown>, world: Record<string, unknown> = {}): Scene => ({
   world: {
@@ -79,6 +83,8 @@ const scenes: Record<string, Scene> = {
   town: sceneOf(LOOKS_URL, { rockColour: { type: 'texture', url: '/supershader3d-test/rock.png', wrap: 'repeat' } }),
   unpictured: sceneOf(LOOKS_URL, { rockColour: { type: 'json', url: LOOKS_URL } }),
   coursed: sceneOf(COURSED_URL, { rockColour: { type: 'texture', url: '/supershader3d-test/rock.png' } }),
+  stacked: sceneOf(STACKED_URL, { rockStack: { type: 'texture', url: '/supershader3d-test/main.pictures.ktx2', preload: true } }),
+  misstacked: sceneOf(STACKED_URL, { rockStack: { type: 'texture', url: '/supershader3d-test/main.pictures.png' } }),
 }
 const dir = mkdtempSync(join(tmpdir(), 'supershader3d-plugin-'))
 afterAll(() => rmSync(dir, { recursive: true }))
@@ -125,12 +131,36 @@ test('once the file lands, one material a call, dressed and keyed by its call, e
   const keys = [solid, relief, pane].map(m => m!.customProgramCacheKey())
   expect(new Set(keys).size).toBe(3)
   expect(keys[0]).toMatch(/\|supershader3d solid [0-9a-z]+$/)
-  expect(s.uniforms.L1_size.value).toBe(0.15)
-  expect(s.uniforms.L1_grey.value).toBeInstanceOf(THREE.Vector3)
-  expect(s.uniforms.L1_grey.value.toArray()).toEqual([0.2, 0.2, 0.2])
+  // the settings one float table, a row a material, and no setting a uniform
+  const table = s.uniforms.lookSettings.value as THREE.DataTexture
+  expect(table).toBeInstanceOf(THREE.DataTexture)
+  expect([table.image.width, table.image.height, table.type, table.magFilter, table.minFilter, table.generateMipmaps]).toEqual([2, 3, THREE.FloatType, THREE.NearestFilter, THREE.NearestFilter, false])
+  const texels = Array.from(table.image.data as Float32Array, v => Math.round(v * 1000) / 1000)
+  expect(texels).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0.15, 0, 0, 0, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+  expect(Object.keys(s.uniforms).filter(k => /^L\d+_/.test(k))).toEqual([])
+  expect(s.setting('path', 'size')).toBeCloseTo(0.15, 6)
+  expect((s.setting('path', 'grey') as number[]).map(v => Math.round(v * 1000) / 1000)).toEqual([0.2, 0.3, 0.4])
+  // a setting changed is its texel, for the next frame, and the file is left as it was
+  const version = table.version
+  s.set('path', 'size', 0.3)
+  s.set('path', 'grey', [1, 0.5, 0])
+  expect(table.version).toBeGreaterThan(version)
+  expect(s.setting('path', 'size')).toBeCloseTo(0.3, 6)
+  expect(s.setting('path', 'grey')).toEqual([1, 0.5, 0])
+  expect(s.looks()!.settings.materials[1][0].value).toBe(0.15)
+  expect(() => s.set('path', 'size', [1, 2, 3])).toThrow('supershader3d: material path\'s setting size is a float, and was handed [1,2,3]')
+  expect(() => s.set('path', 'grey', 1)).toThrow('supershader3d: material path\'s setting grey is a vec3, and was handed 1')
+  expect(() => s.setting('path', 'funk')).toThrow('supershader3d: material path (look cobble) has no setting funk; it has size, grey')
+  expect(() => s.setting('stone', 'size')).toThrow('supershader3d: material stone (look rock) has no setting size; it has none')
+  expect(() => s.setting('funkystone', 'size')).toThrow('supershader3d: the looks file holds no material funkystone')
   expect(s.uniforms.csNoise.value).toBeInstanceOf(THREE.DataTexture)
   expect(s.uniforms.cbRand.value.image.width).toBe(RAND)
   expect(s.uniforms.lookView.value).toBe(0)
+  // the looks' clock: on by the engine's dt each tick once the file has landed
+  const time = s.uniforms.lookTime.value as number
+  expect(time).toBeGreaterThanOrEqual(0)
+  await frames(4)
+  expect(s.uniforms.lookTime.value).toBeCloseTo(time + 4 * DT, 9)
   expect([s.idOf('stone'), s.idOf('path'), s.idOf('pane'), s.idOf('funkystone')]).toEqual([0, 1, 2, undefined])
   expect([s.callOf('stone'), s.callOf('path'), s.callOf('pane'), s.callOf('funkystone')]).toEqual(['solid', 'relief', 'seeThrough', undefined])
   // the one shader of every material, its varyings plain globals for a program that sets them
@@ -146,15 +176,20 @@ test('once the file lands, one material a call, dressed and keyed by its call, e
   expect(s.ready()).toBe(true)
   expect(page.client!.plugins.loader.ready('rockColour')).toBe(true)
   expect(s.uniforms.lookPictures.value).toBeNull()
+  let disposed = false
+  table.addEventListener('dispose', () => { disposed = true })
   page.close()
   expect(s.material('solid')).toBeUndefined()
+  expect(disposed).toBe(true)
 })
 
 test('the patch puts the looks into three\'s physical shader: the vertex side, the preamble before main, and every chunk swapped to read the look', () => {
   const swaps = chunks(THREE)
   const shader = { vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader }
   patch(shader, LOOKS, LOOKS.calls.relief!, swaps)
-  expect(shader.vertexShader).toContain('#include <common>\nattribute float lookId;')
+  // the clock declared ahead of the looks' vertex side, so a look's own vertex code reads it
+  expect(shader.vertexShader).toContain('#include <common>\nuniform float lookTime;\nattribute float lookId;')
+  expect(shader.vertexShader.match(/uniform float lookTime;/g)).toHaveLength(1)
   expect(shader.vertexShader).toContain('#include <project_vertex>\nvLookId = lookId;')
   const f = shader.fragmentShader
   expect(f.indexOf('Look lookRun(int id)')).toBeLessThan(f.indexOf('void main() {'))
@@ -184,6 +219,19 @@ test('the shared textures are the library\'s: the noise grey and tiling, the ran
   expect(new Set(random).size).toBeGreaterThan(200)
   expect(free('flat varying float vLookId;\nvarying vec2 vS3;\nvarying vec3 vDressWorld;', 'flat varying float vLookId;\nvarying vec2 vS3;\n'))
     .toBe('float vLookId;\nvec2 vS3;\nvarying vec3 vDressWorld;')
+})
+
+test('a file baked with a stack binds the stack the loader hands over as the pictures, with the means the bake wrote, and asks for no picture one by one', async () => {
+  const { page, frames } = await open('stacked')
+  await frames(6)
+  const s = page.client!.plugins.supershader3d
+  const loader = page.client!.plugins.loader
+  expect(s.uniforms.lookPictures.value).toBe(loader.get('rockStack'))
+  expect(s.uniforms.lookPictures.value.wrapS).toBe(THREE.RepeatWrapping)
+  expect(s.uniforms.lookMeans.value).toEqual(STACK.means)
+  expect(loader.catalogued('rockColour')).toBeUndefined()
+  expect(s.ready()).toBe(true)
+  await expect((await open('misstacked')).frames(3)).rejects.toThrow('supershader3d: the looks\' pictures are the stack rockStack (main.pictures.ktx2), which is no .ktx2 texture entry of the loader\'s catalogue')
 })
 
 test('a file whose looks read the course table throws naming the word nothing delivers, and a picture that is no texture entry throws naming it', async () => {

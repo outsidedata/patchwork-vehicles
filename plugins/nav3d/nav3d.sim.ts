@@ -14,7 +14,9 @@
 //   places  `[{ point: { at: [x, y, z], normal? }, data? }]`: shapes3d points, metres. `normal` [x, y, z],
 //           a unit vector, is the up of the ground there, for a graph walked on a wall or a ceiling; a
 //           place without one stands on [0, 1, 0]. `data.nav3d.tags` are names a route may be asked to
-//           reach ("kitchen").
+//           reach ("kitchen"). `data.nav3d.moe`, metres, is how wide a square across the ground the
+//           place spreads over: each route that goes to it goes to a spot of its own in that square
+//           about `at`, x and z each rolled within moe / 2 of it, its height kept (Routes, below).
 //   ways    `[{ line: { from, to } , data? }]` or `[{ spline: { points }, data? }]`: shapes3d lines and
 //           splines, each a way between the two places its ends stand on (within MATCH of a place's
 //           `at`). A line is the straight way from `from` to `to`; a spline the curve through `points`,
@@ -35,7 +37,8 @@
 //
 // Its numbers are the scene's `world.nav3d`:
 //   graphs  `{ <name>: { asset, bake? } }`: each graph by name, `asset` the catalogue entry of its file,
-//           and `bake` the rules the bake makes it by, for a graph the bake makes (The bake, below).
+//           and `bake` the rules the bake makes it by, for a graph the bake makes (The bake, below). The
+//           `graphs` mods give more (Mods, below).
 //   mods    the plugins it asks (Mods, below).
 //
 // Behaviors. A way costs to cross its own cost, whatever its word. A word whose ways cost something else
@@ -53,7 +56,10 @@
 // step that joins the graph), `course` the way's shape run the way the route crosses it, ending at `at`
 // (`{ line: { from, to } }` or `{ spline: { points } }`; null with no way), and the up there where the
 // graph gives one: a place's own `normal`, and the goal place's the normal of the place it joins from. A
-// step with no `normal` stands on [0, 1, 0]. It is undefined when there is no way. Each end joins the
+// step with no `normal` stands on [0, 1, 0]. A step to a place with a `moe` goes to that place's
+// spot for this route: `at` moved across the ground by `w.die()`, x and z each within moe / 2, and the
+// ends of the courses into and out of it moved with it; its height and the search are the place's own.
+// It is undefined when there is no way. Each end joins the
 // graph: on a graph with blocks, `from` to every place a straight walk reaches across none of them, and
 // every such place to the goal place, and `from` straight to the goal place when that walk crosses none,
 // the walks and the blocks taken across the ground; on one with none, each end to its nearest place,
@@ -93,8 +99,12 @@
 //              straight walk from `a` to `b` [x, z] be made, by the bake's rules, and as what
 //              (`terrain3d.nav3d.ts`, `ground`).
 //   behaviors  many: the words' behaviors (Behaviors, above).
+//   graphs     many: `(world) → { <name>: { asset } }`, more graphs by name, beside `world.nav3d.graphs`,
+//              from the plugin that makes the scene's place (world3d's, `world3d.nav3d.ts`); a graph a mod
+//              gives is made by that plugin's own build, never by the bake. `graphsOf(world)` is every
+//              graph of the scene.
 // The bake throws naming the mod when the scene names no `height` or `link`. A route asks none of them
-// but `behaviors`.
+// but `behaviors` and `graphs`.
 import type { W } from '#engine/engine.ts'
 import * as math from '#plugins/math/math.sim.ts'
 import { mod, modsOf } from '#addons/scenemanager/scenemanager.addon.ts'
@@ -103,7 +113,7 @@ import { drawn } from '#plugins/shapes3d/shapes3d.kinematics3d.ts'
 
 export type Footprint = { points: number[][]; round: number }
 export type Rules = { area: number[]; clearance: number; around: number; [more: string]: unknown }
-export type Data = { nav3d?: { tags?: string[]; word?: string; cost?: number; one?: boolean }; [block: string]: any }
+export type Data = { nav3d?: { tags?: string[]; moe?: number; word?: string; cost?: number; one?: boolean }; [block: string]: any }
 export type Place = { point: { at: number[]; normal?: number[] }; data?: Data }
 export type Line = { line: { from: number[]; to: number[]; normal?: number[] }; data?: Data }
 export type Spline = { spline: { points: number[][]; normal?: number[] }; data?: Data }
@@ -115,7 +125,8 @@ export type Solids = (w: W, area: number[]) => Footprint[]
 export type Height = (w: W, x: number, z: number) => number
 export type Linker = (w: W, a: number[], b: number[], rules: Rules) => ({ cost: number } & Record<string, unknown>) | undefined
 export type Behavior = (w: W, data: any, way: Way, who: unknown) => number | undefined
-type Entry = { asset: string; bake?: Rules }
+export type Entry = { asset: string; bake?: Rules }
+export type Graphs = (world: Record<string, any>) => Record<string, Entry>
 
 // How far inside a block's sides a point must be to count as inside it: a walk along a side, or a
 // place on a corner, is outside.
@@ -138,9 +149,14 @@ export function lengthOf(way: Way): number {
   return at[at.length - 1]
 }
 
+// Every graph of a scene by name: `world.nav3d.graphs`, and each `graphs` mod's.
+export const graphsOf = (world: Record<string, any>): Record<string, Entry> =>
+  Object.assign({ ...(world.nav3d?.graphs ?? {}) }, ...modsOf<Graphs>(world, 'nav3d', 'graphs').map(f => f(world)))
+
 function entryOf(w: W, name: string): Entry {
-  const e = w.world.nav3d?.graphs?.[name] as Entry | undefined
-  if (!e) throw new Error(`nav3d has no graph ${name}: world.nav3d.graphs names ${Object.keys(w.world.nav3d?.graphs ?? {}).join(', ') || 'none'}`)
+  const all = graphsOf(w.world)
+  const e = all[name]
+  if (!e) throw new Error(`nav3d has no graph ${name}: world.nav3d.graphs and its graphs mods name ${Object.keys(all).join(', ') || 'none'}`)
   return e
 }
 
@@ -190,6 +206,8 @@ function read(name: string, g: Graph): Read {
     data(`place ${i}`, p.data)
     const tags = p.data?.nav3d?.tags
     if (tags !== undefined && !(Array.isArray(tags) && tags.every(t => typeof t === 'string'))) bad(`place ${i}'s data.nav3d.tags are not a list of names`)
+    const moe = p.data?.nav3d?.moe
+    if (moe !== undefined && !(Number.isFinite(moe) && moe >= 0)) bad(`place ${i}'s data.nav3d.moe is not a number of 0 or more`)
   })
   const on = (p: number[], i: number, end: string): number => {
     const found: number[] = []
@@ -502,6 +520,18 @@ export function route(w: W, name: string, from: number[], to: number[] | string,
   for (let i = end; i >= 0; i = t.place[i]) {
     const k = t.way[i]
     steps.unshift(up({ at: [...spot(i)], place: i, way: k < 0 ? null : g.ways[k], course: k < 0 ? null : courseOf(k, i) }, i))
+  }
+  // Each place of the route with a `moe` moved across the ground by its own roll, the same for its step's
+  // `at` and for the ends of the courses into it and out of it, its height kept.
+  for (let s = 0; s < steps.length; s++) {
+    const moe = g.places[steps[s].place!].data?.nav3d?.moe
+    if (!moe) continue
+    const dx = (w.die() - 0.5) * moe, dz = (w.die() - 0.5) * moe
+    const move = (p: number[]) => { p[0] += dx; p[2] += dz }
+    move(steps[s].at)
+    const into = steps[s].course, out = steps[s + 1]?.course
+    if (into) move('line' in into ? into.line.to : into.spline.points[into.spline.points.length - 1])
+    if (out) move('line' in out ? out.line.from : out.spline.points[0])
   }
   if (goalAt) {
     const goal: Step = { at: [goalAt[0], goalAt[1], goalAt[2]], place: null, way: null, course: null }

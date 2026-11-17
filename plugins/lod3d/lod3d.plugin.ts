@@ -17,6 +17,12 @@
 // distances), out to the most shells any of the layer's words draws. A tile moving shell leaves every
 // Drawing and arrives in its new shell, every tile leaving before any arrives.
 //
+// Height. `height(h)` is the camera's height above the ground in metres, as far as the shells are
+// concerned, held until it is called again: -1, where it starts, and the shells are the x and z
+// distances alone; h at or above 0, and shell k reaches ⌈√(rings[k]² − h²) / cell⌉ tiles, gone while
+// rings[k] is not above h. So climbing shrinks every shell onto the ground under the camera, and the
+// finer ones go first. Each layer's shells change the next frame, as if the camera's tile had moved.
+//
 // Workers. Where the page has `Worker`, lod3d works tiles off the page in a pool of its own module workers
 // (`lod3d.worker.ts`), one fewer than the machine's cores, at least one, made the first time a layer can
 // use them. A layer can when every `seen` plugin whose surfaces its tiles read hands a `worker`, the module
@@ -44,7 +50,8 @@
 // true with no place in hand. terrain3d asks it through `lod3d.terrain3d.ts`, named in
 // `world.terrain3d.mods.ready`.
 //
-// It hands out `layers()`, each layer's `{ layer, held }`, every held tile's `things`, and `ready()`.
+// It hands out `layers()`, each layer's `{ layer, held }`, every held tile's `things`, `ready()`, and
+// `height(h)`.
 // `close` disposes every Drawing and ends the workers.
 import type * as THREE from 'three'
 import type { Plugins } from '#engine/browser.ts'
@@ -64,8 +71,10 @@ type Pooled = { worker: Worker; asked: number }
 // yet held, every tile in reach of it nearest first and how far through them it is, the tasks of it in
 // flight, and whether the camera has arrived.
 export type Ahead = { at: [number, number]; tiles: Map<number, Thing[]>; queue: { i: number; j: number; d: number }[]; next: number; flight: number; arrived: boolean }
+// A layer held: `rings` its shells' reach in metres, `radii` each shell's reach in tiles at the height `h`
+// they were worked out for (Height), -1 for a shell gone.
 export type Live = {
-  name: string; layer: Layer; radii: number[]; drawings: Drawing[]
+  name: string; layer: Layer; rings: number[]; radii: number[]; h: number; drawings: Drawing[]
   at: [number, number] | undefined; held: Map<number, Held>
   queue: { i: number; j: number; d: number }[]; next: number
   away?: Away
@@ -114,6 +123,8 @@ export function lod3d() {
   let nextTask = 0
   // Whether this field's share of the prepared place is done, as of the last frame (Prepared places).
   let share = false
+  // The camera's height above the ground for the shells, -1 while none is handed (Height).
+  let height = -1
 
   function workers(): Pooled[] | false {
     if (pool !== undefined) return pool
@@ -158,6 +169,10 @@ export function lod3d() {
   const me = {
     layers: () => lives,
     ready: () => share,
+    height(h: number) {
+      if (!(h === -1 || (Number.isFinite(h) && h >= 0))) throw new Error(`lod3d's height ${h} is not -1 or a number of metres at or above 0`)
+      height = h
+    },
 
     afterTick(plugins: Plugins) {
       const on = plugins.wire.scene
@@ -289,15 +304,21 @@ export function lod3d() {
     const drawers = drawersOf(l, behaviors, what)
     const got = making.get(name) ?? drawers.map(() => undefined)
     making.set(name, got)
-    const radii = s.rings.slice(0, reachOf(l, behaviors, what)).map(e => Math.ceil(e / l.cell))
+    const rings = s.rings.slice(0, reachOf(l, behaviors, what))
+    const radii = reachAt(rings, l.cell, -1)
     const slots = radii.map((R, k) => (2 * R + 1) ** 2 - (k ? (2 * radii[k - 1] + 1) ** 2 : 0))
     drawers.forEach((d, k) => { got[k] ??= d.drawer.draw(d.look, { name, layer: l, rings: s.rings, plugins, slots, ...(hollowed && { hollows: s.hollows }) }) })
     if (got.some(d => !d)) return undefined
     making.delete(name)
     const drawings = got as Drawing[]
     if (onScene) for (const d of drawings) d.show()
-    return { name, layer: l, radii, drawings, at: undefined, held: new Map(), queue: [], next: 0 }
+    return { name, layer: l, rings, radii, h: -1, drawings, at: undefined, held: new Map(), queue: [], next: 0 }
   }
+
+  // Each shell's reach in tiles at height `h` (Height): ⌈rings[k] / cell⌉ at -1, else ⌈√(rings[k]² − h²) /
+  // cell⌉, -1 while rings[k] is not above h.
+  const reachAt = (rings: number[], cell: number, h: number) =>
+    rings.map(e => (h < 0 ? Math.ceil(e / cell) : e > h ? Math.ceil(Math.sqrt(e * e - h * h) / cell) : -1))
 
   // The shell a tile is in from the camera's tile, or -1 out of reach.
   const shellOf = (l: Live, i: number, j: number) => {
@@ -374,10 +395,12 @@ export function lod3d() {
   const leave = (l: Live, h: Held) => { l.drawings.forEach((d, k) => d.leave(h.drawn[k])); h.drawn = [] }
 
   // The field onto the camera's tile: every held tile moved to the shell it is now in, or let go out of
-  // reach, every one leaving before any arrives; every tile in reach not held queued, nearest first.
+  // reach, every one leaving before any arrives; every tile in reach not held queued, nearest first. A
+  // height handed since the last frame works the shells out again and does the same (Height).
   function follow(l: Live, x: number, z: number) {
     const ci = Math.floor(x / l.layer.cell), cj = Math.floor(z / l.layer.cell)
-    if (l.at && l.at[0] === ci && l.at[1] === cj) return
+    if (l.at && l.at[0] === ci && l.at[1] === cj && l.h === height) return
+    if (l.h !== height) { l.h = height; l.radii = reachAt(l.rings, l.layer.cell, height) }
     l.at = [ci, cj]
     const R = l.radii[l.radii.length - 1]
     const arriving: Held[] = []

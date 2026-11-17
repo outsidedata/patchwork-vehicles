@@ -28,7 +28,7 @@
 // its `turn` [rx, ry] about x and then about y in its parent's frame, its x flipped when `mirror` is
 // true; and `parts`. It is listed before render3d, so what it places
 // in its `afterTick` is drawn that frame. A row that ends is taken off the scene and disposed, and
-// when its kind's model changes, as the editor's does, in place or not, every row of that kind is made
+// when its kind's model changes, in place or not, every row of that kind is made
 // again: a copy of each model is taken when it changes and walked against it each frame. One of
 // these per client; `close` takes everything it drew off the scene and disposes it. `group(id)` is
 // row `id`'s three.js group, its world matrix this frame's, or undefined while the row is not drawn.
@@ -363,7 +363,7 @@ function same(a: unknown, b: unknown): boolean {
 export function solids() {
   const drawn = new Map<number, Drawn>()
   // A copy of each kind's model as its rows were drawn from it, taken when it changes: a loader file
-  // refilled in place, the editor's edit and a mod's fresh model of other numbers are all noticed.
+  // refilled in place, a dev page's panel's edit and a mod's fresh model of other numbers are all noticed.
   const seen = new Map<string, Model>()
   const asked = new Set<string>()
 

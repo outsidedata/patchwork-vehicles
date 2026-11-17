@@ -216,6 +216,7 @@ export type Rig = {
   bodies?: Record<string, string>
   spread?: Record<string, number>
   size?: number
+  textures?: Partial<Record<'color' | 'normal' | 'roughness' | 'emission', number>>
   clips: Record<string, Entry>
   roles: Partial<Record<Moment, string>>
   stances?: Record<string, Record<string, string>>
@@ -750,7 +751,7 @@ function sampled(rig: Rig, sk: Skeleton, clip: string, bone: string, what: 'r' |
 
 // Each row's last pose, and everything it was posed from: the skeleton, the rig file's parse (the
 // loader parses a changed file into new `clips` and `table`), its mask, `world.anim`'s moves and
-// turns, the aim's share of each bone (copied, as the editor edits the scene in place), the pitch,
+// turns, the aim's share of each bone (copied, as a dev page's panel edits the scene in place), the pitch,
 // and the parts.
 type Kept = {
   sk: Skeleton

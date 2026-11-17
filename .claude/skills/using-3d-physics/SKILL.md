@@ -110,6 +110,7 @@ The providers core ships:
 | `plugins/shapes3d/shapes3d.hitscan3d.ts` | `solids`: its shapes a line may cross; `behaviors`: `box`, where a line meets it |
 | `plugins/shapes3d/shapes3d.cover3d.ts` | `solids`: its shapes; `behaviors`: `box`, the spot behind it |
 | `plugins/shapes3d/shapes3d.solids.ts` | `models`: a plain model of each of its kinds with a `look` |
+| `plugins/shapes3d/shapes3d.particle3d.ts` | `solids` (page): where a line first meets its boxes, planes, hyperplanes and cylinders, which particles of a layer with a `bounce` bounce off |
 | `plugins/shapes3d/shapes3d.box3d.ts` | `fixed`: every box, cylinder and plane as the solid solids draws of it, of its kind's `surface`, named by its row |
 | `plugins/walker/walker.hitscan3d.ts` | `bodies`: every row of `world.walker.kinds` as one upright cylinder |
 | `plugins/ragdoll3d/ragdoll3d.hitscan3d.ts` | `bodies`: every standing anim body whose rig carries `ends` as its bone capsules, the rest from `world.ragdoll3d.mods.bodies` |

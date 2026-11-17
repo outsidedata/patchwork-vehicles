@@ -256,6 +256,27 @@ test('a brush stroke into the page\'s land redraws the ground it raised, and onl
   expect(at(36, 36)).toBe(before.get('36,36'))
 })
 
+test('an erase stroke opens a hole in the finest ring alone, and no ring draws a vertex at ERASED', () => {
+  const { me, settle } = page()
+  settle()
+  const erase: Stroke = { verb: 'erase', radius: 6, hardness: 1, strength: 0, level: 0, surface: '', path: [[0, 0]] }
+  me.land!.stroke(0, erase)
+  settle()
+  expect(me.land!.erased(0, 0)).toBe(true)
+  // The grid points each ring's triangles use.
+  const used = (k: number) => {
+    const g = me.rings[k].mesh.geometry, p = P(me.rings[k].mesh), ix = g.getIndex()!
+    return new Set(Array.from(ix.array as ArrayLike<number>, v => `${p.getX(v)},${p.getZ(v)}`))
+  }
+  const fine = used(0)
+  expect(fine.has('0,0')).toBe(false)
+  expect(fine.has('20,20')).toBe(true)
+  for (const r of me.rings) {
+    const p = P(r.mesh)
+    for (let v = 0; v < p.count; v++) expect(p.getY(v)).toBeGreaterThan(-1e6)
+  }
+})
+
 test('a ray from the camera meets the ground the rings draw', () => {
   const { me, settle } = page()
   settle()
@@ -266,18 +287,21 @@ test('a ray from the camera meets the ground the rings draw', () => {
   expect(me.ground!.ray([0, 60, 0], [0, 1, 0])).toBeUndefined()
 })
 
-test('a ground layer or surface changed in place deep inside the field makes a new material the rings draw with; a fresh copy of the same look makes none', () => {
-  const { me, settle, frame, files } = page()
+test('a ground layer or surface changed in place deep inside the field makes a new material the rings draw with, each ring handed to render3d to compile it before drawing it; a fresh copy of the same look makes none', () => {
+  const { me, settle, frame, files, plugins } = page()
   settle()
+  const prepared = vi.spyOn(plugins.render3d, 'prepare')
   const first = me.rings[0].mesh.material
   for (let n = 0; n < 3; n++) frame()
   expect(me.rings[0].mesh.material).toBe(first)
+  expect(prepared).not.toHaveBeenCalled()
   // The ground the field first held, changed in place.
   files.place.ground.layers[1].scale = 45
   frame()
   const scaled = me.rings[0].mesh.material
   expect(scaled).not.toBe(first)
   for (const r of me.rings) expect(r.mesh.material).toBe(scaled)
+  expect(prepared.mock.calls.map(c => c[0]).toSorted((a: any, b: any) => a.id - b.id)).toEqual(me.rings.map((r: any) => r.mesh).toSorted((a: any, b: any) => a.id - b.id))
   frame()
   expect(me.rings[0].mesh.material).toBe(scaled)
   files.place.ground = structuredClone(files.place.ground)

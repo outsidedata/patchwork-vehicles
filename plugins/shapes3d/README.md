@@ -4,7 +4,8 @@ Shapes standing in a 3D world, held on the server: cylinders, boxes, planes and 
 places as rows and may move,
 which block shots and sight (hitscan3d), are walked round and stood on (walker, kinematics3d), are
 hidden behind (cover3d), are baked round (nav3d), stand in box3d's world for its bodies and cars (box3d)
-and can be drawn as plain shapes (solids), all from one entry each. A kind that lists `activities` is a
+are bounced off by particles (particle3d) and can be drawn as plain shapes (solids), all from one entry
+each. A kind that lists `activities` is a
 space instead: it stands in nothing's way, and offers motion3d what a body does there. Its points,
 lines, splines and planes are the targets kinematics3d moves a body along, and its lines and splines
 the courses crowd3d and npc3d walk people on.
@@ -53,9 +54,13 @@ a `json` entry of the scene's loader catalogue, with `preload`, and `world.shape
 entries' names:
 
 ```json
-"loader": { "assets": { "townShapes": { "type": "json", "url": "/games/demo_castle/assets/smallville.town.shapes3d.json", "preload": true } } },
-"shapes3d": { "shapes": ["townShapes"] }
+"loader": { "assets": { "yardShapes": { "type": "json", "url": "/games/<game>/assets/yard.shapes3d.json", "preload": true } } },
+"shapes3d": { "shapes": ["yardShapes"] }
 ```
+
+A place world3d draws hands its shapes file through the `shapes` mod instead,
+`"shapes3d": { "mods": { "shapes": ["world3d"] } }` (`plugins/world3d/world3d.shapes3d.ts`), read after the
+files `shapes` lists.
 
 Each file is `{ kinds, shapes }`: `kinds` as `world.shapes3d.kinds` gives them, and `shapes` a list of
 `{ kind, pos, yaw }`, each one placed as a row of that kind would stand. shapes3d reads each file once
@@ -116,11 +121,14 @@ still shape is left as it is.
      `world.instances3d.kinds` that gives `form` (`{ form: { sides?, thick? }, colour, map?, scale?, flat?,
      lods: [0], shadow, leaf: 0 }`), to draw every row of a kind as one instance of the same shape, so a
      hundred pillars are one draw call. A game picks one of the two for each kind.
+   - `world.particle3d.mods: { solids: ['shapes3d'] }`, so particles of a layer with a `bounce` bounce
+     off its boxes, planes, hyperplanes and cylinders
    Other plugins' solids sit beside it in the same lists, `solids: ['lod3d', 'shapes3d']`.
 
 ## Plugins it works with
 
 - **hitscan3d**: `shapes3d.hitscan3d.ts`, its shapes as `solids` and the `box` behavior.
+- **particle3d**: `shapes3d.particle3d.ts`, on the page, its shapes as the `solids` particles bounce off.
 - **walker**: `shapes3d.walker.ts`, its shapes as `fixed` and the `box` footprint, and `ground`, the
   shapes as the ground itself.
 - **terrain3d**: `terrain3d.shapes3d.ts`, the land under the shapes.

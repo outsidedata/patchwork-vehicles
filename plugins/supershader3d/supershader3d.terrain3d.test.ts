@@ -47,7 +47,7 @@ const LOOKS: Looks = {
   materials: [{ name: 'stone', look: 'rock', call: 'solid', colour: [0.5, 0.5, 0.5] }, { name: 'path', look: 'cobble', call: 'relief', colour: [0.4, 0.4, 0.4] }],
   vertexPars: `attribute float lookId;\nattribute vec3 s0;\n${VARYINGS}`, vertexMain: 'vLookId = lookId;\nvS0 = s0;\n',
   calls: { solid: shaderOf([0], []), relief: shaderOf([1], [1]), seeThrough: null, all: shaderOf([0, 1], [1]) },
-  uniforms: { L1_size: { type: 'float', value: 0.15 } }, needs: [], pictures: [],
+  settings: { width: 1, materials: [[], [{ name: 'size', type: 'float', value: 0.15 }]] }, needs: [], pictures: [],
 }
 const LOOKS_URL = '/supershader3d-terrain3d-test/main.looks.json'
 written(LOOKS_URL, JSON.stringify(LOOKS))
@@ -123,7 +123,7 @@ test('the ground\'s program holds the one shader, each look layer read by its lo
   const { terrain3d, supershader3d: s } = page.client!.plugins
   for (let i = 0; i < 60 && !terrain3d.rings.length; i++) await frames(1)
   const material = terrain3d.rings[0].mesh.material as THREE.MeshStandardMaterial
-  expect(material.userData.terrain3d.L1_size).toBe(s.uniforms.L1_size)
+  expect(material.userData.terrain3d.lookSettings).toBe(s.uniforms.lookSettings)
   expect(material.userData.terrain3d.lookView).toBe(s.uniforms.lookView)
   // the program as render3d compiles it
   const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} as Record<string, unknown> }
@@ -151,7 +151,7 @@ test('the ground\'s program holds the one shader, each look layer read by its lo
   expect(f).toContain('getDirectionalLightInfo( directionalLight, directLight );\n\t\tdirectLight.color *= tdLookShadow( directLight.direction );')
   expect(f).not.toContain('#include <lights_fragment_begin>')
   expect(material.customProgramCacheKey()).toContain('tdLookShadow')
-  expect(shader.uniforms.L1_size).toBe(s.uniforms.L1_size)
+  expect(shader.uniforms.lookSettings).toBe(s.uniforms.lookSettings)
   expect(shader.uniforms.tdVals).toBeDefined()
 })
 

@@ -182,6 +182,38 @@ test('a camera moved on holds the new tiles from the workers, in the shells they
   expect(off.onPage()).toBe(0)
 })
 
+test('a height shrinks every shell onto the ground under the camera, the finer first, and -1 puts them back as they were', async () => {
+  const w = await booted()
+  const on = await page(w, false), off = await page(w, true)
+  for (const p of [on, off]) p.camera.position.set(100, 0, 100)
+  await on.settle()
+  const flat = heldOf(on.plugins)
+  // rings [40, 100], cell 10: at 80 m up shell 0 is gone, and shell 1 reaches ⌈√(100² − 80²) / 10⌉ = 6 tiles.
+  for (const p of [on, off]) p.plugins.lod3d.height(80)
+  await on.settle()
+  await off.settle()
+  const high = heldOf(on.plugins)['grove/tree']
+  expect(Object.keys(high).length).toBe(13 * 13)
+  expect(Object.values(high).every(h => h.shell === 1)).toBe(true)
+  expect(Object.keys(high).every(k => k.split(' ').every(n => Math.abs(+n - 10) <= 6))).toBe(true)
+  expect(heldOf(off.plugins)).toEqual(heldOf(on.plugins))
+  // At 100 m up and over, nothing is in reach.
+  on.plugins.lod3d.height(100)
+  await on.settle()
+  expect(Object.keys(heldOf(on.plugins)['grove/tree']).length).toBe(0)
+  // 0 is the same as -1, and -1 puts every tile back in the shell it was in.
+  on.plugins.lod3d.height(0)
+  await on.settle()
+  expect(heldOf(on.plugins)).toEqual(flat)
+  on.plugins.lod3d.height(80)
+  await on.settle()
+  on.plugins.lod3d.height(-1)
+  await on.settle()
+  expect(heldOf(on.plugins)).toEqual(flat)
+  expect(() => on.plugins.lod3d.height(-2)).toThrow('lod3d\'s height -2 is not -1')
+  expect(() => on.plugins.lod3d.height(NaN)).toThrow('lod3d\'s height NaN is not -1')
+})
+
 test('a version that moves lets go of the answers in flight and asks again for every held tile, which keeps its instances meanwhile', async () => {
   const w = await booted()
   const off = await page(w, true)
@@ -214,7 +246,7 @@ test('the layers are made again when world.lod3d differs, written in place deep 
   const first = on.plugins.lod3d.layers()
   on.frame()
   expect(on.plugins.lod3d.layers() === first).toBe(true)
-  // One number deep in a layer, written in place as the editor writes a scene.
+  // One number deep in a layer, written in place as a dev page's panel writes a scene.
   const was = w.world.lod3d as Lod3d
   const ring = (was.layers.ferns as { ring: number[] }).ring
   ring[1] = 3

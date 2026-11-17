@@ -293,8 +293,8 @@ export function manager(truth: Truth): Row {
 
 // The list of `actors` entries in the file a scene's `actorsFile` names, from the url of the scene
 // file: read once per process, a `file:` url from the disk and any other fetched, and kept, so every
-// boot of the scene reads the one list, and whoever refills it in place (the editor, when the file
-// is written) changes what the next boot reads.
+// boot of the scene reads the one list, and whoever refills it in place changes what the next boot
+// reads.
 const lists = new Map<string, Promise<Scene['actors']>>()
 export function actorsOf(scene: URL, file: string): Promise<Scene['actors']> {
   if (!file.endsWith('.actors.json')) return Promise.reject(new Error(`the scene names ${file} as its actorsFile, not a .actors.json`))

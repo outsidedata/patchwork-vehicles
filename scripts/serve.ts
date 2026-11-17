@@ -2,13 +2,15 @@
 // config, which serves every game's pages as `yarn dev` does, and `games/<game>/<game>.server.ts` on
 // node beside it (`servers.ts`), so `client.html` dials it. Everything the game's server prints is
 // printed after the game's name. A change to a file the server may run starts it again on its new
-// code, one that stopped by itself too (`restarts`). The home page says which game's server runs
+// code, one that stopped by itself too (`restarts`); a file whose real path, links followed, is out of
+// the repo (a game's builds in the system's temp folder, linked into its `assets/`) never does. The
+// home page says which game's server runs
 // (`home.ts`). Ctrl-C stops both.
 import { fileURLToPath } from 'node:url'
 import { createServer, type PluginOption } from 'vite'
 import config from '../vite.config.ts'
 import { home } from './home.ts'
-import { restarts, Servers } from './servers.ts'
+import { inRepo, restarts, runs, Servers } from './servers.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -21,7 +23,12 @@ export async function serve(game: string) {
   const restart = restarts(servers)
   vite.watcher.on('all', (event, file) => {
     if (event !== 'add' && event !== 'change' && event !== 'unlink') return
-    restart.changed(file.slice(root.length).split('\\').join('/'))
+    // a file reached through a link out of the repo (a game's builds in the system's temp folder) is never the
+    // server's code: its writes start nothing again (`inRepo`)
+    if (!inRepo(root, file)) return
+    const rel = file.slice(root.length).split('\\').join('/')
+    if (runs(rel)) console.log(`${game}: ${rel} ${event === 'unlink' ? 'removed' : 'changed'}`)
+    restart.changed(rel)
   })
   await vite.listen()
   const at = vite.resolvedUrls?.local[0] ?? `http://localhost:${vite.config.server.port}/`
