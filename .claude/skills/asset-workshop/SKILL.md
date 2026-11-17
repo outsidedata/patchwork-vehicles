@@ -347,4 +347,4 @@ exhaust). The points in the file are the starting points; Bill tunes them in the
 Mech's 34 solids models: strider, jimmy and lifter (legs3d, by `<kind>.model`); depot, hq, hangar,
 pad, yard, crate and dropship; 20 modules, the seat among them (`<module>.model`, hung by the page;
 their points are `empties`); and the four `socket-*` models, which nothing names. Shooter, sunrace and paladin have
-none: their `"solids"` mods are scatter3d's collision solids, not this plugin.
+none: their `"solids"` mods are lod3d's collision solids, not this plugin.

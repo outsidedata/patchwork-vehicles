@@ -6,6 +6,8 @@
     "meadow": { "set": "aerial_grass_rock_4K-JPG", "maps": ["color", "normal", "roughness"] },
     "dirt": { "set": "aerial_ground_rock_4K-JPG", "maps": ["color", "normal", "roughness"] },
     "sand": { "set": "Ground055S_4K-JPG", "maps": ["color", "normal"] },
-    "rock": { "set": "Rock007_4K-JPG", "maps": ["color", "normal", "roughness"] }
+    "rock": { "set": "Rock007_4K-JPG", "maps": ["color", "normal", "roughness"] },
+    "regolith": { "set": "rocky_ground_1-4K", "maps": ["color", "normal"] },
+    "rubble": { "set": "ground_14-4K", "maps": ["color", "normal"] }
   }
 }

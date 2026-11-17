@@ -188,6 +188,7 @@ function footing(pos: number[], yaw: number, me: Row, w: W): { pos: number[]; ya
   if (step === undefined) return undefined
   let on: { row: Row; was: number[]; top: number } | undefined
   for (const p of standing(w).placed) {
+    if (p.id < 0) continue
     const row = w.get(p.id)
     const was = row.data.was as number[] | null | undefined
     if (!was) continue

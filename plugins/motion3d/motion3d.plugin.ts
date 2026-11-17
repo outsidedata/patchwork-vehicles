@@ -127,7 +127,7 @@ type Drawing = {
   sockets: Map<string, THREE.Object3D | undefined>
   bones: Map<string, THREE.Object3D>
   props: { root: THREE.Object3D; bone: THREE.Object3D; offset: THREE.Matrix4 }[] | undefined
-  hung: string | undefined
+  hung: Prop[] | undefined // a copy of the kind's `props` the body's props were hung by
   row: Row
   limp: boolean
   turned: { bone: THREE.Object3D; before: THREE.Quaternion; after: THREE.Quaternion }[] // each bone the last bend turned
@@ -142,6 +142,25 @@ type Drawing = {
 type Aimed = { forward: number[]; bone: number[]; anchor?: number[]; hands?: number[][] }
 // A limb bent this frame: its three bones, its pole and the object its end bone reaches.
 type Bent = { bones: [string, string, string]; pole: number[]; end: THREE.Object3D }
+
+// Whether two values are the same: the same number (NaN the same as NaN), string, boolean or null, or
+// arrays and plain objects of the same, item by item and field by field, a field holding undefined the
+// same as one not there. Read for every body every frame, so it walks the two and makes nothing.
+function same(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const c = b as unknown[]
+    if (a.length !== c.length) return false
+    for (let i = 0; i < a.length; i++) if (!same(a[i], c[i])) return false
+    return true
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  for (const k in x) if (!same(x[k], y[k])) return false
+  for (const k in y) if (!(k in x) && y[k] !== undefined) return false
+  return true
+}
 
 const swap = (name: string) => name.replace(/Left|Right/g, s => (s === 'Left' ? 'Right' : 'Left'))
 // A bone's name with the `_N` three's loaders give a repeated name taken off.
@@ -390,14 +409,14 @@ export function motion3d() {
   }
 
   // The kind's props, each its own clone of its model, made once every one has landed, and made again
-  // when the kind's `props` change.
+  // when the kind's `props` change, in place or not: they are walked against the copy taken when they
+  // were last hung, and copied again only when they differ.
   function props(b: Drawing, plugins: Plugins, k: Kind) {
-    const text = JSON.stringify(k.props ?? [])
-    if (b.hung !== text) {
-      unhang(b)
-      b.hung = text
-    }
     const list: Prop[] = k.props ?? []
+    if (!b.hung || !same(b.hung, list)) {
+      unhang(b)
+      b.hung = structuredClone(list)
+    }
     if (b.props || !list.length || !list.every(p => ready(plugins, p.model))) return
     const T = three!
     b.props = list.map(p => {

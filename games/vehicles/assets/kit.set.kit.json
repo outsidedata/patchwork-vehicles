@@ -1,0 +1,19 @@
+{
+ "buildings": [
+  {"kind": "spacecraft/lrv/rover/lrv", "name": "rover", "place": [0, 0], "Steer": 0, "Driving": false, "Aim": 0, "Rise": 35, "Covers": 0, "Corners": false},
+  {"kind": "spacecraft/lrv/wheel/mesh_wheel", "name": "wheel left", "place": [-4, 0], "Radius": 0.409, "Width": 0.233, "Chevrons": 24, "Hand": -1, "Rolling": false},
+  {"kind": "spacecraft/lrv/wheel/mesh_wheel", "name": "wheel right", "place": [4, 0], "Radius": 0.409, "Width": 0.233, "Chevrons": 24, "Hand": 1, "Rolling": false},
+  {"kind": "spacecraft/lrv/wheel/hub", "name": "hub front left", "place": [-4, 4], "Hand": -1, "End": 1, "Extended": true},
+  {"kind": "spacecraft/lrv/wheel/hub", "name": "hub front right", "place": [4, 4], "Hand": 1, "End": 1, "Extended": true},
+  {"kind": "spacecraft/lrv/wheel/hub", "name": "hub rear left", "place": [-4, -4], "Hand": -1, "End": -1, "Extended": true},
+  {"kind": "spacecraft/lrv/wheel/hub", "name": "hub rear right", "place": [4, -4], "Hand": 1, "End": -1, "Extended": true},
+  {"kind": "modern/vehicles/jeep_tj/jeep", "name": "jeep", "place": [0, 12], "Paint": "red", "Rim": "steel", "Steer": 0, "Doors": "on", "Hood": false, "Windshield": "up", "Tailgate": false, "Lit": false, "Driving": false, "Corners": false, "Steering": false},
+  {"kind": "modern/vehicles/jeep_tj/interior/steering", "name": "steer", "place": [-0.36, 11.862], "elevation": 1.182, "degrees": 90, "roll": 23},
+  {"kind": "modern/vehicles/jeep_tj/wheels/wheel", "name": "jeep wheel left", "place": [-4, 12], "Rim": "steel", "Hand": -1, "Rolling": false},
+  {"kind": "modern/vehicles/jeep_tj/wheels/wheel", "name": "jeep wheel right", "place": [4, 12], "Rim": "steel", "Hand": 1, "Rolling": false},
+  {"kind": "modern/vehicles/jeep_tj/running_gear/hub_front", "name": "jeep hub front left", "place": [-4, 16], "Hand": -1},
+  {"kind": "modern/vehicles/jeep_tj/running_gear/hub_front", "name": "jeep hub front right", "place": [4, 16], "Hand": 1},
+  {"kind": "modern/vehicles/jeep_tj/running_gear/hub_rear", "name": "jeep hub rear left", "place": [-4, 8], "Hand": -1},
+  {"kind": "modern/vehicles/jeep_tj/running_gear/hub_rear", "name": "jeep hub rear right", "place": [4, 8], "Hand": 1}
+ ]
+}

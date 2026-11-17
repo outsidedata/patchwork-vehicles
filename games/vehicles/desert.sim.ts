@@ -5,12 +5,12 @@
 // crest) that lifts and drops whole fields of dunes, and levelled 30 m round the origin where the cars
 // stand; the ball is dropped 30 m over the ground there. It is drawn in one
 // ground layer, wind-rippled sand (`assets/ground/sand-*.webp`, cut by the bake from cc0-textures.com's Ground055S). Nothing
-// is scattered on it: its `world.box3d` is the manager's without scatter3d's props. The sky has no
-// weather, with a warmer horizon. Its effects are its own, `assets/desert.effects.json`
-// (`world.particle3d.effects`): the wheels throw sand, a pale puff and grains thrown back off the tread.
-// The cars, the ball, the starts and the HUD are as on
+// is scattered on it: its `world.box3d` is the manager's without lod3d's props. The sky has no
+// weather, with a warmer horizon. The cars, the ball, the starts and the HUD are as on
 // the road (`road.sim.ts`); slot 0 starts in the jeep and slot 1 in the truck.
-import type { Scene, Sim } from '#engine/engine.ts'
+import type { Kind, Scene, Sim } from '#engine/engine.ts'
+import type { Prepare } from '#addons/scenemanager/scenemanager.addon.ts'
+import { particle3d } from '#plugins/particle3d/particle3d.sim.ts'
 import { box3d } from '#plugins/box3d/box3d.sim.ts'
 import { scenemanager } from '#plugins/scenemanager/scenemanager.sim.ts'
 import { loader } from '#plugins/loader/loader.sim.ts'
@@ -25,8 +25,12 @@ import { start } from './start.sim.ts'
 import { spot } from './spot.sim.ts'
 import { hud } from './hud.sim.ts'
 import { atlas } from './atlas.sim.ts'
+import { waypoint } from './waypoint.sim.ts'
 import file from './desert.scene.json' with { type: 'json' }
 
-export const sim: Sim = { loader, scenemanager, skydome3d, box3d, box3dvehicle, player, car, wheel, axle, ball, start, spot, hud, atlas }
+// The particles' gravity on the Earth, the effects file's `gravity` driver, set as the scene loads.
+const particles: Kind & Prepare = { ...particle3d, async prepare(me) { me.data.drivers = { gravity: 9.8 } } }
+
+export const sim: Sim = { loader, scenemanager, skydome3d, box3d, box3dvehicle, particle3d: particles, player, car, wheel, axle, ball, start, spot, hud, atlas, waypoint }
 
 export const scene = file as Scene

@@ -1,0 +1,5 @@
+{
+ "buildings": [
+  {"kind": "spacecraft/lrv/wheel/mesh_wheel", "name": "wheel", "Radius": 0.409, "Width": 0.233, "Chevrons": 24, "Hand": 1, "Rolling": false}
+ ]
+}

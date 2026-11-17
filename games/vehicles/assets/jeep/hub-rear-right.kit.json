@@ -1,0 +1,5 @@
+{
+ "buildings": [
+  {"kind": "modern/vehicles/jeep_tj/running_gear/hub_rear", "name": "hub", "Hand": 1}
+ ]
+}

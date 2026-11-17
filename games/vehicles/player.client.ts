@@ -2,8 +2,9 @@
 // `vehicles.scene.json`, which names every key of each). In a car: the arrows or w a s d up and down, or
 // the right and left triggers, the pedal (down brakes, and from a stop reverses: box3dvehicle's one
 // pedal, the right trigger less the left); left and right, the d-pad or the left stick, the steering;
-// space or the pad's bottom button the brake. v or the pad's left button moves the seat to the next
-// free car (`player.sim.ts`); l switches the headlights of the car it holds. The pedal and the steering
+// space or the pad's bottom button the brake. Tab or the pad's left button moves the seat to the next
+// free car (`player.sim.ts`); l switches the headlights of the car it holds; p puts it back on its
+// wheels (`upright`). The pedal and the steering
 // are read analog (`plugins/player`, Analog), so a trigger or a stick pushed part of the way drives
 // that much, and each is sent when it changes. Escape or the pad's start button opens the menu of
 // where to drive (the panel the `player` definition's `menu` names, `atlas.client.ts`).
@@ -38,7 +39,7 @@
 // placed on the page's clock on a frame of no step would be drawn where it was set, a step ahead of
 // the car drawn behind it, and judder whenever the frames and steps fell unevenly. The camera jumps
 // to the car the frame it first follows a chassis, and when the steps go back. While something else holds render3d's camera (`claimed()`: a cutscene,
-// the editor's orbit) it is left alone, and the springs jump to the car when it is given back.
+// the marquee) it is left alone, and the springs jump to the car when it is given back.
 //
 // `eye()` is `{ pos, dir, target }`: where the camera stands, the way it looks (its world −z), and
 // the pivot the springs are following, the chassis's `pos` raised by `aim` as this frame draws it.
@@ -80,7 +81,7 @@ function setupOurs(row: Row, plugins: Plugins) {
   plugins.player.control({
     axis: { pedal: v => ['pedal', v], steer: v => ['steer', v] },
     hold: { brake: v => ['brake', v] },
-    press: { next: ['next'], lights: ['lights'], menu: () => plugins.ui.open(def(plugins.wire, row.kind).menu) },
+    press: { next: ['next'], lights: ['lights'], upright: ['upright'], menu: () => plugins.ui.open(def(plugins.wire, row.kind).menu) },
     stick: { look: (x, y) => { look = [x, y]; return undefined } },
     analog: ['pedal', 'steer', 'look'],
   } satisfies Controls)

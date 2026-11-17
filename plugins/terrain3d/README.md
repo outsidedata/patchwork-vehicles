@@ -35,7 +35,7 @@ The field file:
 - `ground`: the look's texture layers (`terrain3d.warp.ts`: each `{ name, map, normal, scale,
   strength, tri, sharp, where, noise, edge, warp }`), written once in TS and once as GLSL from the same
   numbers with integer hashing, so `layer:<name>` on the server is what the shader draws.
-- `surfaces`: what a `surface` stroke paints: `colour`, `cover` (scatter's density, 0 on a road),
+- `surfaces`: what a `surface` stroke paints: `colour`, `cover` (the share of lod3d's tries kept, 0 on a road),
   `grip`, `drag`, `spray`, `mark`, `edge`.
 - `layers`: squares of painted ground, each `{ at, size, px, strokes }`, baked from their strokes
   deterministically. A stroke is `{ verb, radius, hardness, strength, level, surface, path }`, `verb`
@@ -75,7 +75,7 @@ rules, edits, ray, mix, layers, shown, prepare, prepared, unprepare, task }` ove
 
 ## Using it
 
-1. List `terrain3d` before every plugin that stands on its `ground` in its `afterTick` (scatter3d,
+1. List `terrain3d` before every plugin that stands on its `ground` in its `afterTick` (lod3d,
    skydome3d, ocean3d, box3dvehicle's dust), and before `render3d`.
 2. Catalogue the field as a `json` entry with `preload`, and every texture its ground layers name.
 3. Give `world.terrain3d: { field, rings, shadowReach, budget, seabed, static?, preload?, bake?, maps?,
@@ -101,8 +101,10 @@ terrain3d hands its ground to almost every 3D plugin through a mod of its own:
   shape where it gives none.
 - **shapes3d** (`terrain3d.shapes3d.ts`: `height`): shapes stand on the land, and a body walking
   shapes3d's ground stands on the land wherever no shape is.
-- **scatter3d** (`terrain3d.scatter3d.ts`: `ground`, `land`): trees and grass stand on it; scatter3d's
-  `scatter3d.terrain3d.ts` is a `ready` for prepared places.
+- **lod3d** (`terrain3d.lod3d.ts`: `surfaces`, `seen`, `behaviors`): the land as lod3d's surface
+  `land`, of the word `land`, so trees, grass and boulders stand on it, kept by its paint's `cover` and
+  by rules over the land record; `seen` hands lod3d the place `prepare` holds, and the land's field for
+  lod3d's workers. lod3d's `lod3d.terrain3d.ts` is a `ready` for prepared places.
 - **ocean3d** (`terrain3d.ocean3d.ts`: `land`): the seabed the sea shoals over.
 - **skydome3d** (`terrain3d.skydome3d.ts`: `land`): rain splashes and biome weather.
 - **ragdoll3d** (`terrain3d.ragdoll3d.ts`: `land`), **dismember3d** (`terrain3d.dismember3d.ts`:

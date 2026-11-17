@@ -938,6 +938,32 @@ test('a closed car with no cabin draws its body\'s box alone', async () => {
   near(max.toArray(), [length / 2, height / 2, width / 2])
 })
 
+test('every car is made again when world.box3dvehicle changes, in place deep inside it too, and none while it stays the same, a fresh copy of it included', async () => {
+  const { page, frames } = await open('boxed')
+  await frames(2)
+  const drawnCar = () => page.client!.plugins.render3d.scene.children.filter((o: any) => o.isGroup && meshesOf(o).some(m => colourOf(m) === PAINT.body))
+  const world = page.client!.plugins.wire.scene.world
+  const first = drawnCar()[0].uuid
+  await frames(2)
+  expect(drawnCar().map((o: any) => o.uuid)).toEqual([first])
+  // Edited in place, as the editor does: the same object, a number deep inside it changed.
+  world.box3dvehicle.vehicles.car.look.lock = LOCK + 1
+  await frames(1)
+  const second = drawnCar()[0].uuid
+  expect(drawnCar()).toHaveLength(1)
+  expect(second).not.toBe(first)
+  await frames(2)
+  expect(drawnCar().map((o: any) => o.uuid)).toEqual([second])
+  // A fresh copy of the same numbers makes nothing again; an edit of it in place does.
+  world.box3dvehicle = structuredClone(world.box3dvehicle)
+  await frames(2)
+  expect(drawnCar().map((o: any) => o.uuid)).toEqual([second])
+  world.box3dvehicle.vehicles.car.body.length += 0.5
+  await frames(1)
+  expect(drawnCar()).toHaveLength(1)
+  expect(drawnCar()[0].uuid).not.toBe(second)
+})
+
 test('an open car with no cabin throws on the frame it is drawn, naming the vehicle', async () => {
   await expect((await open('roofless')).frames(2)).rejects.toThrow('world.box3dvehicle.vehicles.car.look.open is built round body.cabin, and its body has none')
 })

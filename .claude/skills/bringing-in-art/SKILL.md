@@ -153,8 +153,8 @@ with no client file has no actor (`engine/browser.ts`). Each plugin's header giv
 - `anim` draws a `model` per row, posed by skeletal clips from a rig file, a `json` entry. Its table
   is `world.anim.kinds.<kind>: { rig, model, ... }` (`plugins/anim/anim.sim.ts`).
 - Others draw from the entries their tables name. `particle2d` and `particle3d` draw sheets named in
-  an effects file. `grid` and `volley2d` draw sheets. `terrain3d` draws textures. `scatter3d`,
-  `flight3d`, `crowd3d`, `motion3d` and `box3dvehicle` draw models. `solids` draws a model of its
+  an effects file. `grid` and `volley2d` draw sheets. `terrain3d` draws textures. `instances3d`
+  (a lod3d layer's `mesh: { asset }`), `flight3d`, `crowd3d`, `motion3d` and `box3dvehicle` draw models. `solids` draws a model of its
   own, a `json` entry `world.solids.kinds` names, and a paint of it that gives `map` lays a
   `texture` entry on its faces, `scale` metres to one span of the picture.
 

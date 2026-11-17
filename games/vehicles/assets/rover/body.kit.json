@@ -1,0 +1,5 @@
+{
+ "buildings": [
+  {"kind": "spacecraft/lrv/rover/lrv", "name": "rover", "Steer": 0, "Driving": false, "Aim": 0, "Rise": 35, "Covers": 0, "Corners": false}
+ ]
+}

@@ -146,11 +146,30 @@ type Body = {
   bones: Map<string, THREE.Object3D> // by the suffix `aim` and `props` name them by
   aimed: [THREE.Object3D, THREE.Quaternion][] // each bone the aim turned last frame, as the mixer left it
   props: { root: THREE.Object3D; bone: THREE.Object3D; offset: THREE.Matrix4 }[] | undefined
-  hung: string | undefined // the kind's `props` the body's props were hung by, as text
+  hung: Prop[] | undefined // a copy of the kind's `props` the body's props were hung by
   row: Row
   limp: boolean
 }
 type Part = { slot: Slot; clip: string; t: number; w: number }
+
+// Whether two values are the same: the same number (NaN the same as NaN), string, boolean or null, or
+// arrays and plain objects of the same, item by item and field by field, a field holding undefined the
+// same as one not there. Read for every body every frame, so it walks the two and makes nothing.
+function same(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const c = b as unknown[]
+    if (a.length !== c.length) return false
+    for (let i = 0; i < a.length; i++) if (!same(a[i], c[i])) return false
+    return true
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  for (const k in x) if (!same(x[k], y[k])) return false
+  for (const k in y) if (!(k in x) && y[k] !== undefined) return false
+  return true
+}
 
 const swap = (name: string) => name.replace(/Left|Right/g, s => (s === 'Left' ? 'Right' : 'Left'))
 
@@ -162,7 +181,7 @@ export function anim() {
   let three: Three | undefined
   let scene: THREE.Scene | undefined
   let numbers: Numbers | undefined
-  let rigs = new Map<string, { rig: Rig; text: string; reads: Reads; props: string }>() // each listed kind's rig, this frame, what its kit is built from, the fields it reads, and its props as text
+  let rigs = new Map<string, { rig: Rig; text: string; reads: Reads }>() // each listed kind's rig, this frame, what its kit is built from, and the fields it reads
   const texts = new WeakMap<object, string>() // what a kit is built from, per parse of a rig file: the loader refills a file's parse in place with new top-level values
 
   // The model's clips as the rig lists them, moved to start at 0, checked against the table, and
@@ -339,13 +358,14 @@ export function anim() {
   }
 
   // The kind's props, each its own clone of its model, made once every one has landed, and made
-  // again when the kind's `props` change.
-  function props(b: Body, plugins: Plugins, k: Kind, text: string) {
-    if (b.hung !== text) {
-      unhang(b)
-      b.hung = text
-    }
+  // again when the kind's `props` change, in place or not: they are walked against the copy taken
+  // when they were last hung, and copied again only when they differ.
+  function props(b: Body, plugins: Plugins, k: Kind) {
     const list: Prop[] = k.props ?? []
+    if (!b.hung || !same(b.hung, list)) {
+      unhang(b)
+      b.hung = structuredClone(list)
+    }
     if (b.props || !list.length || !list.every(p => ready(plugins, p.model))) return
     const T = three!
     b.props = list.map(p => {
@@ -503,11 +523,11 @@ export function anim() {
           const rig = rigOf(plugins.wire, kind)
           let text = texts.get(rig.clips)
           if (text === undefined) texts.set(rig.clips, (text = JSON.stringify([rig.clips, rig.mask ?? null, rig.meshes ?? null, rig.table])))
-          got = { rig, text, reads: readsOf(plugins.wire, kind), props: JSON.stringify(k.props ?? []) }
+          got = { rig, text, reads: readsOf(plugins.wire, kind) }
           rigs.set(kind, got)
           if (kits.get(key)?.text !== got.text) kits.delete(key)
         }
-        const { rig, text, reads, props: hung } = got
+        const { rig, text, reads } = got
         let b = bodies.get(r.id)
         if (b && (b.key !== key || kits.get(key) !== b.kit)) {
           drop(r.id)
@@ -519,7 +539,7 @@ export function anim() {
           bodies.set(r.id, b)
         }
         b.row = r
-        props(b, plugins, k, hung)
+        props(b, plugins, k)
         if (r.data[reads.limp]) {
           b.limp = true
           hang(b)

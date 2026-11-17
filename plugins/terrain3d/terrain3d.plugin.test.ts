@@ -3,7 +3,7 @@
 // a page does with the land: draws it round the camera, meets ring to ring without a crack, follows
 // the camera within its budget, stands still when static, draws the sea or its bed, preloads, jumps
 // to a place prepared ahead, takes a rewritten field and a brush stroke, aims at the ground, and
-// closes. The clock moves a millisecond each time it is read, so `budget` slices a rebuild as it
+// closes; and it sees a look, a setting or a stroke changed in place, and nothing where nothing changed. The clock moves a millisecond each time it is read, so `budget` slices a rebuild as it
 // does on a page.
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -15,6 +15,18 @@ import { prepare } from '#addons/scenemanager/scenemanager.addon.ts'
 import { render3d } from '#plugins/render3d/render3d.plugin.ts'
 import { land, type Field, type Program, type Stroke } from './terrain3d.sim.ts'
 import { terrain3d } from './terrain3d.plugin.ts'
+
+// The baker draws with WebGL, which node has not: each one made is a stand-in that counts the bakes
+// it is told to forget, so a test reads when the baked rings are made again and when they are reset.
+const bakers = vi.hoisted(() => [] as { b: { res: number }; resets: number }[])
+vi.mock('./terrain3d.bake.ts', async real => ({
+  ...(await real<typeof import('./terrain3d.bake.ts')>()),
+  baker: (_three: unknown, _renderer: unknown, b: { res: number }) => {
+    const made = { b: structuredClone(b), resets: 0 }
+    bakers.push(made)
+    return { update() {}, reset() { made.resets++ }, state: () => [], close() {} }
+  },
+}))
 
 let clock = 0
 beforeEach(() => { vi.spyOn(performance, 'now').mockImplementation(() => clock++) })
@@ -170,7 +182,7 @@ test('over a flooded field the rings draw the water\'s surface, or with seabed t
 })
 
 // A game's own plugin, `gate`, whose share of a prepared place is done once the test says so, as
-// scatter3d's is once its cells are placed: its mod for terrain3d, in a game folder of the test's own.
+// lod3d's is once its tiles are worked: its mod for terrain3d, in a game folder of the test's own.
 const home = mkdtempSync(join(tmpdir(), 'terrain3d-plugin-'))
 mkdirSync(join(home, 'plugins', 'gate'), { recursive: true })
 writeFileSync(join(home, 'plugins', 'gate', 'gate.terrain3d.ts'), 'export const ready = () => globalThis.terrain3dGate === true\n')
@@ -252,6 +264,114 @@ test('a ray from the camera meets the ground the rings draw', () => {
     expect(hit[1]).toBeCloseTo(me.ground!.height(hit[0], hit[2]), 4)
   }
   expect(me.ground!.ray([0, 60, 0], [0, 1, 0])).toBeUndefined()
+})
+
+test('a ground layer or surface changed in place deep inside the field makes a new material the rings draw with; a fresh copy of the same look makes none', () => {
+  const { me, settle, frame, files } = page()
+  settle()
+  const first = me.rings[0].mesh.material
+  for (let n = 0; n < 3; n++) frame()
+  expect(me.rings[0].mesh.material).toBe(first)
+  // The ground the field first held, changed in place.
+  files.place.ground.layers[1].scale = 45
+  frame()
+  const scaled = me.rings[0].mesh.material
+  expect(scaled).not.toBe(first)
+  for (const r of me.rings) expect(r.mesh.material).toBe(scaled)
+  frame()
+  expect(me.rings[0].mesh.material).toBe(scaled)
+  files.place.ground = structuredClone(files.place.ground)
+  files.place.surfaces = structuredClone(files.place.surfaces)
+  frame()
+  expect(me.rings[0].mesh.material).toBe(scaled)
+  files.place.surfaces!.road.colour = '#202020'
+  frame()
+  expect(me.rings[0].mesh.material).not.toBe(scaled)
+})
+
+test('a ring or shadow setting of world.terrain3d changed in place lays every ring out again; a fresh copy of the same settings keeps every ring', () => {
+  const { me, settle, plugins } = page()
+  const s = plugins.wire.scene.world.terrain3d
+  s.rings = structuredClone(RINGS)
+  settle()
+  const first = me.rings.map(r => r.mesh)
+  settle()
+  s.rings = structuredClone(s.rings)
+  settle()
+  expect(me.rings.every((r, k) => r.mesh === first[k])).toBe(true)
+  s.shadowReach = 40
+  settle()
+  const shadowed = me.rings.map(r => r.mesh)
+  for (const m of shadowed) expect(first).not.toContain(m)
+  s.rings[2].reach = 420
+  settle()
+  expect(me.rings[2].half).toBeGreaterThan(400)
+  for (const m of me.rings.map(r => r.mesh)) expect(shadowed).not.toContain(m)
+})
+
+test('the baked rings are reset when a layer\'s version moves, and made again with a new look when a bake setting changes in place; frames where nothing changed, or a fresh copy of the same bake, do neither', () => {
+  bakers.length = 0
+  const { me, settle, frame, plugins } = page()
+  const s = plugins.wire.scene.world.terrain3d
+  s.bake = { rings: [100, 300], res: 512, near: 150, far: 300, cliff: 0.6, band: 0.06, budget: 1024 }
+  settle()
+  // The baked rings need a renderer; the look is made without one, as in node.
+  const renderer = {}
+  plugins.render3d.renderer = renderer
+  for (let n = 0; n < 3; n++) frame()
+  expect(bakers).toHaveLength(1)
+  expect(bakers[0].resets).toBe(1)
+  me.land!.stroke(0, { verb: 'raise', radius: 8, hardness: 1, strength: 5, level: 0, surface: '', path: [[0, 0]] })
+  settle()
+  for (let n = 0; n < 3; n++) frame()
+  expect(bakers[0].resets).toBe(2)
+  // The bake setting the scene first gave, changed in place.
+  const look = me.rings[0].mesh.material
+  plugins.render3d.renderer = undefined
+  s.bake.res = 1024
+  frame()
+  expect(me.rings[0].mesh.material).not.toBe(look)
+  plugins.render3d.renderer = renderer
+  for (let n = 0; n < 3; n++) frame()
+  expect(bakers.map(b => b.b.res)).toEqual([512, 1024])
+  expect(bakers[1].resets).toBe(1)
+  const made = me.rings[0].mesh.material
+  s.bake = structuredClone(s.bake)
+  for (let n = 0; n < 3; n++) frame()
+  expect(bakers).toHaveLength(2)
+  expect(bakers[1].resets).toBe(1)
+  expect(me.rings[0].mesh.material).toBe(made)
+})
+
+test('the workers are sent the land again when a stroke moves a layer\'s version, and not for a ring or a task asked while nothing moved', () => {
+  const made: { sent: { type: string; unsaved?: unknown[] }[] }[] = []
+  vi.stubGlobal('Worker', class {
+    sent: { type: string }[] = []
+    constructor() { made.push(this) }
+    postMessage(m: { type: string }) { this.sent.push(m) }
+    addEventListener() {}
+    terminate() {}
+  })
+  try {
+    const { me, frame } = page()
+    frame()
+    const lands = () => made.flatMap(w => w.sent.filter(m => m.type === 'land'))
+    expect(made.length).toBeGreaterThan(0)
+    expect(lands()).toHaveLength(made.length)
+    frame()
+    me.ground!.task('/task.ts', 1)
+    me.ground!.task('/task.ts', 2)
+    expect(lands()).toHaveLength(made.length)
+    me.land!.stroke(0, { verb: 'raise', radius: 8, hardness: 1, strength: 5, level: 0, surface: '', path: [[0, 0]] })
+    me.ground!.task('/task.ts', 3)
+    expect(lands()).toHaveLength(2 * made.length)
+    expect(lands().at(-1)!.unsaved![0]).toBeDefined()
+    me.ground!.task('/task.ts', 4)
+    expect(lands()).toHaveLength(2 * made.length)
+    me.close()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 test('close takes the rings off the scene', () => {

@@ -1,9 +1,10 @@
-// vehicles booted as the server boots it, with two connections on the road: the three cars stand side by
+// vehicles booted as the server boots it, with two connections on the road: the four cars stand side by
 // side on the land, and each seat holds the car its start names from the step that car is made, the
 // first seat the jeep, with no body of its own. The cars stay put with nobody driving, a seat's pedal
 // drives the car it holds and no other, held back from a stop it reverses, a value not a number does
 // nothing and one past its range is kept to it, `lights` switches its car's headlights, `next` moves the
-// seat to the next free car, carrying the controls it last sent, a car let go of, by `next` or by a seat
+// seat to the next free car, carrying the controls it last sent, `upright` puts a car on its roof back
+// on its wheels, a car let go of, by `next` or by a seat
 // that leaves, is braked by its spot, and a seat whose own car another holds takes the first free one.
 // The jeep driven into the pedestrian knocks him down as a box3d ragdoll, and he stands again. Then two
 // pages drive it for half a minute on the simulator under 150 ms of lag.
@@ -15,6 +16,7 @@ import { turn } from '#plugins/box3dvehicle/box3dvehicle.sim.ts'
 import defs from './assets/vehicles.json'
 import { parse, simulate, summary } from '#addons/simulator/simulator.addon.ts'
 import { sim } from './vehicles.sim.ts'
+import { LIFT } from './player.sim.ts'
 import { sim as roadSim } from './road.sim.ts'
 import file from './vehicles.scene.json'
 import { possessed } from '#addons/player/player.addon.ts'
@@ -83,21 +85,23 @@ const until = (g: Road, done: () => boolean, max: number, what: string) => {
 // Seat `s`'s first press, numbered `seq`, which changes nothing: it holds its car from the start.
 const getIn = (g: Road, s: number, seq: number) => press(g, s, seq, 'brake', 0)
 
-test('the golf cart, the jeep and the monster truck stand side by side on their wheels on the land', async () => {
+test('the golf cart, the jeep, the monster truck and the UTV stand side by side on their wheels on the land', async () => {
   const g = await road()
   g.step(90)
   const cars = vehicles(g.road)
-  expect(cars.map(c => c.data.vehicle)).toEqual(['cart', 'jeep', 'truck'])
+  expect(cars.map(c => c.data.vehicle)).toEqual(['cart', 'jeep', 'truck', 'utv'])
   // every wheel's bottom, its centre less its radius, on the land
   for (const car of cars) car.data.wheels.forEach((id: number, i: number) => {
     const [x, y, z] = part(g.road, id).pos, r = fleet[car.data.vehicle].axles[i >> 1].wheel.radius
     expect(Math.abs(y - r - heightAt(g.w, x, z))).toBeLessThan(0.15)
   })
-  const [cart, jeep, truck] = cars.map(c => chassisOf(g, c.id).pos)
+  const [cart, jeep, truck, utv] = cars.map(c => chassisOf(g, c.id).pos)
   expect(Math.abs(cart[0] - jeep[0])).toBeLessThan(0.5)
   expect(Math.abs(truck[0] - jeep[0])).toBeLessThan(0.5)
+  expect(Math.abs(utv[0] - jeep[0])).toBeLessThan(0.5)
   expect(cart[2]).toBeLessThan(jeep[2])
   expect(jeep[2]).toBeLessThan(truck[2])
+  expect(truck[2]).toBeLessThan(utv[2])
 })
 
 test('after 300 idle steps every car is still within 0.5 m of where it stood', async () => {
@@ -182,6 +186,46 @@ test('a car its seat moves off while driving it is braked to a stop, and the sea
   g.step(120)
   expect(flat(chassisOf(g, jeep).pos, was)).toBeLessThan(0.05)
   expect(flat(chassisOf(g, truck).pos, truckAt)).toBeGreaterThan(5)
+})
+
+test('a seat\'s upright lifts its car on its roof LIFT metres, flat on the heading it pointed, stilled, and it drops onto its wheels', async () => {
+  const g = await road()
+  g.step(30)
+  getIn(g, 0, 1)
+  const car = held(g, 0)!
+  // The jeep turned onto its roof about its nose's axis, a metre up, as a rule moves a body.
+  const roll: [number, number, number, number] = [1, 0, 0, 0]
+  const ids = [row(g, car).data.chassis, ...row(g, car).data.wheels] as number[]
+  const at = [...chassisOf(g, car).pos]
+  for (const id of ids) {
+    const d = part(g.road, id), o = turn(roll, [d.pos[0] - at[0], d.pos[1] - at[1], d.pos[2] - at[2]])
+    d.pos = [at[0] + o[0], at[1] + 1 + o[1], at[2] + o[2]]
+    // roll times rot, roll being half a turn about x
+    const [x, y, z, s] = d.rot
+    d.rot = [s, -z, y, -x]
+  }
+  g.step(180)
+  const upOf = () => turn(chassisOf(g, car).rot, [0, 1, 0])
+  // on its roof, on land that slopes
+  expect(upOf()[1]).toBeLessThan(-0.5)
+  const before = chassisOf(g, car), heading = turn(before.rot, [1, 0, 0]), from = [...before.pos]
+  press(g, 0, 2, 'upright')
+  g.step(1)
+  const lifted = chassisOf(g, car)
+  // One step after: LIFT up, less the one step's fall, flat, and pointing where it pointed.
+  expect(lifted.pos[1] - from[1]).toBeGreaterThan(LIFT - 0.05)
+  expect(lifted.pos[1] - from[1]).toBeLessThan(LIFT + 0.01)
+  expect(flat(lifted.pos, from)).toBeLessThan(0.01)
+  expect(upOf()[1]).toBeGreaterThan(0.999)
+  const nose = turn(lifted.rot, [1, 0, 0])
+  // the heading across the ground it pointed, the tilt the slope gave it left out
+  expect((nose[0] * heading[0] + nose[2] * heading[2]) / Math.hypot(heading[0], heading[2])).toBeGreaterThan(0.99)
+  g.step(180)
+  expect(upOf()[1]).toBeGreaterThan(0.95)
+  row(g, car).data.wheels.forEach((id: number, i: number) => {
+    const [x, y, z] = part(g.road, id).pos, r = fleet.jeep.axles[i >> 1].wheel.radius
+    expect(Math.abs(y - r - heightAt(g.w, x, z))).toBeLessThan(0.15)
+  })
 })
 
 test('a seat that leaves lets go of its car, which its spot keeps braked', async () => {

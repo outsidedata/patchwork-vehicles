@@ -138,7 +138,7 @@
       "cover": 1,
       "grip": 0.7,
       "drag": 0.08,
-      "spray": "grass",
+      "drivers": { "tint": 6126138, "kick": 0.6 },
       "mark": 0.35
     },
     "asphalt": {
@@ -146,7 +146,7 @@
       "cover": 0,
       "grip": 1.1,
       "drag": 0.012,
-      "spray": false,
+      "drivers": { "kick": 0 },
       "mark": 0,
       "edge": {
         "width": 0.1,
@@ -158,7 +158,7 @@
       "cover": 0,
       "grip": 0.6,
       "drag": 0.05,
-      "spray": "gravel",
+      "drivers": { "tint": 9406846, "kick": 1 },
       "mark": 0.4,
       "edge": {
         "width": 0.2,
@@ -170,7 +170,7 @@
       "cover": 0,
       "grip": 0.65,
       "drag": 0.04,
-      "spray": "dirt",
+      "drivers": { "tint": 9071176, "kick": 1 },
       "mark": 0.55,
       "edge": {
         "width": 0.25,
@@ -183,7 +183,7 @@
       "cover": 0,
       "grip": 0.4,
       "drag": 0.15,
-      "spray": "mud",
+      "drivers": { "tint": 4863526, "kick": 1.5 },
       "mark": 0.85,
       "edge": {
         "width": 0.3,
@@ -196,7 +196,7 @@
       "cover": 0,
       "grip": 0.1,
       "drag": 0.01,
-      "spray": "ice",
+      "drivers": { "tint": 13229544, "kick": 0.4 },
       "mark": 0.15,
       "edge": {
         "width": 0.1,

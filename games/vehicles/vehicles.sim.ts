@@ -1,6 +1,6 @@
-// The manager. One row, naming the road, the stylized road, the gym and the desert, and that every
-// connection enters the road. Its scene file holds what the two share: the catalogue, the defs, the car, the ball, the
-// starts, the trees and grass, the physics and the sky's clock.
+// The manager. One row, naming the title, the road, the gym, the desert, the moon and
+// the park, and that every connection enters the title. Its scene file holds what they share: the
+// catalogue, the defs, the car, the ball, the starts, the trees and grass, the physics and the sky's clock.
 import type { Sim } from '#engine/engine.ts'
 import { scenemanager } from '#plugins/scenemanager/scenemanager.sim.ts'
 

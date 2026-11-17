@@ -472,6 +472,50 @@ test('effects are made of effects, one mesh for each page of a sheet and each bl
   expect(() => bad.frame()).toThrow('particle3d effect ring is made of itself: ring > loop > ring')
 })
 
+test('each sheet\'s page and blend is one batch, its mesh made the frame its first particle comes and kept, drawing that frame\'s particles of it', () => {
+  file.effects.mixed = [
+    { effect: 'square' },
+    { sheet: 'puff', clip: 'all', life: [1, 1], n: [2, 2] },
+    { life: [1, 1], add: true },
+    { life: [1, 1], dir: [1, 0, 0], spread: 0, speed: [4, 4], stretch: true, sheet: 'puff', clip: 'long' },
+    { sheet: 'puff', clip: 'all', life: [1, 1], add: true, n: [3, 3] },
+  ]
+  onTestFinished(() => { delete file.effects.mixed })
+  const { plugins, me, frame, pages } = page()
+  me.emit('mixed', [0, 0, 0])
+  frame()
+  // In the order each batch's first particle came: no sheet normal, puff's first page normal, no sheet
+  // additive, puff's second page, puff's first page additive.
+  const meshes = plugins.render3d.scene.children.filter((o: any) => o.isMesh)
+  // Each mesh's page (-1 for none), blend and quads.
+  const batches = (ms: any[]) => ms.map((m: any) => [pages.indexOf(m.material.map), m.material.blending, m.geometry.drawRange.count / 6])
+  const want = [
+    [-1, THREE.NormalBlending, 1],
+    [0, THREE.NormalBlending, 2],
+    [-1, THREE.AdditiveBlending, 1],
+    [1, THREE.NormalBlending, 1],
+    [0, THREE.AdditiveBlending, 3],
+  ]
+  expect(batches(meshes)).toEqual(want)
+  // The next frames draw the same particles in the same meshes, none counted twice.
+  // The very meshes made, not new ones alike.
+  const kept = () => {
+    const now = plugins.render3d.scene.children.filter((o: any) => o.isMesh)
+    return now.length === meshes.length && now.every((m: any, i: number) => m === meshes[i])
+  }
+  frame()
+  frame()
+  expect(kept()).toBe(true)
+  expect(batches(meshes)).toEqual(want)
+  // The square's life over, its mesh draws nothing and is kept; thrown again, it draws in that mesh.
+  for (let f = 0; f < 20; f++) frame()
+  expect(batches(meshes)).toEqual([[-1, THREE.NormalBlending, 0], ...want.slice(1)])
+  me.emit('square', [0, 0, 0])
+  frame()
+  expect(kept()).toBe(true)
+  expect(batches(meshes)).toEqual([[-1, THREE.NormalBlending, 1], ...want.slice(1)])
+})
+
 test('past cap, new particles are dropped', () => {
   const { me, frame } = page()
   me.emit('many', [0, 0, 0])

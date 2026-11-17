@@ -26,9 +26,9 @@
       //   ?tab    no server: the game's manager truth in this tab, stepped on the page's clock as
       //           vehicles.server.ts steps it, the page joined to it over a loopback with this seat's
       //           network between them.
-      //   ?scene=<name>  that scene entered instead of the road (road, desert, gym, stylized, park), in this tab as
+      //   ?scene=<name>  that scene entered instead of the road (road, desert, moon, gym, park), in this tab as
       //           ?tab runs it, since the server enters its own.
-      //   ?off=<plugin,…>  with ?scene, those plugins taken out of that scene: ?scene=stylized&off=scatter3d.
+      //   ?off=<plugin,…>  with ?scene, those plugins taken out of that scene: ?scene=road&off=lod3d.
       //   ?spot=<name>  with ?scene, this tab's seat (slot 0) starts at that scene's spot of that name:
       //           ?scene=desert&spot=truck.
       //
@@ -44,9 +44,8 @@
       // panel, below), live and never saved to the file; and the traction: each vehicle's front and
       // rear tyre friction, then the on dirt multiplier (the traction panel, below); and the sky, as
       // demo_skydome3d's dev.html has it: the clock, the sky's look and its
-      // shadow (the sky panel, below); and each vehicle's exhaust, kick and skid (the effects panel,
-      // below), with the held car's rpm, speed and sideways speed and every effect running, its count
-      // and rate, in the readout. Every object render3d stops drawing between
+      // shadow (the sky panel, below); with the held car's rpm, speed and sideways speed in the readout.
+      // Every object render3d stops drawing between
       // the steps is written to the console as a warning, naming it (render3d's `drifted`). The
       // render3d folders are made again for each scene's client, and when render3d makes its composer
       // again, from what they draw with then.
@@ -173,16 +172,16 @@
 
       // Copy changed values, as horde's dev.html has it: every control moved on this panel since the page
       // opened, from any folder, as JSON under the file it is kept in, nested to its place there with
-      // nothing else beside it. A value that is one entry of a list (a speed's two ends, a curve's point)
-      // is copied as that list. Each folder names, as it is built, the objects it edits and where they sit (`home`), and
-      // a control on an object of its own (km/h, the hour, the tyres, the height blend) the entries it
+      // nothing else beside it. A value that is one entry of a list is copied as that list. Each folder
+      // names, as it is built, the objects it edits and where they sit (`home`), and a control on an
+      // object of its own (the hour, the tyres, the height blend) the entries it
       // stands for (`knobs`). A control of this page alone (the network, the renderer) is under "this
       // page only". Readouts are never moved, so never copied.
       const MANAGER = 'games/vehicles/vehicles.scene.json'
       // The scene file that gives each scene's sky look and shadow, and the one whose skydome3d prefab
       // starts each scene's clock.
-      const SKY_HOME = { road: 'games/vehicles/plains.partial_scene.json', title: 'games/vehicles/plains.partial_scene.json', stylized: 'games/vehicles/stylized.scene.json', desert: 'games/vehicles/desert.scene.json', gym: 'games/vehicles/gym.scene.json', park: 'games/vehicles/park.scene.json' }
-      const CLOCK_HOME = { road: MANAGER, title: MANAGER, gym: MANAGER, park: MANAGER, stylized: 'games/vehicles/stylized.scene.json', desert: 'games/vehicles/desert.scene.json' }
+      const SKY_HOME = { road: 'games/vehicles/plains.partial_scene.json', title: 'games/vehicles/plains.partial_scene.json', desert: 'games/vehicles/desert.scene.json', moon: 'games/vehicles/moon.scene.json', gym: 'games/vehicles/gym.scene.json', park: 'games/vehicles/park.scene.json' }
+      const CLOCK_HOME = { road: MANAGER, title: MANAGER, gym: MANAGER, park: MANAGER, desert: 'games/vehicles/desert.scene.json', moon: 'games/vehicles/moon.scene.json' }
       // The file of a loader catalogue entry of the scene.
       const assetFile = name => client.plugins.wire.scene.world.loader.assets[name].url.replace(/^\//, '')
       const homes = []
@@ -202,15 +201,6 @@
           return undefined
         }
         return walk(root, [])
-      }
-      // An object as it sits under any home: its file, the keys to it there, and it as it stands now, or
-      // undefined.
-      const found = object => {
-        for (const [root, file, base] of homes) {
-          const keys = pathTo(root, object)
-          if (keys) return [file, [...base, ...keys], JSON.parse(JSON.stringify(object))]
-        }
-        return undefined
       }
       // Where a control's value is kept: each file, the keys to it there, and the value to write. A value
       // that is one entry of a list (a speed's two ends, a curve's point) is the list itself.
@@ -350,7 +340,6 @@
         const field = land && client.plugins.loader.get(land)
         if (field?.ground) groundFolder(folder(`ground (${land})`), field, land)
         tractionFolder(folder('traction'), land, field)
-        effectsFolder(folder('effects'))
         if (client.plugins.wire.scene.world?.skydome3d) skyFolder(folder(`sky (${page.name})`))
       }
 
@@ -458,89 +447,8 @@
         })
       }
 
-      // ---------- the effects panel ----------
-      // Each vehicle's particle effects as box3dvehicle runs them (its header: exhaust, sprays, skid):
-      // the exhaust's rpm curve, idle and top, each an rpm and the rate there, every tailpipe of the car
-      // set together; the kick's speed window, thrown from a tread over `from` until the wheel goes
-      // `to`, and its rpm curve; the skid's sideways speed it starts at, its force per sideways m/s
-      // (how hard it throws: every layer's speed times that times the sideways speed), and its rate curve, two
-      // sideways speeds and the rate at each. These are the look's, which only the page reads, so each
-      // change is written into the page's copy of `world.box3dvehicle` alone, and box3dvehicle draws
-      // the car again from it the next frame. Live, never saved to the file. Under them, how hard each
-      // layer of the skid, the kick and the dust throws its particles, its `speed` [min, max] m/s, the
-      // puffs first and then the grains, written into the scene's effects file as the page's loader
-      // holds it. `copy changed values` copies whatever of these was moved.
-      function effectsFolder(f) {
-        const fleet = client.plugins.wire.scene.world?.box3dvehicle?.vehicles ?? {}
-        const box = client.plugins.wire.scene.world?.box3dvehicle
-        if (box) home(box, MANAGER, ['world', 'box3dvehicle'])
-        // A curve's two points, each an x and the rate there, as four sliders writing `points`.
-        const curve = (g, points, x, label, set = () => {}, most = 6) => {
-          const [lo, hi] = x
-          g.add(points[0], 0, lo, hi, 10 ** Math.floor(Math.log10((hi - lo) / 100))).name(`${label} low`).onChange(set)
-          g.add(points[0], 1, 0, most, 0.05).name('rate there').onChange(set)
-          g.add(points[1], 0, lo, hi, 10 ** Math.floor(Math.log10((hi - lo) / 100))).name(`${label} high`).onChange(set)
-          g.add(points[1], 1, 0, most, 0.05).name('rate there').onChange(set)
-        }
-        for (const [name, v] of Object.entries(fleet)) {
-          const look = v.look, vf = f.addFolder(name)
-          const pipes = (look.exhaust ?? []).filter(p => p.rpm)
-          if (pipes.length) {
-            const g = vf.addFolder('exhaust (rpm)')
-            // Every pipe takes the first pipe's curve, so the car's pipes stay together.
-            const together = () => { for (const p of pipes.slice(1)) p.rpm = structuredClone(pipes[0].rpm) }
-            curve(g, pipes[0].rpm, [0, 8000], 'rpm', together)
-            together()
-            // Copied as every pipe's curve, since the panel moves them together.
-            pipes[0].rpm.forEach((point, i) => knobs.set(point, () => pipes.map(p => found(p.rpm[i])).filter(Boolean)))
-          }
-          for (const s of look.sprays ?? []) {
-            const g = vf.addFolder(`${s.effect} spray`)
-            const kmh = { get from() { return s.speed[0] * 3.6 }, set from(x) { s.speed[0] = x / 3.6 }, get to() { return s.speed[1] * 3.6 }, set to(x) { s.speed[1] = x / 3.6 } }
-            knobs.set(kmh, () => [found(s.speed)].filter(Boolean))
-            g.add(kmh, 'from', 0, 30, 0.1).name('from tread km/h')
-            g.add(kmh, 'to', 0, 120, 0.5).name('until wheel km/h')
-            g.add(s, 'clear', 0, 0.5, 0.01).name('clear (m)')
-            if (s.rpm) curve(g, s.rpm, [0, 8000], 'rpm')
-          }
-          if (look.skid) {
-            const s = look.skid, g = vf.addFolder(`${s.effect} (sideways)`)
-            g.add(s, 'speed', 0, 15, 0.1).name('from sideways m/s')
-            g.add(s, 'clear', 0, 0.5, 0.01).name('clear (m)')
-            s.force ??= 0
-            g.add(s, 'force', 0, 100, 0.01).name('force per sideways m/s')
-            if (s.rate) curve(g, s.rate, [0, 30], 'sideways m/s', undefined, 200)
-          }
-        }
-        // Each layer's throw speed, [min, max] m/s, of the skid, the kick and the dust in the scene's own
-        // effects file (`world.particle3d.effects`), written into the copy the page's loader holds, which
-        // particle3d reads each burst from.
-        const asset = client.plugins.wire.scene.world?.particle3d?.effects
-        const effects = asset && client.plugins.loader.get(asset)
-        if (effects) {
-          home(effects, assetFile(asset), [])
-          const lf = f.addFolder(`throw speeds (${asset})`)
-          for (const name of ['skid', 'kick', 'dust']) {
-            const layers = effects.effects[name]
-            if (!layers) continue
-            const g = lf.addFolder(name)
-            // The puffs first, then the grains, whatever order the file lists them in; a second of a
-            // kind numbered.
-            for (const what of ['puff', 'grains']) {
-              const of = layers.filter(l => l.speed && (l.sheet ? 'puff' : 'grains') === what)
-              of.forEach((l, i) => {
-                const label = of.length > 1 ? `${what} ${i + 1}` : what
-                g.add(l.speed, 0, 0, 30, 0.1).name(`${label} min m/s`)
-                g.add(l.speed, 1, 0, 30, 0.1).name(`${label} max m/s`)
-              })
-            }
-          }
-        }
-      }
-
-      // The held car and its effects, for the readout: its rpm, its speed and its chassis's sideways
-      // speed, and each effect the page is running now, how many and at what rate.
-      const effectLines = () => {
+      // The held car, for the readout: its rpm, its speed and its chassis's sideways speed.
+      const carLines = () => {
         const rows = client?.plugins.wire.rows ?? [], car = holding(rows), chassis = car && rows.find(r => r.id === car.data.chassis)
         const lines = []
         if (car && chassis) {
@@ -549,16 +457,6 @@
           const sx = 2 * (x * z + w * y), sz = 1 - 2 * (x * x + y * y), across = Math.hypot(sx, sz) || 1
           lines.push(`${car.data.vehicle}  ${Math.round(car.data.rpm ?? 0)} rpm  ${(Math.hypot(vx, vz) * 3.6).toFixed(1)} km/h  sideways ${Math.abs((vx * sx + vz * sz) / across).toFixed(1)} m/s`)
         }
-        const by = new Map()
-        for (const fx of client?.plugins.particle3d?.effects ?? []) {
-          if (fx.life !== Infinity) continue
-          const e = by.get(fx.name) ?? { n: 0, rate: 0, force: 0 }
-          e.n++
-          e.rate = Math.max(e.rate, fx.rate)
-          e.force = Math.max(e.force, fx.force)
-          by.set(fx.name, e)
-        }
-        lines.push(`effects  ${[...by].map(([n, e]) => `${n} ${e.n} ×${e.rate.toFixed(2)} force ${e.force.toFixed(2)}`).join('  ') || 'none'}`)
         return lines
       }
 
@@ -714,7 +612,7 @@
           `corrections ${s.corrections}  drifts ${s.drifts}  packets checked ${s.checked}`,
           `other seat's presses taken ${s.taken}, too late ${s.missed}  steps gone back ${s.back}`,
           `snapshots loaded at ${s.loads.slice(-6).join(', ')}`,
-          ...effectLines(),
+          ...carLines(),
           ...(s.differed ? [`last differed at ${s.differed.n}: ${s.differed.rows.map(r => r.kind + ' ' + r.id).join(', ')}`] : []),
           ...(s.drifted ? [`last drifted at ${s.drifted.n} by ${s.drifted.by.toExponential(2)}: ${s.drifted.rows.map(r => r.kind + ' ' + r.id).join(', ')}`] : []),
         ]

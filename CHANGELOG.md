@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-06-b6183dd
+
+- supershader3d — any material can read the extra numbers its model carries on each vertex, not only a wall's.
+- yarn workshop — a new command: opens the asset, UI or particle workshop for a game, or the pose lab.
+
+## 2026-11-04-d3098a9
+
+- lod3d — a new plugin: fills a landscape with thousands of trees, grass, rocks and anything else, round the camera, solid to walk, shoot and drive against.
+- instances3d — a new plugin: draws many copies of the same thing in one go, from a forest to a pile of crates.
+- supershader3d — a new plugin: gives every surface of a scene the library's materials through one shader.
+- scatter3d — removed; lod3d takes its place.
+- scripts/scatter3d-to-lod3d.ts — moves a game's scenes from scatter3d to lod3d.
+- box3dvehicle — cars can have independent suspension, and there is a UTV to drive.
+- shapes3d — static shapes can come from files as well as the scene.
+- solids — draws shapes from files too, and paints any solid with a library material.
+- terrain3d — a ground layer can be painted with a library material.
+- nav3d — routes are found many times faster.
+- asset workshop — plays a model's own animation clips.
+- yarn bake — bakes the library materials a scene uses into the game.
+- yarn publish_gh_pages_game — a published game's repo now holds the whole game, including files added later.
+- connecting-plugins-using-mods skill — explains how plugins hand each other their work, and checks whether a plugin does it that way.
+
 ## 2026-11-01-6c4ac40
 
 - yarn dev — serves every game, with a home page linking each game's pages and scenes.

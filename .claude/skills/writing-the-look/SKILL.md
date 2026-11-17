@@ -1,6 +1,6 @@
 ---
 name: writing-the-look
-description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), trees and rocks on the land (`scatter3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO and exposure that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under scatter) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
+description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), trees and rocks on the land (`lod3d`, drawn by `instances3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO and exposure that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under the trees) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
 ---
 
 # Writing the look
@@ -21,7 +21,7 @@ Something else applies instead to:
 - how a camera moves (a follow, a chase, an orbit, a shake, smoothing): `tuning-feel`.
 - the art files themselves (sprite sheets, glTF models, textures) and putting them in the loader
   catalogue: `bringing-in-art`, and `making-game-assets` for making them.
-- the shape of the land, a level's layout, a Tiled map, where scatter grows: `building-a-level`.
+- the shape of the land, a level's layout, a Tiled map, where lod3d's trees grow: `building-a-level`.
   The ground's colours and detail are here.
 - a kind's rule and where its values go: `designing-a-kind`.
 - the HUD and menus on the `ui` canvas: `building-the-hud`.
@@ -32,8 +32,8 @@ Something else applies instead to:
 ## Where the look's numbers go
 
 - A plugin's fixed numbers belong in `world.<plugin>`, and a plugin with no row has no prefab (the
-  prime directive). render2d, light2d, skydome3d, terrain3d, ocean3d, scatter3d, sprite2d,
-  sprite3d, particle3d and particle2d read `world.<p>`. render3d and environment3d are old code that
+  prime directive). render2d, light2d, skydome3d, terrain3d, ocean3d, lod3d, instances3d,
+  sprite2d, sprite3d, particle3d and particle2d read `world.<p>`. render3d and environment3d are old code that
   breaks this: render3d reads
   `plugins.wire.scene.prefabs.render3d` once, on its first tick (`plugins/render3d/render3d.plugin.ts`),
   environment3d reads `prefabs.environment3d` (`plugins/environment3d/environment3d.plugin.ts`), and
@@ -235,8 +235,14 @@ each:
   `#plugins/ocean3d/ocean3d.sim.ts`, and the rest is `world.ocean3d`. It is lit by a `light` mod or
   else by the fixed `world.ocean3d.light`, and throws with neither. Its waves cast a shadow, so a
   crest shades a hull.
-- `scatter3d` (`plugins/scatter3d/scatter3d.plugin.ts`): trees, grass and boulders around the
-  camera. It draws nothing until a `land` mod hands it a ground.
+- `lod3d` (`plugins/lod3d/lod3d.plugin.ts`): trees, grass and boulders around the camera, in tiles,
+  each tile in the shell its distance puts it in, out to `world.lod3d.rings`. `world.lod3d.layers`
+  places them: each layer stands `on` surfaces (`["land"]`, terrain3d's) a try every `spacing`
+  metres, or round another layer's instances, kept by `density` and `rules`, its `rows` picked by
+  `weight`. It draws nothing itself: a layer's `mesh: { asset | shape, lods, shadow, leaf }` is drawn
+  by `instances3d` (`plugins/instances3d/instances3d.lod3d.ts`), one shell for each of `lods`, and
+  a model's cards are cut at `world.instances3d.cutout` and gain `coverage` a mip level. With no
+  `surfaces`, `seen` or `behaviors` mod named it throws.
 - `particle3d` and `particle2d`: a ledger row (prefab `{ "next": 1, "live": [] }`, the sim listing
   `particle3d` or `particle2d` from its `.sim.ts`, one actor) and `world.particle3d` or
   `world.particle2d`, `{ effects, hold }`, with `effects` a catalogue entry of the effects file. A rule spawns an effect with `emit(w, effect, at, spawn)` from
@@ -276,12 +282,13 @@ places what it draws by the camera in its `afterTick` is listed before the rende
 reads another's work of the same frame is listed after that one.
 
 - These throw when listed after their renderer: particle3d, sprite3d and anim after render3d;
-  particle2d and light2d after render2d. A camera plugin throws when listed before its renderer
+  particle2d and light2d after render2d. lod3d throws when listed before a plugin its `seen` mods
+  name (terrain3d), whose surfaces it reads that frame. A camera plugin throws when listed before its renderer
   (chasecamera3d, cutscene, pancamera).
 - These say in their headers that they come before their renderer and do not check it. Before
-  render3d: skydome3d, terrain3d, ocean3d, scatter3d, environment3d, solids, flight3d and
+  render3d: skydome3d, terrain3d, ocean3d, instances3d, lod3d, environment3d, solids, flight3d and
   box3dvehicle. Before render2d: sprite2d, tilemap, vision and volley2d. Listed after, each draws a
-  frame behind, and nothing says so. skydome3d, terrain3d, ocean3d and scatter3d draw round last
+  frame behind, and nothing says so. skydome3d, terrain3d, ocean3d and lod3d draw round last
   frame's camera. environment3d lags only with `sun.shadow`, whose box it centres on the camera.
   sprite2d, solids, flight3d, box3dvehicle and volley2d draw last frame's rows. The scene's test checks
   their order (How it is proven).
@@ -308,15 +315,17 @@ it throws when the file does not export the function. The mods of the look:
   (`plugins/skydome3d/skydome3d.ocean3d.ts`) light the sea with the sky and raise it with the sky's
   wind. `land: 'terrain3d'` (`plugins/terrain3d/terrain3d.ocean3d.ts`) gives the sea its seabed;
   with none, the sea is open ocean.
-- `world.scatter3d.mods`: `land: 'terrain3d'` for the browser half and `ground: 'terrain3d'` for the
-  server half (`plugins/terrain3d/terrain3d.scatter3d.ts`) stand what scatter draws, and what a rule
-  asks about, on the same land.
+- `world.lod3d.mods`: `surfaces: ['terrain3d']` for the server half, `seen: ['terrain3d']` for the
+  browser half and `behaviors: ['terrain3d', 'instances3d']` for both
+  (`plugins/terrain3d/terrain3d.lod3d.ts`, `plugins/instances3d/instances3d.lod3d.ts`) stand what
+  lod3d places, and what a rule asks about, on the same land, and draw it as instanced meshes;
+  `hollows: ['box3dvehicle']`, with `world.lod3d.hollows`, keeps grass from drawing inside a car.
 
 The scene's side is all of it. Name each mod in `world.<p>.mods`, list the plugin it names, and
 list that plugin before `p` where `p`'s header says it reads the mod in the same phase. Swapping one
 provider for another is changing that one value. A plugin never takes a field of its own table
 naming the plugin it stands on, `world.<p>.ground: 'terrain3d'` then `plugins[ground]`. That is not
-`world.scatter3d.mods.ground: 'terrain3d'`, which is a mod named in `mods`. A plugin never reaches
+`world.lod3d.mods.surfaces: ['terrain3d']`, which is a mod named in `mods`. A plugin never reaches
 `plugins.<a>` for what `a` knows, and never reads `world.<a>`.
 Each `p`'s header says what it does with no mod named. A game's own look plugin that needs a
 top-level plugin's knowledge takes it through a mod beside the game's plugin,

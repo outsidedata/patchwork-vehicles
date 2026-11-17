@@ -58,9 +58,9 @@
 // grounded body there before it moves it, so a body stands still on a moving floor. A ground with no
 // `footing`, terrain's, never moves.
 // A game builds it from terrain3d's `heightAt` (or `rawAt` on a flooded place) and `depthAt`, and
-// scatter3d's `solids`; a test writes its own. `groundOf(w)` is the ground the scene's mods make
+// lod3d's `solids`; a test writes its own. `groundOf(w)` is the ground the scene's mods make
 // (`addons/scenemanager`): `world.walker.mods: { height, depth?, cell?, solids?, fixed?, behaviors? }`
-// names the plugins that provide each (`terrain3d.walker.ts`, `scatter3d.walker.ts`,
+// names the plugins that provide each (`terrain3d.walker.ts`, `lod3d.walker.ts`,
 // `shapes3d.walker.ts`); with neither `solids` nor `fixed` there are none, and a scene that names no
 // `height` throws. Walker takes its feet itself, so the stand height means the same over any ground.
 // `slide`, `carry` and `seek` ask the ground's solids and, beside them, the bodies that reach within r
@@ -88,7 +88,7 @@
 // changes (the editor edits the scene in place): every mod is found once. On a ground with a `cell`,
 // every corner of the lattice is asked of `height` (and `depth`) once for the truth, at (i·cell,
 // j·cell), and kept, so a body stands on the same triangles as on a ground asked each call. Solids are
-// two kinds: `fixed`, every solid that never moves (a level's walls, scatter3d's trunks, shapes3d's
+// two kinds: `fixed`, every solid that never moves (a level's walls, lod3d's trunks, shapes3d's
 // shapes), and `solids`, what moves. `world.walker.mods.fixed` names one plugin or a list, each
 // `fixed(w, x, z, r)` (`Fixed`) handing back its solids reaching within r of (x, z), as `solids` does;
 // the ground's `solids` is every `fixed` plugin's solids, then the `solids` mod's. An agent's map asks `fixed` once a tile
@@ -301,7 +301,7 @@ export type Ground = {
 // The ground's heights and water, what the footprint stands on, without its solids.
 type Heights = Omit<Ground, 'solids'>
 // A plugin's `fixed` (`world.walker.mods.fixed`): every solid that never moves reaching within r of
-// (x, z), from the walls of a level, the trunks and boulders scatter3d places, anything that stands
+// (x, z), from the walls of a level, the trunks and boulders lod3d places, anything that stands
 // where it stands for the life of the truth.
 export type Fixed = (w: W, x: number, z: number, r: number) => (Solid | Worded)[]
 
@@ -356,16 +356,36 @@ type Made = Ground & { [KEPT]: Kept }
 // A square (i, j) of a grid, or a corner of the lattice, as one number.
 const keyOf = (i: number, j: number) => (i + 1048576) * 2097152 + (j + 1048576)
 
+// Whether two values of the scene file are the same: the same number (NaN the same as NaN), string,
+// boolean or null, or arrays and plain objects of the same, item by item and field by field, a field
+// holding undefined the same as one not there. Read on every `groundOf`, so it walks the two and makes
+// nothing.
+function same(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const c = b as unknown[]
+    if (a.length !== c.length) return false
+    for (let i = 0; i < a.length; i++) if (!same(a[i], c[i])) return false
+    return true
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  for (const k in x) if (!same(x[k], y[k])) return false
+  for (const k in y) if (!(k in x) && y[k] !== undefined) return false
+  return true
+}
+
 // The ground the scene's mods make, made once for each truth and kept until `world.walker.mods`
-// changes (the editor edits the scene in place).
-const grounds = new WeakMap<W, { mods: string; ground: Made }>()
+// changes: kept beside a copy of the mods it was made from, as the editor edits the scene in place.
+const grounds = new WeakMap<W, { mods: unknown; ground: Made }>()
 
 export function groundOf(w: W): Ground {
-  const mods = JSON.stringify(w.world.walker?.mods ?? null)
+  const mods = w.world.walker?.mods ?? null
   const was = grounds.get(w)
-  if (was && was.mods === mods) return was.ground
+  if (was && same(was.mods, mods)) return was.ground
   const ground = make(w)
-  grounds.set(w, { mods, ground })
+  grounds.set(w, { mods: structuredClone(mods), ground })
   return ground
 }
 

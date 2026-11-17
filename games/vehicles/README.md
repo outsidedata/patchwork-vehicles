@@ -4,10 +4,11 @@ A physics driving game for the browser, built on [Patchwork](https://github.com/
 
 Play it: https://outsidedata.github.io/patchwork-vehicles/
 
-- Three cars on Box3D physics with a suspension of their own: a golf cart, a jeep and a monster truck
+- Five cars on Box3D physics with a suspension of their own: a golf cart, a jeep, a monster truck,
+  a long-travel UTV on independent suspension, and the Apollo lunar rover, steering all four wheels
 - Start in the jeep, and move to any free car
-- Places to drive: the plains with a dirt road through firs, grass and boulders, a stylized version
-  of the plains in flat colours, rolling desert dunes, and a test track with whoops, a washboard,
+- Places to drive: the plains with a dirt road through firs, grass and boulders, rolling desert dunes, the cratered moon under a black sky at a
+  sixth of Earth's gravity, and a test track with whoops, a washboard,
   ditches, a bowl, a bank, ramps, a drag strip and patches of grass, mud, gravel and ice
 - A ball to knock about
 - An intro cutscene and a title in 3D
@@ -21,8 +22,9 @@ Play it: https://outsidedata.github.io/patchwork-vehicles/
 | throttle, and brake or reverse | ↑ ↓ or W S | right and left triggers |
 | steer | ← → or A D | d-pad or left stick |
 | brake | Space | bottom button |
-| move to the next free car | V | left button |
+| move to the next free car | Tab | left button |
 | headlights | L | |
+| back on its wheels | P | |
 | look round | | right stick |
 | menu of where to drive | Escape | start |
 

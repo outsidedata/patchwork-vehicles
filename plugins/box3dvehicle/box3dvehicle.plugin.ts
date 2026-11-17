@@ -241,6 +241,25 @@
 //                reservoirs, the pumpkin's cover and the joints in `chrome`, the discs in `damper`,
 //                the calipers and straps in `hook`, the bump stops in `trim`, and everything else in
 //                `arm`. Each part is a mesh of its own on the chassis, named `box3dvehicle.solid.<part>`.
+//   independent  with it, each axle is drawn as independent suspension instead of the corners (no
+//                coil, damper or arm at any corner, and no upper arm on the body), placed each frame
+//                from its two wheel rows by `independentParts` (`box3dvehicle.sim.ts`, which says how
+//                every number is read): a front corner's two wishbones swinging about their pivots on
+//                the frame, a knuckle between their ball joints with its spindle and steering arm, the
+//                tie rod from the rack's end, which moves so the knuckles steer as the wheel rows do;
+//                a rear corner's trailing arm turning about its pivot, held by its two radius rods,
+//                and its carrier; at every corner the hub, the brake disc and caliper, the coilover
+//                (a body, a shaft, a main and a tender spring with a crossover ring between them, and
+//                a piggyback reservoir), the anti-roll bar's lever and end link, and the half-shaft
+//                with a cup and a boot at each end; the anti-roll bar across the frame and the rack's
+//                housing. Every arm is rigid, so each wheel rides the arc its arms give it: the wheel
+//                mesh on a wheel row is drawn at the middle and with the turn its knuckle or carrier
+//                gives it (out or in, camber and toe), spinning as the wheel row spins, while the wheel
+//                row itself slides straight up and down on its spring. The springs are in `spring`,
+//                the coilovers' bodies and reservoirs in `damper`, the shafts, ball joints, hubs and
+//                discs in `chrome`, the calipers, rings and spring seats in `hook`, the bushes and boots
+//                in `trim`, and everything else in `arm`. Each part is a mesh of its own on the chassis,
+//                named `box3dvehicle.independent.<part>`.
 //   sound        `{ engine, stems?, ease?, at?, range? }`: the engine heard. `engine` is the loader
 //                catalogue's `json` entry of its manifest (`Engine`, `box3dvehicle.sim.ts`), which the
 //                library's `sounds/sounds.mjs` writes beside its loops, from a `piston` or `electric`
@@ -295,7 +314,7 @@ import type { Row } from '#engine/engine.ts'
 import type { Plugins } from '#engine/browser.ts'
 import { ahead, mod, provided } from '#addons/scenemanager/scenemanager.addon.ts'
 import type { Effect } from '#plugins/particle3d/particle3d.plugin.ts'
-import { along, cabinPoints, corners, cross, design as designOf, pedals, pointOf, solidParts, turn, wheelAt, type Engine, type Fleet, type Lamp, type Lights, type Paint, type Tracks, type Vehicle, type Wheel } from './box3dvehicle.sim.ts'
+import { along, cabinPoints, corners, cross, design as designOf, independentParts, pedals, pointOf, quatOf, solidParts, turn, wheelAt, type Engine, type Fleet, type Lamp, type Lights, type Paint, type Tracks, type Vehicle, type Wheel } from './box3dvehicle.sim.ts'
 import type { Quat, Vec3 } from '#plugins/box3d/box3d.sim.ts'
 
 // What a `land` mod is: the ground dust is thrown from, or undefined until there is one.
@@ -318,7 +337,8 @@ type Hold = (plugins: Plugins) => Sounding | undefined
 type Track = { mesh: any; born: Float32Array; strength: Float32Array; next: number; laid: number; last?: number[][] }
 type Drawn = {
   chassis: any; wheels: any[]; corners: { coil: any; sleeve: any; rod: any; arm?: any }[]; owned: { dispose(): void }[]
-  // With `look.solid`: each axle's parts, one mesh a part on the chassis, in `solidParts`' order.
+  // With `look.solid` or `look.independent`: each axle's parts, one mesh a part on the chassis, in
+  // `solidParts`' or `independentParts`' order.
   solid: any[][]
   // Each tailpipe's smoke, and its rev while the throttle is held, by the pipe's place in the list.
   smoke: (Effect | undefined)[]; rev: (Effect | undefined)[]; dust: ({ fx: Effect; effect: string } | undefined)[]; tracks: Track[]
@@ -365,9 +385,31 @@ export function mix(layers: { rpm: number }[], rpm: number, loud: number): { rat
   return layers.map((l, k) => ({ rate: Math.max(0, rpm) / l.rpm, gain: weights[k] * loud }))
 }
 
+// Whether two values are the same: the same number (NaN the same as NaN), string, boolean or null, or
+// arrays and plain objects of the same, item by item and field by field, a field holding undefined the
+// same as one not there. Read every frame against the copy of world.box3dvehicle, so it walks the two
+// and makes nothing.
+function same(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const c = b as unknown[]
+    if (a.length !== c.length) return false
+    for (let i = 0; i < a.length; i++) if (!same(a[i], c[i])) return false
+    return true
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  for (const k in x) if (!same(x[k], y[k])) return false
+  for (const k in y) if (!(k in x) && y[k] !== undefined) return false
+  return true
+}
+
 export function box3dvehicle() {
   const cars = new Map<number, Drawn>()
-  let design = ''
+  // A copy of world.box3dvehicle as the cars were drawn from it, taken when it changes; a change,
+  // made in place or not, drops every car to be made again.
+  let design: Fleet | undefined
   // The models asked of the loader, each once; and every material of a model dressed, each once.
   const asked = new Set<string>()
   const dressed = new WeakSet<object>()
@@ -966,7 +1008,7 @@ export function box3dvehicle() {
     }
 
     const inboard = look.inboard ?? 0
-    for (const c of look.solid ? [] : cs) {
+    for (const c of look.solid || look.independent ? [] : cs) {
       const out = Math.abs(c.mount[2]) - inboard - W / 2
       if (out > 0) {
         const upper = new THREE.Mesh(geo(new THREE.BoxGeometry(arm, 1, arm).translate(0, 0.5, 0)), mat('arm'))
@@ -1001,7 +1043,7 @@ export function box3dvehicle() {
     helix.getPoint = (t: number, into = new THREE.Vector3()) => into.set(coilRadius * Math.cos(t * coils * 2 * Math.PI), t, coilRadius * Math.sin(t * coils * 2 * Math.PI))
     const coil = geo(new THREE.TubeGeometry(helix, coils * segments, wire, Math.max(3, segments / 4), false))
     const stick = (thick: number) => geo(new THREE.BoxGeometry(thick, 1, thick).translate(0, 0.5, 0))
-    const drawnCorners = (look.solid ? [] : cs).map(c => {
+    const drawnCorners = (look.solid || look.independent ? [] : cs).map(c => {
       const spring = new THREE.Mesh(coil, mat('spring'))
       const sleeve = new THREE.Mesh(geo(new THREE.CylinderGeometry(coilRadius / 2, coilRadius / 2, 1, segments).translate(0, -0.5, 0)), mat('damper'))
       sleeve.scale.y = c.axle.spring.length - c.axle.spring.travel
@@ -1011,11 +1053,13 @@ export function box3dvehicle() {
       for (const m of [spring, sleeve, rod, lower]) if (m) scene.add(m)
       return { coil: spring, sleeve, rod, arm: lower }
     })
-    // Each solid axle's parts, made from how they stand at rest: a unit tube, coil or band along y from
-    // 0 to 1 to be stretched from `a` to `b` each frame, or a ball.
-    const solid = look.solid ? v.axles.map((axle, i) => {
+    // Each solid axle's or independent axle's parts, made from how they stand at rest: a unit tube (a
+    // cone with `r2`), coil or band along y from 0 to 1 to be stretched from `a` to `b` each frame, or a
+    // ball.
+    const resting = (i: number, l: Vec3, r: Vec3) => look.solid ? solidParts(v, i, l, r, 0, 0) : independentParts(v, i, l, r, 0, 0).parts
+    const solid = look.solid || look.independent ? v.axles.map((axle, i) => {
       const [l, r] = cs.filter(c => c.axle === axle)
-      return solidParts(v, i, wheelAt(l, axle.spring.sag), wheelAt(r, axle.spring.sag), 0, 0).map(p => {
+      return resting(i, wheelAt(l, axle.spring.sag), wheelAt(r, axle.spring.sag)).map(p => {
         let g
         if (p.shape === 'ball') g = new THREE.SphereGeometry(p.r, segments, segments / 2)
         else if (p.shape === 'band') g = new THREE.BoxGeometry(p.r * 2, 1, p.thick!).translate(0, 0.5, 0)
@@ -1023,9 +1067,9 @@ export function box3dvehicle() {
           const turns = p.turns!, spiral = new THREE.Curve()
           spiral.getPoint = (t: number, into = new THREE.Vector3()) => into.set(p.r * Math.cos(t * turns * 2 * Math.PI), t, p.r * Math.sin(t * turns * 2 * Math.PI))
           g = new THREE.TubeGeometry(spiral, Math.ceil(turns * segments), p.wire!, Math.max(3, segments / 4), false)
-        } else g = new THREE.CylinderGeometry(p.r, p.r, 1, segments).translate(0, 0.5, 0)
+        } else g = new THREE.CylinderGeometry(p.r2 ?? p.r, p.r, 1, segments).translate(0, 0.5, 0)
         const m = new THREE.Mesh(geo(g), mat(p.paint))
-        m.name = `box3dvehicle.solid.${p.name}`
+        m.name = `box3dvehicle.${look.solid ? 'solid' : 'independent'}.${p.name}`
         m.castShadow = true
         m.receiveShadow = true
         chassis.add(m)
@@ -1209,8 +1253,7 @@ export function box3dvehicle() {
       const world = plugins.wire.scene.world
       const fleet: Fleet | undefined = world?.box3dvehicle
       if (!fleet) return
-      const now = JSON.stringify(fleet)
-      if (now !== design) { for (const id of [...cars.keys()]) drop(scene, id); design = now }
+      if (!same(fleet, design)) { for (const id of [...cars.keys()]) drop(scene, id); design = structuredClone(fleet) }
       const rows = new Map<number, Row>(plugins.wire.rows.map(r => [r.id, r]))
       const seen = new Set<number>()
       const dusty = Object.values(fleet.vehicles).some(v => v.look.dust || v.look.sprays?.length || v.look.skid)
@@ -1347,18 +1390,33 @@ export function box3dvehicle() {
         })
         // Each solid axle from its two wheels: their middles in the chassis's frame and how far each is
         // steered, its spin axis turned about the chassis's y from the chassis's z.
-        if (v.look.solid) {
+        if (v.look.solid || v.look.independent) {
           const back: Quat = [-rot[0], -rot[1], -rot[2], rot[3]]
           const local = (i: number) => {
             const wd = wheels[i]!.data, p = turn(back, [wd.pos[0] - at[0], wd.pos[1] - at[1], wd.pos[2] - at[2]]), spin = turn(back, turn(wd.rot, [0, 0, 1]))
             return { p, steer: Math.atan2(spin[0], spin[2]) }
           }
+          const place = (i: number, parts: { shape: string; a: Vec3; b: Vec3 }[]) => parts.forEach((p, k) => {
+            const m = d.solid[i][k]
+            if (p.shape === 'ball') m.position.fromArray(p.a)
+            else span(THREE, m, p.a, p.b)
+          })
           v.axles.forEach((axle, i) => {
-            const [l, r] = [cs.findIndex(c => c.axle === axle && c.side < 0), cs.findIndex(c => c.axle === axle && c.side > 0)].map(local)
-            solidParts(v, i, l.p, r.p, l.steer, r.steer).forEach((p, k) => {
-              const m = d.solid[i][k]
-              if (p.shape === 'ball') m.position.fromArray(p.a)
-              else span(THREE, m, p.a, p.b)
+            const ks = [cs.findIndex(c => c.axle === axle && c.side < 0), cs.findIndex(c => c.axle === axle && c.side > 0)]
+            const [l, r] = ks.map(local)
+            if (v.look.solid) return place(i, solidParts(v, i, l.p, r.p, l.steer, r.steer))
+            // the independent suspension, and each wheel drawn where its arms hold it: at the drawn
+            // middle, turned by its knuckle's turn from rest (camber, toe and the knuckle's steer) over
+            // its own spin, which is the physics wheel's turn in the chassis's frame unsteered
+            const made = independentParts(v, i, l.p, r.p, l.steer, r.steer)
+            place(i, made.parts)
+            ks.forEach((w, k) => {
+              const { centre, turn: knuckle } = made.wheels[k], steer = [l, r][k].steer
+              const own = new THREE.Quaternion().fromArray(back).multiply(new THREE.Quaternion().fromArray(wheels[w]!.data.rot))
+              const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -steer).multiply(own)
+              const t = turn(rot, centre)
+              d.wheels[w].position.set(at[0] + t[0], at[1] + t[1], at[2] + t[2])
+              d.wheels[w].quaternion.fromArray(rot).multiply(new THREE.Quaternion().fromArray(quatOf(knuckle))).multiply(spin)
             })
           })
         }
@@ -1406,7 +1464,7 @@ export function box3dvehicle() {
     },
     close(plugins: Plugins) {
       for (const id of [...cars.keys()]) drop(plugins.render3d.scene, id)
-      design = ''
+      design = undefined
       asked.clear()
       engines.clear()
       read.clear()

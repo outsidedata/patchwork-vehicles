@@ -7,7 +7,8 @@
 //   kinds  `{ <kind>: { shape: { <word>: { … } }, look?, surface? } }`: every row of the kind is a thing
 //          of that word, of its numbers. `look` `{ colour, roughness?, sides?, thick?, map?, scale? }`,
 //          when given, is how solids draws it, a plain shape of that paint, a picture laid on it when
-//          it names a `map` (`shapes3d.solids.ts`), and box3d stands a cylinder and a plane as that
+//          it names a `map`, or, with `look` in place of a colour, a material of the scene's one
+//          shader (`shapes3d.solids.ts`), and box3d stands a cylinder and a plane as that
 //          same solid (`shapes3d.box3d.ts`). `surface` is what box3d's bodies meet on it, Box3D's
 //          b3SurfaceMaterial fields (`friction`, `restitution`, `rollingResistance`, …), Box3D's own
 //          where left out. A kind that gives
@@ -79,6 +80,7 @@ import type { Row, W } from '#engine/engine.ts'
 import type { Material } from '#plugins/box3d/box3d.sim.ts'
 import { mod } from '#addons/scenemanager/scenemanager.addon.ts'
 import * as math from '#plugins/math/math.sim.ts'
+import { json } from '#plugins/loader/loader.sim.ts'
 
 export type Cylinder = { pos: number[]; radius: number; height: number }
 export type Box = { pos: number[]; size: number[]; yaw: number }
@@ -87,7 +89,7 @@ export type Hyperplane = { pos: number[]; size: number[]; rot: number[] }
 export type Placed = { id: number; kind: string; word: string; shape: Record<string, any> }
 export type Kind = {
   shape: Record<string, any>
-  look?: { colour: string; roughness?: number; sides?: number; thick?: number; map?: string; scale?: number }
+  look?: { colour?: string; look?: string; roughness?: number; sides?: number; thick?: number; map?: string; scale?: number }
   surface?: Partial<Material>
   activities?: string[]
   priority?: number
@@ -226,7 +228,25 @@ export function shapes(w: W): Placed[] {
     const { word, known } = wordOf(kind, k)
     for (const r of w.all(kind)) out.push({ id: r.id, kind, word, shape: { [word]: known.place(k.shape[word], r) } })
   }
-  return out
+  return out.concat(fromFiles(w))
+}
+
+// The shapes of the files `world.shapes3d.shapes` names, each a loader entry of `{ kinds, shapes }`, read once
+// per truth; their ids count down from -1, so none is a row's.
+const loaded = new WeakMap<object, Placed[]>()
+function fromFiles(w: W): Placed[] {
+  let l = loaded.get(w.world)
+  if (!l) {
+    let id = 0
+    loaded.set(w.world, (l = ((w.world.shapes3d?.shapes ?? []) as string[]).flatMap(name => {
+      const file = json(w, name) as { kinds: Record<string, Kind>; shapes: { kind: string; pos: number[]; yaw: number }[] }
+      return file.shapes.map(s => {
+        const k = file.kinds[s.kind], { word, known } = wordOf(s.kind, k)
+        return { id: --id, kind: s.kind, word, shape: { [word]: known.place(k.shape[word], { data: s } as unknown as Row) } }
+      })
+    })))
+  }
+  return l
 }
 
 // How many times a shape of the truth has been moved, so what is kept of its shapes knows when to read

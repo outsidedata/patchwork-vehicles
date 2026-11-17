@@ -62,6 +62,9 @@ real point light on each particle (which needs lights3d). An unknown field throw
 - **loader**: the effects file and the sheets.
 - **box3dvehicle**: its exhaust and dust are particle3d effects.
 - **dismember3d**: its sever burst and drip are particle3d effects.
+- **lod3d**: `particle3d.lod3d.ts` (`world.lod3d.mods: { behaviors: [..., 'particle3d'] }`) delivers the
+  `emitter` word, so a lod3d layer runs an effect on each instance it holds near the camera: fireflies
+  round demo_lod3d's firs.
 - **particle2d** is the 2D counterpart.
 
 ## Keywords

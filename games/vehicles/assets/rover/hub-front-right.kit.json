@@ -1,0 +1,5 @@
+{
+ "buildings": [
+  {"kind": "spacecraft/lrv/wheel/hub", "name": "hub", "Hand": 1, "End": 1, "Extended": true}
+ ]
+}

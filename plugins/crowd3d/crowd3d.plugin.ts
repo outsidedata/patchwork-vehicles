@@ -376,11 +376,31 @@ type Group = { mesh: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.Material> }
 type Body = { index: number; groups: Group[]; start: { value: number }; count: number; scale: number }
 // An item as drawn: its mesh groups, its held texture and how many copies it holds of the `room` it has.
 type Ware = { groups: Group[]; held: { value: THREE.DataTexture }; count: number; room: number }
-// What a row's slot was written from, the clip time it was written with, and what it holds, as its row
-// has it and as pairs of place and item.
+// What a row's slot was written from, the clip time it was written with, and what it holds: a copy of
+// its row's `holding` as it was when last read (undefined before the first read), and that as pairs of
+// place and item.
 type Slot = {
   index: number; since: number; body: string; clip: string; speed: number; yaw: number; to: number[]; normal: number[]; normalTo: number[]
-  start: number; holding: string; held: [string, string][]
+  start: number; holding: unknown; held: [string, string][]
+}
+
+// Whether two values are the same: the same number (NaN the same as NaN), string, boolean or null, or
+// arrays and plain objects of the same, item by item and field by field, a field holding undefined the
+// same as one not there. Read for every row every frame, so it walks the two and makes nothing.
+function same(a: unknown, b: unknown): boolean {
+  if (a === b || (a !== a && b !== b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const c = b as unknown[]
+    if (a.length !== c.length) return false
+    for (let i = 0; i < a.length; i++) if (!same(a[i], c[i])) return false
+    return true
+  }
+  const x = a as Record<string, unknown>, y = b as Record<string, unknown>
+  for (const k in x) if (!same(x[k], y[k])) return false
+  for (const k in y) if (!(k in x) && y[k] !== undefined) return false
+  return true
 }
 // How a slot is held: 0 looped, 1 held on its last frame, 2 a pose.
 const LOOP = 0, HOLD = 1, POSE = 2
@@ -556,7 +576,7 @@ export function crowd3d() {
     for (const r of mine) {
       let s = slots.get(r.id)
       if (!s) {
-        s = { index: free.pop() ?? next++, since: NaN, body: '', clip: '', speed: NaN, yaw: NaN, to: [], normal: [], normalTo: [], start: 0, holding: '', held: [] }
+        s = { index: free.pop() ?? next++, since: NaN, body: '', clip: '', speed: NaN, yaw: NaN, to: [], normal: [], normalTo: [], start: 0, holding: undefined, held: [] }
         slots.set(r.id, s)
         reorder = true
       }
@@ -565,10 +585,10 @@ export function crowd3d() {
       const differs = (a: number[], b: number[]) => a[0] !== b[0] || a[1] !== b[1] || a[2] !== b[2]
       const ends = differs(s.to, p.to) || differs(s.normal, p.normal) || differs(s.normalTo, p.normalTo)
       if (s.since !== p.since || s.body !== r.data.body || s.clip !== r.data.clip || s.speed !== r.data.speed || s.yaw !== p.yaw || ends) write(s, r, p)
-      const holding = JSON.stringify(r.data.holding ?? {})
-      if (s.holding !== holding) {
+      const holding = r.data.holding ?? {}
+      if (!same(s.holding, holding)) {
         s.held = heldBy(r)
-        s.holding = holding
+        s.holding = structuredClone(holding)
         arming = true
       }
     }

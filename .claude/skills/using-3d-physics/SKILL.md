@@ -50,7 +50,7 @@ it by that word's behavior: hitscan3d where a line meets it, walker its footprin
 behind it. Each has `cylinder` of its own (hitscan3d `capsule` too); a plugin that hands them another
 word delivers its behavior through `world.<p>.mods.behaviors` (shapes3d's `box`), and a delivered word
 takes the place of the plugin's own of that word. A bare solid (`{x, z, radius}` to walker, `{x, z,
-radius, base, tall?}` to hitscan3d, `{x, z, radius, tall?}` to cover3d), as scatter3d hands them, is read
+radius, base, tall?}` to hitscan3d, `{x, z, radius, tall?}` to cover3d), as lod3d hands them, is read
 as the cylinder it always was (each plugin's `fromBare`).
 
 ## How the world reaches each plugin: the mods
@@ -102,10 +102,10 @@ The providers core ships:
 | `plugins/shapes3d/shapes3d.nav3d.ts` | `solids`: each shape in the bake's area as its footprint |
 | `plugins/terrain3d/terrain3d.box3dvehicle.ts` | `land`, `grip` and `drag` off the painted surface |
 | `plugins/terrain3d/terrain3d.ragdoll3d.ts`, `terrain3d.solids.ts` | `land` = the page's ground |
-| `plugins/scatter3d/scatter3d.walker.ts` | `solids`: trunks and boulders as circles |
-| `plugins/scatter3d/scatter3d.hitscan3d.ts` | `solids`: the same as cylinders with `base`, `tall` |
-| `plugins/scatter3d/scatter3d.box3d.ts` | `props`: a capsule (or a sunk sphere) per solid in the chunk; throws on a solid with no `tall` |
-| `plugins/scatter3d/scatter3d.ragdoll3d.ts`, `scatter3d.cover3d.ts` | `solids` for those two |
+| `plugins/lod3d/lod3d.walker.ts` | `solids` and `fixed`: the instances of every row that gives `solid` (trunks and boulders) as circles `solid`·size round, with `base` and `tall`·size; needs `world.lod3d.widest` and `remember` |
+| `plugins/lod3d/lod3d.hitscan3d.ts` | `solids`: the same, those whose circle the line's path crosses |
+| `plugins/lod3d/lod3d.box3d.ts` | `props`: a capsule (or a sunk sphere) per solid in the chunk; throws on a solid with no `tall` |
+| `plugins/lod3d/lod3d.ragdoll3d.ts`, `lod3d.cover3d.ts` | `solids` for those two (ragdoll3d's off the tiles this page's lod3d holds) |
 | `plugins/shapes3d/shapes3d.walker.ts` | `fixed`: its shapes; `behaviors`: `box`, its four corners |
 | `plugins/shapes3d/shapes3d.hitscan3d.ts` | `solids`: its shapes a line may cross; `behaviors`: `box`, where a line meets it |
 | `plugins/shapes3d/shapes3d.cover3d.ts` | `solids`: its shapes; `behaviors`: `box`, the spot behind it |
@@ -128,8 +128,8 @@ The providers core ships:
 A key read with `mod` takes one plugin. When a game has more than one thing to hand in, a game plugin
 takes the slot and hands back its own things **plus** whatever its own mod names — the chain. A game's
 plugin `a` provides `solids` to walker in `games/<game>/plugins/<a>/<a>.walker.ts`, returns its own
-circles, and asks `mod(w.world, '<a>', 'solids')` for scatter3d's, which the scene names in
-`world.<a>.mods.solids: 'scatter3d'`. The same works for `height`: a game plugin that gives `height`
+circles, and asks `mod(w.world, '<a>', 'solids')` for lod3d's, which the scene names in
+`world.<a>.mods.solids: 'lod3d'`. The same works for `height`: a game plugin that gives `height`
 answers its own floors where they stand and hands every other point to the `height` its own mod names
 (terrain3d's `rawAt`). Find the provider once per `world` (a `WeakMap` on `w.world`), as the mod is
 asked many times a step.
@@ -189,7 +189,7 @@ deleted after), `target {pos, rot}` (kinematic), `wind`, `friction`, and the liv
    chooses them. A new key is built from the `ground` mod and then every `props` mod; a dropped key is
    freed. Chunks and their props are named `0` in queries.
 3. A `props` mod of a game's own plugin, `games/<game>/plugins/<a>/<a>.box3d.ts` returning a Static for
-   what of it stands in chunk [i, j]; named in `world.box3d.mods.props` beside scatter3d. Needs a
+   what of it stands in chunk [i, j]; named in `world.box3d.mods.props` beside lod3d. Needs a
    `ground` mod and `chunk` too.
 4. A row of a kind whose Body is `type: 'static'`: answered by its row id.
 5. A `fixed` mod: `(w) => Fixed[]`, each a Static with the `id` of the row it stands for, asked once

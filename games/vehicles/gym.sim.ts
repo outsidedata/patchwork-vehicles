@@ -16,12 +16,15 @@
 // `kicker` kinds, still wedges whose hulls are their shapes. The cars, the ball, the starts, the HUD
 // and the sky are as on the road (`road.sim.ts`).
 // Behind the cars, from x -144 to -176 and z -26 to -254, is a course of shapes3d's shapes
-// (`world.shapes3d.kinds`), stood in box3d's world by its `fixed` mod and drawn by solids: a cube 30 m a
+// from its shapes file `assets/gym.shapes3d.json` (`world.shapes3d.shapes`), their kinds' looks and
+// surfaces `world.shapes3d.kinds`, none a row, stood in box3d's world by its `fixed` mod and drawn by solids: a cube 30 m a
 // side tipped 0.35 rad and sunk in the ground, a plane as thick as it is wide, whose top face rises
 // from the ground to 10.3 m; a ramp off its high edge up to a tower 16 m tall, with a kicker off each
 // side; a bridge 80 m long on pillars at the tower's height; and a ramp from the bridge's end down to
-// the ground. Its pieces have no rule.
+// the ground.
 import type { Kind, Scene, Sim } from '#engine/engine.ts'
+import type { Prepare } from '#addons/scenemanager/scenemanager.addon.ts'
+import { particle3d } from '#plugins/particle3d/particle3d.sim.ts'
 import { box3d } from '#plugins/box3d/box3d.sim.ts'
 import { scenemanager } from '#plugins/scenemanager/scenemanager.sim.ts'
 import { loader } from '#plugins/loader/loader.sim.ts'
@@ -38,14 +41,14 @@ import { hud } from './hud.sim.ts'
 import { atlas } from './atlas.sim.ts'
 import { ramp } from './ramp.sim.ts'
 import { kicker } from './kicker.sim.ts'
+import { waypoint } from './waypoint.sim.ts'
 import file from './gym.scene.json' with { type: 'json' }
 
-// A piece of the course.
-const piece: Kind = {}
+// The particles' gravity on the Earth, the effects file's `gravity` driver, set as the scene loads.
+const particles: Kind & Prepare = { ...particle3d, async prepare(me) { me.data.drivers = { gravity: 9.8 } } }
 
 export const sim: Sim = {
-  loader, scenemanager, skydome3d, box3d, box3dvehicle, player, car, wheel, axle, ball, start, spot, hud, atlas, ramp, kicker,
-  ...Object.fromEntries(Object.keys(file.world.shapes3d.kinds).map(kind => [kind, piece])),
+  loader, scenemanager, skydome3d, box3d, box3dvehicle, particle3d: particles, player, car, wheel, axle, ball, start, spot, hud, atlas, ramp, kicker, waypoint,
 }
 
 export const scene = file as Scene

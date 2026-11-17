@@ -9,8 +9,8 @@ from the shapes and the ground, and the game only searches it.
 
 Use nav3d when a thing has to get somewhere it cannot walk to in a straight line: round a wall, through
 a house to its kitchen, from one end of a castle to the other. All the work of reading the space is done
-once, offline, in the bake; while the game runs, a route is a search over a few points, on the server
-and on a page running ahead alike. nav3d moves nothing: whatever drives a body (an NPC's plugin) walks it
+once, offline, in the bake; while the game runs, a route is a search over a few points, or a lookup on a
+graph whose costs never change, on the server and on a page running ahead alike. nav3d moves nothing: whatever drives a body (an NPC's plugin) walks it
 along the route through the body's own plugin (walker, crowd3d).
 
 ## How it works
@@ -65,6 +65,12 @@ for the goal place), the way that reaches it with all its data (null for a step 
 points } }`), and, where the graph gives one, the up there (a place's own `normal`, the goal place's that
 of the place it joins from), or undefined when there is no way. A join costs its length in all three. A
 way whose behavior says it cannot be crossed now is not taken.
+
+On a graph with no blocks whose ways' words have no behavior in the scene, a way's cost never changes,
+so the cheapest way from a place to every other is worked out the first time a route sets out from that
+place and kept: every later route from there is a lookup, with no search. On pro-ng's town for
+demo_castle (176 places, 178 ways) a route went from 90 µs to 3 µs that way, with the same steps. A graph with blocks or with behaviors is searched for each route, stopping once no place left can
+end cheaper.
 
 **The bake.** `graphOf(w, name)` makes a graph from the space by its `bake`: `area` `[x0, z0, x1, z1]`,
 the play area the graph stops at; `clearance` metres kept from every solid; `around`, the corners that

@@ -159,6 +159,33 @@ test('a body held to a point of a space is drawn on it as the page draws the spa
   close(held(root, prop), grip)
 })
 
+test('a kind\'s props are hung once while they stay the same, a fresh copy of them included, and again when a number deep in them is written in place', async () => {
+  const { p, root, prop } = await page()
+  stage(p)
+  const scene = p.render3d.scene as THREE.Scene
+  let hung = 0
+  const add = scene.add.bind(scene)
+  scene.add = (...o: THREE.Object3D[]) => { hung += o.filter(x => x === prop).length; return add(...o) }
+  const m = motion3d()
+  m.tick(p)
+  m.tick(p)
+  expect(hung).toBe(1)
+  // One number of the stick's offset written in place, in the list it was hung by, as the editor writes a
+  // scene: the stick is hung again, 0.2 m along the hand's z.
+  const rider = p.wire.scene.world.motion3d.kinds.rider
+  rider.props[0].at[2] = 0.2
+  m.tick(p)
+  expect(hung).toBe(2)
+  const hand = root.getObjectByName('Hand')!
+  close(new THREE.Vector3().applyMatrix4(new THREE.Matrix4().copy(hand.matrixWorld).invert().multiply(prop.matrixWorld)).toArray(), [0, 0, 20])
+  m.tick(p)
+  rider.props = structuredClone(rider.props)
+  m.tick(p)
+  expect(hung).toBe(2)
+  // The scene's world is the one module every test loads; the stick goes back on the hand.
+  rider.props[0].at[2] = 0
+})
+
 test('a scene that lists the mods\' plugin after motion3d throws: motion3d reads what it drew that frame', async () => {
   const { p } = await page(['scenemanager', 'motion3d', 'shipped', 'render3d'])
   stage(p)

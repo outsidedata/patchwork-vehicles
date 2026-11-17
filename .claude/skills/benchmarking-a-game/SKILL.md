@@ -126,8 +126,8 @@ printed with the seconds since it was opened and the client's step:
   taken a packet (and `window.__scenes` for the CPU profile, render3d's renderer for the GPU's);
 - **loaded**: every plugin that says it is still loading is done. Terrain3d: its rings are on the
   scene (with `preload`, the land prepared whole where the camera stands, its maps landed and
-  scatter3d's share placed), no rebuild in hand, and every bake with nothing `left`. Scatter3d: its
-  share of the prepared place placed. A land built in workers is waited on with no flag at all;
+  lod3d's share held), no rebuild in hand, and every bake with nothing `left`. lod3d: its share of
+  the prepared place done, `plugins.lod3d.ready()`. A land built in workers is waited on with no flag at all;
   `--loading` skips this stage, to measure the loading itself;
 - **ready**: `--ready "<page expression>"` true, when given, for what no plugin reports (a set piece
   shown, a race started);

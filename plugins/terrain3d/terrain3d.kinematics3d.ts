@@ -77,7 +77,7 @@ export type Ground = {
 // The ground's heights and water, what the footprint stands on, without its solids.
 type Heights = Omit<Ground, 'solids'>
 // A plugin's `fixed`: every solid that never moves reaching within r of
-// (x, z), from the walls of a level, the trunks and boulders scatter3d places, anything that stands
+// (x, z), from the walls of a level, the trunks and boulders lod3d places, anything that stands
 // where it stands for the life of the truth.
 export type Fixed = (w: W, x: number, z: number, r: number) => (Solid | Worded)[]
 

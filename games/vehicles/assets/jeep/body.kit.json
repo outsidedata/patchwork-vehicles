@@ -1,0 +1,6 @@
+{
+ "buildings": [
+  {"kind": "modern/vehicles/jeep_tj/jeep", "name": "jeep", "Paint": "red", "Rim": "steel", "Steer": 0, "Doors": "on", "Hood": false, "Windshield": "up", "Tailgate": false, "Lit": false, "Driving": false, "Corners": false, "Steering": false},
+  {"kind": "modern/vehicles/jeep_tj/interior/steering", "name": "steer", "place": [-0.36, -0.138], "elevation": 1.182, "degrees": 90, "roll": 23}
+ ]
+}

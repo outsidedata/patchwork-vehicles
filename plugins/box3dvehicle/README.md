@@ -46,7 +46,12 @@ placed each frame from its rows. Without `model` it builds the body box and cabi
 (tub, hood, dash, seats, steering wheel, windshield, roll bar), fenders, bumpers, grille, headlights
 that throw spot lights, tail, brake and reverse lights, a spare, revolved tyres with chevron tread on
 dished rims, and at each corner a coil spring, damper and arms that squash with the wheel, or a solid
-axle (`solid`) with links, shocks and a driveshaft. With `model` a baked glb is drawn on the chassis
+axle (`solid`) with links, shocks and a driveshaft, or independent suspension (`independent`): double
+wishbones, knuckles, a rack and tie rods at the front, trailing arms held by radius rods at the rear,
+coilovers with a main and a tender spring and a piggyback reservoir, anti-roll bars with end links,
+half-shafts, hubs and brakes, every arm rigid and swinging about its pivots, each wheel drawn on the
+arc its arms give it (its camber, toe and how far it moves in and out) while its physics wheel slides
+straight up and down on its spring. With `model` a baked glb is drawn on the chassis
 instead, its lamps and steering wheel found by node name. `points` are named empties (a seat, the
 grips on the wheel) for a body to sit at and hold. Parts that never move against each other are
 merged into one mesh per material.
@@ -97,12 +102,17 @@ read at `x`), `automatic(v)`, `pedals(v, car)`,
 empty as drawn this frame.
 
 `truck/` holds the Blender scripts that build a vehicle's `look.model` to its scene numbers
-(`truck.py`, on the building blocks of `kit.py`), and the checker (`parts.ts` then `look.py`) that
-measures the model's clearance against every wheel at rest, full bump, full droop, crossed and at
-full lock, and prints coplanar faces that z-fight:
+(`truck.py`, the monster truck on solid axles, and `utv.py`, a long-travel side-by-side on
+independent suspension, both on the building blocks of `kit.py`), and the checker (`parts.ts` then
+`look.py`) that measures the model's clearance against every wheel at rest, full bump, full droop,
+crossed and at full lock, and prints coplanar faces that z-fight. For independent suspension it also
+prints how far each drawn wheel sits from its physics wheel and its camber and steer in every state
+(`parts.ts`'s OFFSET lines), and each part's room against the body, the tyres and every other part it
+is not joined to, and each coilover's stroke and springs:
 
 ```
 Blender -b --factory-startup --python plugins/box3dvehicle/truck/truck.py -- <scene.json> <vehicle> <out.glb>
+Blender -b --factory-startup --python plugins/box3dvehicle/truck/utv.py -- <scene.json> <vehicle> <out.glb>
 node --experimental-strip-types plugins/box3dvehicle/truck/parts.ts <scene.json> <vehicle> <outdir>
 Blender -b --python plugins/box3dvehicle/truck/look.py -- <scene.json> <vehicle> <model.glb> <outdir>
 ```
@@ -124,8 +134,9 @@ Blender -b --python plugins/box3dvehicle/truck/look.py -- <scene.json> <vehicle>
   ragdoll3d.
 - **interact**: the mod `box3dvehicle.interact.ts` (`world.interact.mods: { point: 'box3dvehicle',
   object: 'box3dvehicle' }`) places a body getting in, driving and getting out at the car's points.
-- **scatter3d**: the mod `box3dvehicle.scatter3d.ts` (`world.scatter3d.mods: { hollows:
-  ['box3dvehicle'] }`) keeps grass and bushes from drawing inside a car.
+- **lod3d**: the mod `box3dvehicle.lod3d.ts` (`world.lod3d.mods: { hollows: ['box3dvehicle'] }`, with
+  `world.lod3d.hollows`) hands lod3d each car's body and wheels as boxes, so no grass or bush is drawn
+  inside a car.
 - **particle3d**: exhaust and dust effects.
 - **render3d**: draws the car and dresses its materials, so the sky, wet and snow reach it.
 - **loader**: a `look.model` glb and the engine sound manifest.

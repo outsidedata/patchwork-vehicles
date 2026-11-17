@@ -13,8 +13,10 @@
 // After it, the title: the `marquee` is the game's name and a word for each place to drive, in 3D over
 // the plains, which go on behind them for as long as the scene runs, its camera carrying on the intro's
 // last shot (`marquee.client.ts`). It is a plain seat with no `player`, whose words send the seat to
-// the plains, the desert or the test track.
-import type { Scene, Sim } from '#engine/engine.ts'
+// the plains, the desert, the moon or the test track.
+import type { Kind, Scene, Sim } from '#engine/engine.ts'
+import type { Prepare } from '#addons/scenemanager/scenemanager.addon.ts'
+import { particle3d } from '#plugins/particle3d/particle3d.sim.ts'
 import { loader } from '#plugins/loader/loader.sim.ts'
 import { scenemanager } from '#plugins/scenemanager/scenemanager.sim.ts'
 import { skydome3d } from '#plugins/skydome3d/skydome3d.sim.ts'
@@ -30,6 +32,9 @@ import { curtain } from './curtain.sim.ts'
 import { marquee } from './marquee.sim.ts'
 import file from './title.scene.json' with { type: 'json' }
 
-export const sim: Sim = { loader, scenemanager, skydome3d, box3d, box3dvehicle, car, wheel, axle, driver, curtain, marquee, cutscene: cutscene(heightAt) }
+// The particles' gravity on the Earth, the effects file's `gravity` driver, set as the scene loads.
+const particles: Kind & Prepare = { ...particle3d, async prepare(me) { me.data.drivers = { gravity: 9.8 } } }
+
+export const sim: Sim = { loader, scenemanager, skydome3d, box3d, box3dvehicle, particle3d: particles, car, wheel, axle, driver, curtain, marquee, cutscene: cutscene(heightAt) }
 
 export const scene = file as Scene

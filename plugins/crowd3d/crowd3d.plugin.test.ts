@@ -9,7 +9,8 @@
 // its line), a clip going on across a new line and a new clip starting afresh, the bodies'
 // runs, a full pool, a row of no body or no end to its line, a body of other bones, the order it is listed in, an item on a place of the
 // body against the same item as a child of the bone in three, its copies and what each is put
-// through, a row's `holding` that names what no item or place has, and `close`.
+// through, a row's `holding` changed in place drawn at once and the same one drawn once, a row's
+// `holding` that names what no item or place has, and `close`.
 import { expect, test } from 'vitest'
 import * as THREE from 'three'
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js'
@@ -574,6 +575,33 @@ test('an item is one mesh a group, its vertices where they stand in its glb, dra
   me.tick(plugins)
   expect(me.items()).toEqual({ cup: { copies: 3, groups: 1 } })
   expect(cup.geometry.instanceCount).toBe(3)
+})
+
+test('a row\'s holding changed in place is drawn at once; the same holding, or a fresh copy of it, writes nothing', async () => {
+  const holding: Record<string, string> = { leftHand: 'cup' }
+  const { me, plugins, r3 } = await page({ rows: [person(1, { holding })], world: { items: { cup: CUP } } })
+  const mesh = r3.scene.children.find(o => o.name.startsWith('crowd3d item cup')) as THREE.Mesh
+  const shader = { uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>\n#include <project_vertex>', fragmentShader: '#include <common>' }
+  ;(mesh.material as THREE.Material).onBeforeCompile(shader as any, {} as THREE.WebGLRenderer)
+  const texture = shader.uniforms.crowdHeld.value as THREE.DataTexture
+  expect(me.items()).toEqual({ cup: { copies: 1, groups: 1 } })
+  const version = texture.version
+  // The same object again, and a fresh copy of it on a fresh row: the held texture is not written.
+  me.tick(plugins)
+  plugins.wire.rows = [person(1, { holding: { leftHand: 'cup' } })]
+  me.tick(plugins)
+  expect(texture.version).toBe(version)
+  // A place added to the same object, in place: drawn the next frame.
+  plugins.wire.rows = [person(1, { holding })]
+  holding.hips = 'cup'
+  me.tick(plugins)
+  expect(me.items()).toEqual({ cup: { copies: 2, groups: 1 } })
+  expect(texture.version).toBeGreaterThan(version)
+  // And taken off it in place.
+  delete holding.leftHand
+  me.tick(plugins)
+  expect(me.items()).toEqual({ cup: { copies: 1, groups: 1 } })
+  expect(heldOf(r3, 'cup')[1]).toBe(0)
 })
 
 test('an item on no place, of no item, on a place its item does not list, or on a bone the skeleton has not got throws', async () => {

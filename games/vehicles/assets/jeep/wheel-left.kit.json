@@ -1,0 +1,5 @@
+{
+ "buildings": [
+  {"kind": "modern/vehicles/jeep_tj/wheels/wheel", "name": "wheel", "Rim": "steel", "Hand": -1, "Rolling": false}
+ ]
+}

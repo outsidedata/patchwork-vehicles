@@ -179,6 +179,12 @@ type Part = {
   age: number; life: number; lasts?: number; s0: number; s1: number; rot: number; spin: number
 }
 type Group = { mesh: any; capacity: number }
+// One particle placed in a batch this frame: the particle, its frame of the sheet and that frame's
+// corners on the page. Kept by its batch and written over the next frame.
+type Placed = { q: Part; f?: Frame; uv?: number[] }
+// The particles of one page of one sheet (or none) and one blend, drawn by one mesh: the first `n` of
+// `list` are this frame's, and the batch and its entries are kept from frame to frame.
+type Batch = { sheet?: string; page: number; add: boolean; group?: Group; list: Placed[]; n: number }
 
 const lerp = (r: Range | undefined, u: number, fallback: number) => (r ? r[0] + (r[1] - r[0]) * u : fallback)
 // Of a list of [seconds, ...] in order, the last entry whose seconds a particle `age` old has reached.
@@ -263,7 +269,12 @@ export function particle3d() {
   let stale = false // the effects file has been written since the running effects read their layers
   let checked = false
   let parts: Part[] = []
-  const groups = new Map<string, Group>()
+  // Every batch made, by sheet, then page, then blend (normal, then additive), and every batch in the
+  // order it was made.
+  const batches = new Map<string | undefined, Map<number, [Batch | undefined, Batch | undefined]>>()
+  const made: Batch[] = []
+  // The batches with a particle this frame, in the order their first particle came.
+  const drawn: Batch[] = []
   // The point light each lit particle carries, and the lights let go of, hidden, for the next to take.
   const lit = new Map<Part, any>()
   const spare: any[] = []
@@ -435,15 +446,16 @@ export function particle3d() {
   // The mesh of a page of a sheet and a blend, with room for `count` quads. Its material is made
   // again when the page or the file's `alphaTest` it was made with is no longer the one there is: a
   // sheet or the effects file written again.
-  const group = (plugins: Plugins, key: string, sheet: string | undefined, page: number, add: boolean, count: number): Group => {
+  const group = (plugins: Plugins, b: Batch, count: number): Group => {
     const { THREE, scene } = plugins.render3d
+    const { sheet, page, add } = b
     const map = sheet ? plugins.loader.get(sheet).pages[page] : null
-    let g = groups.get(key)
+    let g = b.group
     if (!g) {
       const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material(plugins, map, add))
       mesh.frustumCulled = false
       scene.add(mesh)
-      groups.set(key, (g = { mesh, capacity: 0 }))
+      b.group = g = { mesh, capacity: 0 }
     }
     if (g.mesh.material.map !== map || g.mesh.material.alphaTest !== (file!.alphaTest ?? 0)) {
       g.mesh.material.dispose()
@@ -505,7 +517,11 @@ export function particle3d() {
   }
 
   const quadsOf = (plugins: Plugins, shone: Set<Part>) => {
-    for (const g of groups.values()) g.mesh.geometry.setDrawRange(0, 0)
+    for (const b of made) {
+      b.group?.mesh.geometry.setDrawRange(0, 0)
+      b.n = 0
+    }
+    drawn.length = 0
     if (!parts.length) return
     const { THREE, camera } = plugins.render3d
     // A colour in the file is sRGB, as a three.js material's is; the buffer's are linear.
@@ -516,7 +532,6 @@ export function particle3d() {
     const R = unit([e[0], e[1], e[2]]), U = unit([e[4], e[5], e[6]]), B = unit([e[8], e[9], e[10]])
     // Each particle's frame now, and the mesh of its page and its blend; a particle whose sheet the
     // loader has not handed over yet draws nothing.
-    const byKey = new Map<string, { sheet?: string; page: number; add: boolean; list: { q: Part; f?: Frame; uv?: number[] }[] }>()
     for (const q of parts) {
       if (!alive(q)) continue
       const l = q.layer, k = q.age / span(q)
@@ -533,16 +548,23 @@ export function particle3d() {
         f = sheet.frameOf(l.clip, 0, i)
         uv = sheet.uv(f!.id)
       }
-      const key = JSON.stringify([l.sheet ?? null, f?.page ?? 0, !!l.add])
-      let it = byKey.get(key)
-      if (!it) byKey.set(key, (it = { sheet: l.sheet, page: f?.page ?? 0, add: !!l.add, list: [] }))
-      it.list.push({ q, f, uv })
+      const b = batch(l.sheet, f?.page ?? 0, !!l.add)
+      if (!b.n) drawn.push(b)
+      const at = b.list[b.n]
+      if (at) {
+        at.q = q
+        at.f = f
+        at.uv = uv
+      } else b.list.push({ q, f, uv })
+      b.n++
     }
-    for (const [key, { sheet, page, add, list }] of byKey) {
-      const g = group(plugins, key, sheet, page, add, list.length)
+    for (const b of drawn) {
+      const { list, n: count } = b
+      const g = group(plugins, b, count)
       const geometry = g.mesh.geometry
       const pos = geometry.attributes.position.array, uv = geometry.attributes.uv.array, col = geometry.attributes.color.array
-      list.forEach(({ q, f, uv: box }, n) => {
+      for (let n = 0; n < count; n++) {
+        const { q, f, uv: box } = list[n]
         const l = q.layer, k = q.age / span(q)
         const size = q.s0 + (q.s1 - q.s0) * k
         let w = (f ? f.size[0] / ppm() : 1) * size
@@ -604,10 +626,25 @@ export function particle3d() {
         colour.multiplyScalar(l.gain ?? 1)
         const rgba = [colour.r, colour.g, colour.b, a]
         for (let v = 0; v < 4; v++) col.set(rgba, 16 * n + 4 * v)
-      })
+      }
       geometry.attributes.position.needsUpdate = geometry.attributes.uv.needsUpdate = geometry.attributes.color.needsUpdate = true
-      geometry.setDrawRange(0, list.length * 6)
+      geometry.setDrawRange(0, count * 6)
     }
+  }
+
+  // The batch of a sheet's page and a blend, made the first time one is asked for.
+  const batch = (sheet: string | undefined, page: number, add: boolean): Batch => {
+    let pages = batches.get(sheet)
+    if (!pages) batches.set(sheet, (pages = new Map()))
+    let blends = pages.get(page)
+    if (!blends) pages.set(page, (blends = [undefined, undefined]))
+    const i = add ? 1 : 0
+    let b = blends[i]
+    if (!b) {
+      blends[i] = b = { sheet, page, add, list: [], n: 0 }
+      made.push(b)
+    }
+    return b
   }
 
   // `world.particle3d`, once the order of the plugins has been checked and the loader asked for the file.
@@ -722,12 +759,15 @@ export function particle3d() {
       draw(plugins)
     },
     close(plugins: Plugins) {
-      for (const g of groups.values()) {
+      for (const { group: g } of made) {
+        if (!g) continue
         plugins.render3d.scene.remove(g.mesh)
         g.mesh.geometry.dispose()
         g.mesh.material.dispose()
       }
-      groups.clear()
+      batches.clear()
+      made.length = 0
+      drawn.length = 0
       for (const light of [...lit.values(), ...spare]) {
         plugins.render3d.scene.remove(light)
         light.dispose()

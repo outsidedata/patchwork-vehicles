@@ -214,10 +214,9 @@ export function numbersOf(from: W | Wire, kind: string): Body {
   if (!k) throw new Error(`motion3d has no kind ${kind}: world.motion3d.kinds names none`)
   return k
 }
-// The motion3d file's `moves` and `turns`.
+// The motion3d file, read for its `moves` and `turns`.
 export function movesOf(from: W | Wire, kind: string): Moves {
-  const f = json(from, worldOf(from).motion3d.kinds[kind].motion)
-  return { moves: f.moves, turns: f.turns }
+  return json(from, worldOf(from).motion3d.kinds[kind].motion)
 }
 
 const READS = ['pos', 'yaw', 'vel', 'grounded', 'limp'] as const
@@ -424,7 +423,9 @@ export function plantsOf(from: W | Wire, me: Row, clip: string): Record<Limb, nu
 // model from the row's fields this step: the clip and the one it fades from at their weights, each track
 // sampled as three's interpolants sample it, each joint's turn the running average three's mixer keeps,
 // short of a whole weight eased back toward its rest; the upper half's parts on the joints from their bone
-// up; and the hips pinned as `pin` pins them, by the body's two parts. A row is posed once a step whatever asks. It throws for a kind with no `glb`, and for a clip the glb has none of.
+// up; and the hips pinned as `pin` pins them, by the body's two parts. A row is posed once a step whatever
+// asks: the answer is kept on it until the fields it is posed from change, or the glb, the rig file, or
+// the motion file's moves and turns. It throws for a kind with no `glb`, and for a clip the glb has none of.
 
 const swapSide = (name: string) => name.replace(/Left|Right/g, s => (s === 'Left' ? 'Right' : 'Left'))
 const bareBone = (name: string) => name.replace(/^mixamorig\d*:?/, '')
@@ -531,20 +532,40 @@ const SHARE = 0.999 // as anim's: the most of an upper bone the upper half holds
 // share s over a base of weight 1 is given weight s/(1 − s): shares a and b get weights a·k and b·k,
 // k = s/(a + b)/(1 − s), s = min(0.999, a + b), so together they hold s of every bone under them.
 export function partsOf(d: any): Part[] {
-  if (d.clip == null) return []
+  const into = fresh()
+  return into.slice(0, partsInto(d, into))
+}
+
+// The same parts, of some weight each, written over the first of `into` and counted. `posed` reads them
+// every call to see whether the row's pose has moved, so they are written into parts it keeps rather than made.
+function partsInto(d: any, into: Part[]): number {
+  let n = 0
+  const put = (slot: Part['slot'], clip: string, t: number, w: number, bone?: string) => {
+    if (!(w > 0)) return
+    const p = into[n++]
+    p.slot = slot
+    p.clip = clip
+    p.t = t
+    p.w = w
+    p.bone = bone
+  }
+  if (d.clip == null) return 0
   const blend = d.from != null ? d.blend : 1
-  const out: Part[] = [{ slot: 'to', clip: d.clip, t: d.clipT, w: blend }]
-  if (d.from != null && blend < 1) out.push({ slot: 'from', clip: d.from, t: d.fromT, w: 1 - blend })
+  put('to', d.clip, d.clipT, blend)
+  if (d.from != null && blend < 1) put('from', d.from, d.fromT, 1 - blend)
   const a = d.upper != null ? d.upperW : 0
   const b = d.was != null ? d.wasW : 0
   if (a + b > 0) {
     const s = Math.min(SHARE, a + b)
     const k = s / (a + b) / (1 - s)
-    if (a > 0) out.push({ slot: 'upper', clip: d.upper, t: d.upperT, w: a * k, bone: d.upperBone })
-    if (b > 0) out.push({ slot: 'was', clip: d.was, t: d.wasT, w: b * k, bone: d.wasBone })
+    if (a > 0) put('upper', d.upper, d.upperT, a * k, d.upperBone)
+    if (b > 0) put('was', d.was, d.wasT, b * k, d.wasBone)
   }
-  return out.filter(p => p.w > 0)
+  return n
 }
+
+// Four parts to write a row's into: `to`, `from`, `upper` and `was` are the most a row draws.
+const fresh = (): Part[] => Array.from({ length: 4 }, () => ({ slot: 'to', clip: '', t: 0, w: 0 }))
 
 // Whether the joint `name` is the bone whose name ends with `bone`, or under it.
 function within(sk: Skeleton, name: string, bone: string): boolean {
@@ -583,16 +604,34 @@ function sampled(rig: Rig, sk: Skeleton, clip: string, bone: string, what: 'r' |
   return what === 'r' ? [v[0], -v[1], -v[2], v[3]] : [-v[0], v[1], v[2]]
 }
 
-const lastPose = new WeakMap<Row, { key: string; sk: Skeleton; bones: Map<string, Matrix4> }>()
+// Each row's last pose, and everything it was posed from: the skeleton, the rig's `clips` and `table`
+// (the loader parses a changed file into new ones), the motion file's moves and turns, and the parts.
+type Kept = { sk: Skeleton; clips: Rig['clips']; table: Rig['table']; moves: number; turns: number; parts: Part[]; bones: Map<string, Matrix4> }
+const lastPose = new WeakMap<Row, Kept>()
+
+// The parts a row's fields draw this call, written here first and kept only when the pose is made again.
+const drawn = fresh()
+
+// Whether the row is to be posed as it was last posed.
+function unmoved(had: Kept, sk: Skeleton, rig: Rig, a: Moves, n: number): boolean {
+  if (had.sk !== sk || had.clips !== rig.clips || had.table !== rig.table) return false
+  if (had.moves !== a.moves || had.turns !== a.turns || had.parts.length !== n) return false
+  for (let i = 0; i < n; i++) {
+    const p = drawn[i], q = had.parts[i]
+    if (p.slot !== q.slot || p.clip !== q.clip || p.t !== q.t || p.w !== q.w || p.bone !== q.bone) return false
+  }
+  return true
+}
 
 export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
   const kind = playKind(me)
   const rig = rigOf(from, kind)
   const sk = skeletonOf(from, kind)
-  const parts = partsOf(me.data)
-  const key = JSON.stringify(parts)
+  const a = movesOf(from, kind)
+  const n = partsInto(me.data, drawn)
   const had = lastPose.get(me)
-  if (had && had.key === key && had.sk === sk) return had.bones
+  if (had && unmoved(had, sk, rig, a, n)) return had.bones
+  const parts = drawn.slice(0, n).map(p => ({ ...p }))
   const names = Object.keys(sk.bones)
   const local = new Map<string, { t: Vector3; q: Quaternion; s: Vector3 }>()
   for (const name of names) {
@@ -620,7 +659,7 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     else if (wp < 1) for (let i = 0; i < 3; i++) p[i] += (rest.t[i] - p[i]) * (1 - wp)
     local.set(name, { t: new Vector3().fromArray(p), q: new Quaternion().fromArray(q), s: new Vector3().fromArray(rest.s) })
   }
-  pin(rig, sk, local.get(sk.hips)!, parts.filter(p => p.slot === 'to' || p.slot === 'from'), movesOf(from, kind))
+  pin(rig, sk, local.get(sk.hips)!, parts.filter(p => p.slot === 'to' || p.slot === 'from'), a)
   // Each joint's matrix in the body's frame, its parent's first.
   const world = () => {
     const out = new Map<string, Matrix4>()
@@ -637,7 +676,7 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     return out
   }
   const out = world()
-  lastPose.set(me, { key, sk, bones: out })
+  lastPose.set(me, { sk, clips: rig.clips, table: rig.table, moves: a.moves, turns: a.turns, parts, bones: out })
   return out
 }
 

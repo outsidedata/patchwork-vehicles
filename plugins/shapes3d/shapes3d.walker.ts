@@ -28,7 +28,7 @@
 // shapes read again, the next time any is asked.
 //
 // The ground's `footing(pos, yaw)` is where a body standing at `pos` is now that the shape under it has
-// moved: the highest shape `move` moved whose top, where it stood before (its row's `was`), over (pos x,
+// moved: the highest shape `move` moved (of the shapes whose rows carry `was`, found once with the rest, never every shape's row a call) whose top, where it stood before (its row's `was`), over (pos x,
 // pos z) is at the body's feet or no more than its `step` under them (a body stood across a slope stands
 // over its middle's top). The body's point in that shape's frame as it stood is put back through the
 // shape as it stands now, by quaternions, so a tilt and a roll carry it as a turn does, and its yaw is
@@ -46,7 +46,7 @@ const SQUARE = 2
 // A truth's shapes as walker reads them: `placed`, every one in `shapes`' order; `crown`, the top over
 // the middle of each one that stands in the way; and `squares`, by square, the places in `placed` of the
 // shapes whose footprint's box takes in some of it.
-type Standing = { placed: Placed[]; crown: (number | undefined)[]; squares: Map<number, number[]>; moves: number }
+type Standing = { placed: Placed[]; crown: (number | undefined)[]; squares: Map<number, number[]>; moves: number; movers: number[] }
 const stood = new WeakMap<object, Standing>()
 const squareOf = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768)
 
@@ -68,7 +68,10 @@ function standing(w: W): Standing {
     }
     return known.base ? known.top(shape, x, z) : undefined
   })
-  stood.set(w.world, (s = { placed, crown, squares, moves: moves(w) }))
+  // The shapes that may move: a kind whose rows move gives `was` in its prefab, and a row with none
+  // was never moved.
+  const movers = placed.flatMap((p, n) => (p.id > 0 && 'was' in w.get(p.id).data ? [n] : []))
+  stood.set(w.world, (s = { placed, crown, squares, moves: moves(w), movers }))
   return s
 }
 
@@ -123,7 +126,8 @@ export function ground(w: W, feet: number, k: Pick<Numbers, 'step' | 'height'>):
 // Where a body at `pos` facing `yaw` is carried by the moved shape whose top it stood on (`ground`).
 function footing(w: W, s: Standing, pos: number[], yaw: number, step: number): { pos: number[]; yaw: number } | undefined {
   let on: { row: ReturnType<W['get']>; was: number[]; top: number } | undefined
-  for (const p of s.placed) {
+  for (const n of s.movers) {
+    const p = s.placed[n]
     const row = w.get(p.id)
     const was = row.data.was as number[] | null | undefined
     if (!was) continue

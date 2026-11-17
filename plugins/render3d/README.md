@@ -73,8 +73,8 @@ client; `close` disposes the composer, the renderer and its context and takes th
 
 Every 3D plugin draws through it: **anim**, **box3d**, **box3dvehicle**, **cel3d** (splice and pass),
 **chasecamera3d** and **cutscene** (the camera), **cull3d**, **dismember3d**, **dither3d** (finish
-and ratio), **environment3d**, **flight3d**, **ik3d**, **lights3d** (splice), **ocean3d**,
-**particle3d**, **ragdoll3d**, **scatter3d**, **skydome3d**, **solids**, **sprite3d**, **terrain3d**,
+and ratio), **environment3d**, **flight3d**, **ik3d**, **instances3d** (what lod3d places),
+**lights3d** (splice), **ocean3d**, **particle3d**, **ragdoll3d**, **skydome3d**, **solids**, **sprite3d**, **terrain3d**,
 **volley3d**. The **loader** decodes textures and models through it, and **audio** listens from its
 camera.
 

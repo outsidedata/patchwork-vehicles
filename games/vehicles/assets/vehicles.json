@@ -16,6 +16,15 @@
   "pedestrian": {
     "again": 5
   },
+  "waypoint": {
+    "reach": 6,
+    "min": 1000,
+    "max": 1200,
+    "ring": { "radius": 3, "tube": 0.3, "sink": 0.6, "sides": 16, "segments": 64, "colour": 16762880, "glow": 1.5, "spin": 0.6 },
+    "light": { "colour": 16762880, "intensity": 60, "distance": 25, "decay": 2 },
+    "effect": "waypoint",
+    "marker": { "lift": 1, "size": [22, 16], "gap": 4, "edge": 48, "arrow": [26, 20] }
+  },
   "hud": {
     "anchor": [0.5, 0.5],
     "tach": {
@@ -43,9 +52,9 @@
     "title": { "at": [180, 38], "anchor": [0.5, 0.5], "text": "Where to drive" },
     "places": [
       { "scene": "road", "label": "The road", "at": [40, 76] },
-      { "scene": "stylized", "label": "The stylized road", "at": [40, 132] },
-      { "scene": "gym", "label": "The gym", "at": [40, 188] },
-      { "scene": "desert", "label": "The desert", "at": [40, 244] }
+      { "scene": "gym", "label": "The gym", "at": [40, 132] },
+      { "scene": "desert", "label": "The desert", "at": [40, 188] },
+      { "scene": "moon", "label": "The moon", "at": [40, 244] }
     ]
   },
   "driver": {
@@ -88,7 +97,8 @@
     "places": [
       { "scene": "road", "word": "PLAINS", "at": [0, 0.2, -12], "face": { "colour": ["#2f7a2a", "#a6e88d"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } },
       { "scene": "desert", "word": "DESERT", "at": [0, -0.85, -12], "face": { "colour": ["#b8620c", "#ffd27a"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } },
-      { "scene": "gym", "word": "TEST TRACK", "at": [0, -1.9, -12], "face": { "colour": ["#1b2f8a", "#7fa8ff"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } }
+      { "scene": "moon", "word": "MOON", "at": [0, -1.9, -12], "face": { "colour": ["#5a5d63", "#e4e7ec"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } },
+      { "scene": "gym", "word": "TEST TRACK", "at": [0, -2.95, -12], "face": { "colour": ["#1b2f8a", "#7fa8ff"], "metalness": 0.3, "roughness": 0.25, "env": 0.9, "clearcoat": 1 } }
     ]
   }
 }

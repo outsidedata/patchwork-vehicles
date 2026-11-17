@@ -1,7 +1,7 @@
 {
   "world": {
+    "supershader3d": { "looks": "kit-looks" },
     "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
-    "particle3d": { "effects": "desert-effects" },
     "terrain3d": {
       "field": "desert",
       "rings": [
@@ -83,6 +83,7 @@
     "terrain3d",
     "skydome3d",
     "box3d",
+    "supershader3d",
     "box3dvehicle",
     "particle3d",
     "render3d",
@@ -94,6 +95,7 @@
   "prefabs": {
     "engine": { "dt": 0.016666666666666666, "width": 1280, "height": 720 },
     "scenemanager": { "out": {} },
+    "particle3d": { "next": 1, "live": [] },
     "skydome3d": {
       "t": 350,
       "rate": 0,
@@ -112,13 +114,16 @@
   "actors": [
     { "is": "loader" },
     { "is": "scenemanager" },
+    { "is": "particle3d" },
     { "is": "skydome3d" },
     { "is": "box3d" },
     { "is": "hud" },
     { "is": "atlas" },
+    { "is": "waypoint" },
     { "is": "spot", "name": "cart", "vehicle": "cart", "x": -20, "z": -3.1, "yaw": 0 },
     { "is": "spot", "name": "jeep", "vehicle": "jeep", "x": -20, "z": 0, "yaw": 0 },
     { "is": "spot", "name": "truck", "vehicle": "truck", "x": -20, "z": 4.8, "yaw": 0 },
+    { "is": "spot", "name": "utv", "vehicle": "utv", "x": -20, "z": 8.6, "yaw": 0 },
     { "is": "start", "slot": 0, "spot": "jeep" },
     { "is": "start", "slot": 1, "spot": "truck" },
     { "is": "ball", "pos": [0, 138.2, 6] }

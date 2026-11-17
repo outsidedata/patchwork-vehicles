@@ -29,6 +29,20 @@
 //   texture(zip)           a cc0-textures set's maps in the library, `{ color, normal, roughness }` of
 //                          those it has, downloaded first when it is not there (`cc0.ts`), for a script
 //                          that draws with them
+//   looks(spec)            a scene's shader, put together from the library's pro-ng looks
+//                          (`pro-ng/material/LOOKS.md`, `pro-ng/material/compose.js`), for the
+//                          supershader3d plugin: `spec` is `{ materials, out, pictures }`, `materials`
+//                          `{ <name>: { look, settings?, colour? } }` in the order their numbers count
+//                          (a vertex's `lookId`), each a look of `pro-ng/material/looks/<look>.js`, the
+//                          settings it gives over the look's own, and its flat colour (`#rrggbb`, the
+//                          debug view's; mid grey when left out). It writes `out`, the JSON the plugin
+//                          reads (`plugins/supershader3d/supershader3d.plugin.ts` says what it holds),
+//                          and cuts every picture the looks read to PICTURE pixels square as WebP into
+//                          the folder `pictures`, each named after its file (`Rock013_4K_Color.webp`),
+//                          the set downloaded into the library first; the JSON names each by that stem,
+//                          which the game's catalogue lists as a `texture` entry. A look that is not in
+//                          the library, a setting that is neither a number nor a colour, and a picture
+//                          the set does not hold each throw, naming it.
 // Each throws with the tool's output when it fails, so a bake stops at its first failure.
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
@@ -37,6 +51,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { config, cut, texture, type Map } from './cc0.ts'
 import { checks, resolve } from './health.ts'
+import type { Looks, Shader } from '#plugins/supershader3d/supershader3d.plugin.ts'
 
 export type Tools = {
   library: string
@@ -45,6 +60,103 @@ export type Tools = {
   webp: (src: string, out: string, size: number) => Promise<string>
   scratch: (name: string) => string
   texture: (zip: string) => Promise<Partial<Record<Map, string>>>
+  looks: (spec: LooksSpec) => Promise<Looks>
+}
+
+// A material of a looks bake: its look, the settings it gives over the look's own, its flat colour.
+export type Material = { look: string; settings?: Record<string, number | number[]>; colour?: string }
+export type LooksSpec = { materials: Record<string, Material>; out: string; pictures: string }
+// What a looks bake writes is the plugin's file (`plugins/supershader3d/supershader3d.plugin.ts`, The file).
+export type { Looks }
+type Call = Shader
+
+// A `#rrggbb` colour as three's Color makes it: sRGB taken to linear.
+const linear = (hex: string) => [1, 3, 5].map(i => {
+  const c = parseInt(hex.slice(i, i + 2), 16) / 255
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+})
+
+// The shared GLSL chunks every scene's shader may read (`pro-ng/material/looks/shared/`).
+const SHARED = ['noise', 'layout', 'random']
+
+// The looks tool: the library's pro-ng composes the materials' looks, the pictures are cut, the JSON
+// written. `texture` and `webp` are the bake's own tools.
+async function composeLooks(library: string, t: Pick<Tools, 'texture' | 'webp'>, { materials, out, pictures }: LooksSpec): Promise<Looks> {
+  const prong = path.join(library, 'pro-ng', 'material')
+  const composeFile = path.join(prong, 'compose.js')
+  if (!fs.existsSync(composeFile)) throw new Error(`the library at ${library} has no pro-ng/material/compose.js`)
+  const { composeScene, PICTURE } = await import(pathToFileURL(composeFile).href) as { composeScene: (m: unknown[], shared: Record<string, string>) => any; PICTURE: number }
+  const looks: Record<string, any> = {}
+  for (const [name, m] of Object.entries(materials)) {
+    if (looks[m.look]) continue
+    const file = path.join(prong, 'looks', `${m.look}.js`)
+    if (!fs.existsSync(file)) throw new Error(`material ${name}: no look ${m.look} (pro-ng/material/looks/${m.look}.js)`)
+    looks[m.look] = (await import(pathToFileURL(file).href)).default
+  }
+  const shared: Record<string, string> = {}
+  for (const s of SHARED) shared[s] = (await import(pathToFileURL(path.join(prong, 'looks', 'shared', `${s}.js`)).href)).default
+  const names = Object.keys(materials)
+  const list = names.map(name => {
+    const m = materials[name]
+    return { name, lookName: m.look, look: looks[m.look], settings: m.settings ?? {}, colour: linear(m.colour ?? '#808080') }
+  })
+  const scene = composeScene(list, shared)
+  // every material in one shader, for a program that draws any look (the ground's)
+  const allCall: Call | null = list.length ? { ids: list.map((_, i) => i), fragmentPars: allOf(list, shared, scene, composeScene), features: featuresOf([scene.solid, scene.relief, scene.seeThrough]) } : null
+  const cut: Looks['pictures'] = []
+  const dirs = new Map<string, string>()
+  for (const p of scene.pictures as { set: string; file: string; colour: boolean }[]) {
+    if (!dirs.has(p.set)) {
+      const maps = await t.texture(p.set)
+      const first = Object.values(maps)[0]
+      if (!first) throw new Error(`the looks read ${p.set}/${p.file}, and the set ${p.set} has no maps in the library`)
+      dirs.set(p.set, path.dirname(first))
+    }
+    const source = path.join(dirs.get(p.set)!, p.file)
+    if (!fs.existsSync(source)) throw new Error(`the looks read ${p.set}/${p.file}, which the set in the library does not hold (${source})`)
+    const stem = p.file.replace(/\.[^.]+$/, '')
+    const file = `${stem}.webp`
+    await t.webp(source, path.join(pictures, file), PICTURE)
+    cut.push({ asset: stem, file, set: p.set, source: p.file, colour: p.colour })
+  }
+  const made: Looks = {
+    about: `the shader of ${path.basename(out)}, put together from its materials' looks by the library's pro-ng/material/compose.js`,
+    picture: PICTURE,
+    materials: names.map((name, id) => ({ name, look: materials[name].look, call: scene.callOf(id), colour: list[id].colour })),
+    vertexPars: scene.vertexPars,
+    vertexMain: scene.vertexMain,
+    calls: { solid: scene.solid, relief: scene.relief, seeThrough: scene.seeThrough, all: allCall },
+    uniforms: scene.uniforms,
+    needs: scene.needs,
+    pictures: cut,
+  }
+  fs.mkdirSync(path.dirname(out), { recursive: true })
+  fs.writeFileSync(out, JSON.stringify(made, null, 1) + '\n')
+  return made
+}
+
+// The one shader of every material: compose.js groups materials by draw call, so every material is
+// composed once more as if each were solid and cast no shadow of its own, which puts all of them
+// behind one switch, and then the relief call's own shadow functions and its `lookShadow` are put
+// back in place of the empty `lookShadow` the flattening left. A look's shadow is wrapped as
+// `float lookShadow_<id>(vec3 Lview) {` to a `}` at the line's start (compose.js), so each one is cut
+// out whole.
+function allOf(list: any[], shared: Record<string, string>, scene: any, composeScene: (m: unknown[], shared: Record<string, string>) => any): string {
+  const flat = list.map(m => ({ ...m, look: { ...m.look, seeThrough: false, shadow: undefined } }))
+  const whole: string = composeScene(flat, shared).solid.fragmentPars
+  const relief = scene.relief as Call | null
+  if (!relief) return whole
+  const shadows = relief.fragmentPars.match(/^float lookShadow_\d+\(vec3 Lview\) \{\n[\s\S]*?\n\}\n/gm) ?? []
+  const dispatch = relief.fragmentPars.match(/^float lookShadow\(int id, vec3 Lview\) \{\n[\s\S]*?\n\}\n/m)
+  const empty = 'float lookShadow(int id, vec3 Lview) {\n  \n  return 1.0;\n}\n'
+  if (!dispatch || !whole.includes(empty)) throw new Error('the library\'s pro-ng/material/compose.js no longer writes lookShadow as the looks tool reads it')
+  return whole.replace(empty, `${shadows.join('')}${dispatch[0]}`)
+}
+
+const featuresOf = (calls: (Call | null)[]) => {
+  const out: Record<string, boolean> = {}
+  for (const c of calls) for (const [f, on] of Object.entries(c?.features ?? {})) out[f] = !!out[f] || on
+  return out
 }
 
 const run = (file: string, args: string[], env: Record<string, string | undefined>) =>
@@ -56,14 +168,16 @@ export const tools = (root: string, shell: Record<string, string | undefined>, w
   const { env, blender, library, gltfpack = 'gltfpack', magick = 'magick' } = resolve(root, shell)
   const carried = { ...env, PATCHWORK_LIBRARY: library }
   const into = (out: string) => fs.mkdirSync(path.dirname(out), { recursive: true })
-  return {
+  const t: Tools = {
     library,
     blender: args => run(blender, ['--background', ...args], carried),
     pack: (raw, out) => (into(out), run(gltfpack, ['-i', raw, '-o', out, '-cc', '-kn', '-km', '-ke', '-vpf', '-tw'], carried)),
     webp: (src, out, size) => (into(out), run(magick, [src, '-resize', `${size}x${size}!`, '-quality', '80', out], carried)),
     scratch: name => path.join(work, name),
     texture: zip => texture(library, zip),
+    looks: spec => composeLooks(library, t, spec),
   }
+  return t
 }
 
 export const bake = async (game: string, root: string, shell: Record<string, string | undefined>) => {

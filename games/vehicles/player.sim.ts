@@ -25,9 +25,52 @@
 //             and takes the next one, in the order the scene lists the spots and round to the first,
 //             that no seat holds, so two seats never hold one car, handing it its `controls`. With no
 //             other car free, nothing.
+//   upright() the car it holds is put back on its wheels: its chassis and every wheel lifted LIFT
+//             metres, turned flat about the chassis on the heading its nose points along, and stilled,
+//             so it drops onto its wheels (box3d moves a body whose row a rule writes). Holding none,
+//             nothing.
 import type { Act, Kind, Row, W } from '#engine/engine.ts'
 import { holderOf, holding, letGo, relay, take } from '#plugins/player/player.sim.ts'
+import { turn } from '#plugins/box3dvehicle/box3dvehicle.sim.ts'
 import { carOf } from './spot.sim.ts'
+
+type Vec3 = [number, number, number]
+type Quat = [number, number, number, number]
+
+// How far `upright` lifts the car before dropping it, metres.
+export const LIFT = 4 / 3
+
+const mul = (a: Quat, b: Quat): Quat => [
+  a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+  a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+  a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+  a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+]
+const inverse = (q: Quat): Quat => [-q[0], -q[1], -q[2], q[3]]
+
+// The turn about y alone that points the car's nose (+x) the way `rot` points it across the ground. A
+// car stood on its nose or tail points nowhere across it, so its roof's heading is taken instead.
+function flat(rot: Quat): Quat {
+  const [fx, , fz] = turn(rot, [1, 0, 0])
+  const [ux, , uz] = turn(rot, [0, 1, 0])
+  const [x, z] = Math.hypot(fx, fz) > 1e-3 ? [fx, fz] : [ux, uz]
+  const yaw = Math.atan2(-z, x)
+  return [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)]
+}
+
+// `car`'s chassis and wheels moved as one: lifted LIFT, turned flat about the chassis, and stilled.
+function upright(w: W, car: Row) {
+  const chassis = w.get(car.data.chassis).data
+  const at = chassis.pos as Vec3, by = mul(flat(chassis.rot), inverse(chassis.rot))
+  const to: Vec3 = [at[0], at[1] + LIFT, at[2]]
+  for (const id of [car.data.chassis, ...car.data.wheels] as number[]) {
+    const d = w.get(id).data, off = turn(by, [d.pos[0] - at[0], d.pos[1] - at[1], d.pos[2] - at[2]])
+    d.pos = [to[0] + off[0], to[1] + off[1], to[2] + off[2]]
+    d.rot = mul(by, d.rot)
+    d.vel = [0, 0, 0]
+    d.spin = [0, 0, 0]
+  }
+}
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
@@ -74,6 +117,10 @@ export const player: Kind = {
     lights(me, w) {
       const car = holding(w, me)
       if (car) w.call(car, 'lights', -1, car.data.lights !== true)
+    },
+    upright(me, w) {
+      const car = holding(w, me)
+      if (car) upright(w, car)
     },
     next(me, w) {
       const all = cars(w), now = holding(w, me)

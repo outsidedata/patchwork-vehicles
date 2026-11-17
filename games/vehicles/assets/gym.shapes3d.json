@@ -1,0 +1,23 @@
+{
+  "kinds": {
+    "cube": { "shape": { "plane": { "size": [30, 28.18119], "tilt": 0.35 } }, "look": { "colour": "#e0662a", "roughness": 0.6, "thick": 30 }, "surface": { "friction": 0.9 } },
+    "rampup": { "shape": { "plane": { "size": [16, 31.9094], "tilt": 0.177164 } }, "look": { "colour": "#e9ecef", "roughness": 0.7, "thick": 0.8 }, "surface": { "friction": 0.9 } },
+    "tower": { "shape": { "box": { "size": [24, 16, 24] } }, "look": { "colour": "#2f3b52", "roughness": 0.8 }, "surface": { "friction": 0.9 } },
+    "rampoff": { "shape": { "plane": { "size": [10, 8], "tilt": 0.3 } }, "look": { "colour": "#f2c230", "roughness": 0.7, "thick": 0.6 }, "surface": { "friction": 0.9 } },
+    "bridge": { "shape": { "box": { "size": [12, 1, 80] } }, "look": { "colour": "#c7372f", "roughness": 0.7 }, "surface": { "friction": 0.9 } },
+    "pillar": { "shape": { "box": { "size": [3, 15, 3] } }, "look": { "colour": "#2f3b52", "roughness": 0.8 }, "surface": { "friction": 0.9 } },
+    "rampdown": { "shape": { "plane": { "size": [12, 64], "tilt": 0.244979 } }, "look": { "colour": "#e9ecef", "roughness": 0.7, "thick": 0.8 }, "surface": { "friction": 0.9 } }
+  },
+  "shapes": [
+    { "kind": "cube", "pos": [-160, 5.14347, -40], "yaw": 3.141592653589793 },
+    { "kind": "rampup", "pos": [-160, 13.14347, -70.0453], "yaw": 3.141592653589793 },
+    { "kind": "tower", "pos": [-160, 0, -98], "yaw": 0 },
+    { "kind": "rampoff", "pos": [-144, 17.23735, -98], "yaw": 1.5707963267948966 },
+    { "kind": "rampoff", "pos": [-176, 17.23735, -98], "yaw": -1.5707963267948966 },
+    { "kind": "bridge", "pos": [-160, 15, -150], "yaw": 0 },
+    { "kind": "pillar", "pos": [-160, 0, -125], "yaw": 0 },
+    { "kind": "pillar", "pos": [-160, 0, -150], "yaw": 0 },
+    { "kind": "pillar", "pos": [-160, 0, -175], "yaw": 0 },
+    { "kind": "rampdown", "pos": [-160, 8, -222], "yaw": 0 }
+  ]
+}
