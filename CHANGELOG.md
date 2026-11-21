@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-21-30b349d
+
+- terrain3d — a game published to GitHub Pages now loads its land without errors.
+- shapes3d — a game published to GitHub Pages now loads its shapes without errors.
+- yarn publish_gh_pages_game — clears the game folder's installed packages after publishing, so published games no longer fill your disk.
+
 ## 2026-11-21-d5fb580
 
 - terrain3d — grass grows on the land in a game published as a static site.

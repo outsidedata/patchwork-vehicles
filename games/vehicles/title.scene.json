@@ -9,6 +9,7 @@
         "Saira Condensed": { "type": "font", "url": "/games/vehicles/assets/title/SairaCondensed-ExtraBold.ttf" },
         "vehicles": { "type": "json", "url": "/games/vehicles/assets/vehicles.json", "preload": true },
         "effects": { "type": "json", "url": "/games/vehicles/assets/effects.json", "preload": true },
+        "smoke": { "type": "sheet", "url": "/games/vehicles/assets/smoke.json", "preload": true },
         "land": { "type": "json", "url": "/games/vehicles/assets/land.json", "preload": true },
         "intro": { "type": "json", "url": "/games/vehicles/assets/intro.json", "preload": true },
         "title": { "type": "model", "url": "/games/vehicles/assets/title/title.glb", "preload": true },
