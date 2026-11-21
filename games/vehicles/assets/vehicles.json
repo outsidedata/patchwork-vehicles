@@ -25,6 +25,14 @@
     "effect": "waypoint",
     "marker": { "lift": 1, "size": [22, 16], "gap": 4, "edge": 48, "arrow": [26, 20] }
   },
+  "daypads": {
+    "radius": 2.2,
+    "height": 12,
+    "glow": 1.2,
+    "opacity": 0.35,
+    "sides": 48,
+    "clock": { "item": "clock", "rim": "gold", "radius": 1, "lift": 2.5, "hands": { "hour": "clock hour hand", "minute": "clock minute hand", "axis": [0, 0, 1] } }
+  },
   "hud": {
     "anchor": [0.5, 0.5],
     "tach": {

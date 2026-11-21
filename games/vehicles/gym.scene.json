@@ -1,6 +1,7 @@
 {
   "world": {
     "supershader3d": { "looks": "kit-looks" },
+    "shipped": { "plugins": ["daypads"] },
     "predict": { "epsilon": 0.000001, "cutoff": 60, "halflife": 100, "snap": 10, "below": 0.0001 },
     "terrain3d": {
       "field": "gym",
@@ -205,9 +206,11 @@
     "skydome3d",
     "box3d",
     "supershader3d",
+    "item3d",
     "box3dvehicle",
     "solids",
     "particle3d",
+    "shipped",
     "render3d",
     "audio",
     "ui",
@@ -331,6 +334,14 @@
     },
     {
       "is": "waypoint"
+    },
+    {
+      "is": "daypads",
+      "pads": [
+        { "x": 28, "z": -4.5, "hour": 5.71, "lights": true, "colour": "#87ceeb" },
+        { "x": 28, "z": 0, "hour": 16.2, "lights": false, "colour": "#87ceeb" },
+        { "x": 28, "z": 4.5, "hour": 23, "lights": true, "colour": "#87ceeb" }
+      ]
     },
     {
       "is": "spot",

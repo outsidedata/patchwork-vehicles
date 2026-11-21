@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-21-774a6eb
+
+- particle3d — particles dim at night with the sky's light.
+- gpuparticle3d — particles dim at night with the sky's light.
+- skydome3d — gives particles the sky's light, so they brighten and dim with the time of day.
+- particle workshop — the stage has a sky, with time buttons that set the hour, day, moon phase and sun and moon strength.
+- tuning-particles skill — covers making particles take the sky's light.
+- benchmarking-a-game skill — a scene with no player, like a title screen, can now be played in a playtest.
+
 ## 2026-11-21-30b349d
 
 - terrain3d — a game published to GitHub Pages now loads its land without errors.

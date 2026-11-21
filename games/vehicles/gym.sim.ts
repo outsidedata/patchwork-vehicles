@@ -14,7 +14,9 @@
 // once and never rebuilt as the car moves. Its `world.box3d` is the manager's with the
 // ground's chunks a metre a cell, 32 m a side, so the physics feels the washboard's ridges two metres apart, and the `ramp` and
 // `kicker` kinds, still wedges whose hulls are their shapes. The cars, the ball, the starts, the HUD
-// and the sky are as on the road (`road.sim.ts`).
+// and the sky are as on the road (`road.sim.ts`). The one `daypads` entry places the gym's day
+// pads, three columns side by side across the main strip at x 28, between the kicker and the whoops, each
+// setting the sky's hour and the headlights when a held car drives into it (`plugins/daypads`).
 // Behind the cars, from x -144 to -176 and z -26 to -254, is a course of shapes3d's shapes
 // from its shapes file `assets/gym.shapes3d.json` (`world.shapes3d.shapes`), their kinds' looks and
 // surfaces `world.shapes3d.kinds`, none a row, stood in box3d's world by its `fixed` mod and drawn by solids: a cube 30 m a
@@ -42,13 +44,14 @@ import { atlas } from './atlas.sim.ts'
 import { ramp } from './ramp.sim.ts'
 import { kicker } from './kicker.sim.ts'
 import { waypoint } from './waypoint.sim.ts'
+import { daypads } from './plugins/daypads/daypads.sim.ts'
 import file from './gym.scene.json' with { type: 'json' }
 
 // The particles' gravity on the Earth, the effects file's `gravity` driver, set as the scene loads.
 const particles: Kind & Prepare = { ...particle3d, async prepare(me) { me.data.drivers = { gravity: 9.8 } } }
 
 export const sim: Sim = {
-  loader, scenemanager, skydome3d, box3d, box3dvehicle, particle3d: particles, player, car, wheel, axle, ball, start, spot, hud, atlas, ramp, kicker, waypoint,
+  loader, scenemanager, skydome3d, box3d, box3dvehicle, particle3d: particles, player, car, wheel, axle, ball, start, spot, hud, atlas, ramp, kicker, waypoint, daypads,
 }
 
 export const scene = file as Scene

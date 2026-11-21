@@ -11,6 +11,8 @@
 //                library's spruce species, LODs 0 to 3, `<row>-<lod>-<part>`
 //   rover/, jeep/  the lunar rover's and the jeep's bodies, wheels and hubs from the library's pro-ng kit,
 //                and `kit.looks.json`, the looks file of every scene that draws them (`kit.make.ts`)
+//   daypads/     the one pro-ng clock every day pad draws a copy of (`daypads.make.ts`), item3d's, drawn in the looks
+//                file `kit.make.ts` composes
 //   sounds/      the library's `sounds/sounds.mjs` from `vehicles.sounds.json`: each car's engine as
 //                loops held at fixed rpms, `<car>-<rpm>.wav`, the jeep's a flat-plane V8, the truck's a
 //                V8 diesel and the cart's an electric motor, which each Vehicle's `look.sound`
@@ -23,12 +25,15 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Tools } from '#scripts/bake.ts'
 import { kits } from './kit.make.ts'
+import { clock, setBuildings } from './daypads.make.ts'
+import defs from './vehicles.json' with { type: 'json' }
 
 const here = import.meta.dirname
 
 export default async (tools: Tools) => {
   const { blender, pack, scratch, library, texture, flipbooks } = tools
-  await kits(tools)
+  await kits(tools, setBuildings(defs.daypads.clock))
+  await clock(tools, defs.daypads.clock)
   await flipbooks(path.join(here, 'effects.json'))
   console.log('wrote', path.join('games', 'vehicles', 'assets', 'smoke.png'))
   const trees = path.join(here, 'firs.trees.json')

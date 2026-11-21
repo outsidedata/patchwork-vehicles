@@ -10,6 +10,7 @@ Play it: https://outsidedata.github.io/patchwork-vehicles/
 - Places to drive: the plains with a dirt road through firs, grass and boulders, rolling desert dunes, the cratered moon under a black sky at a
   sixth of Earth's gravity, and a test track with whoops, a washboard,
   ditches, a bowl, a bank, ramps, a drag strip and patches of grass, mud, gravel and ice
+- Day pads, three glowing columns side by side on the road and the test track, each with a clock showing its hour: drive into one and it sets the time of day and the headlights
 - A ball to knock about
 - A title in 3D, over a jeep driving the desert
 - Two players together on a server

@@ -340,6 +340,7 @@
         const field = land && client.plugins.loader.get(land)
         if (field?.ground) groundFolder(folder(`ground (${land})`), field, land)
         tractionFolder(folder('traction'), land, field)
+        lightsFolder(folder('headlights'))
         if (client.plugins.wire.scene.world?.skydome3d) skyFolder(folder(`sky (${page.name})`))
       }
 
@@ -411,6 +412,72 @@
         sf.close()
         sf.add(shadow, 'map', [512, 1024, 2048, 4096]).onChange(setShadow)
         sliders(sf, shadow, SHADOW, setShadow)
+      }
+
+      // ---------- the headlights panel ----------
+      // Each vehicle's headlight beam, its `look.lights.beam` in the page's copy of `world.box3dvehicle`,
+      // which box3dvehicle's browser half draws from. A beam's spot lights are made with the car and
+      // kept, so each change is laid into the copy, which a car made after it takes, and into every beam
+      // already drawn for a car of that vehicle: its cone, reach and falloff, where it stands (with
+      // `beam.at`) and where it points (`dip` down, `toe` out). Under `lightsOff` the beam's intensity is
+      // read from the copy each frame, so it is live without being set here. A beam of a model's own
+      // `beam…` node is aimed by that node, so its `dip` and `toe` change nothing. Press L in the car to
+      // light the beams. Live, never saved to the file; `copy changed values` copies what was moved
+      // under the manager's scene file, where the fleet is.
+      function lightsFolder(f) {
+        const world = client.plugins.wire.scene.world
+        const fleet = world?.box3dvehicle?.vehicles ?? {}
+        const r3 = client.plugins.render3d
+        // The beams drawn now for cars of vehicle `name`: each spot light is told apart by the chassis it
+        // hangs on, the top group of its parents, which stands at its chassis row's place.
+        const beamsOf = name => {
+          const rows = client.plugins.wire.rows
+          const chassis = rows.filter(r => r.kind === 'box3dvehicle' && r.data.chassis !== undefined)
+            .map(car => ({ vehicle: car.data.vehicle, pos: rows.find(r => r.id === car.data.chassis).data.pos }))
+          const spots = []
+          r3.scene.traverse(o => { if (o.name === 'box3dvehicle.beam') spots.push(o) })
+          return spots.filter(spot => {
+            let top = spot
+            while (top.parent && top.parent !== r3.scene) top = top.parent
+            const p = top.position
+            let near, far = Infinity
+            for (const c of chassis) {
+              const d = Math.hypot(c.pos[0] - p.x, c.pos[1] - p.y, c.pos[2] - p.z)
+              if (d < far) { far = d; near = c }
+            }
+            return near?.vehicle === name
+          })
+        }
+        const apply = (name, beam) => () => {
+          for (const spot of beamsOf(name)) {
+            spot.distance = beam.distance
+            spot.angle = beam.angle
+            spot.penumbra = beam.penumbra
+            spot.decay = beam.decay
+            if (!world.box3dvehicle.lightsOff) spot.intensity = beam.intensity
+            const k = spot.position.z < 0 ? -1 : 1
+            if (beam.at) spot.position.set(beam.at[0], beam.at[1], k * beam.at[2])
+            if (spot.position.lengthSq() === 0) continue
+            const { x, y, z } = spot.position, dip = beam.dip, toe = beam.toe ?? 0
+            spot.target.position.set(x + Math.cos(dip) * Math.cos(toe), y - Math.sin(dip), z + k * Math.cos(dip) * Math.sin(toe))
+          }
+        }
+        for (const [name, v] of Object.entries(fleet)) {
+          const beam = v.look?.lights?.beam
+          if (!beam) continue
+          beam.toe ??= 0
+          home(beam, MANAGER, ['world', 'box3dvehicle', 'vehicles', name, 'look', 'lights', 'beam'])
+          const then = apply(name, beam)
+          const vf = f.addFolder(name)
+          vf.add(beam, 'intensity', 0, 1000, 1).name('intensity (cd)').onChange(then)
+          vf.add(beam, 'distance', 1, 300, 1).name('reach (m)').onChange(then)
+          vf.add(beam, 'decay', 0, 4, 0.05).onChange(then)
+          vf.add(beam, 'angle', 0.02, 1.5, 0.01).name('cone angle').onChange(then)
+          vf.add(beam, 'penumbra', 0, 1, 0.01).onChange(then)
+          vf.add(beam, 'dip', -0.3, 0.6, 0.005).name('dip down').onChange(then)
+          vf.add(beam, 'toe', -0.5, 0.5, 0.005).name('toe out').onChange(then)
+          if (beam.at) for (const [i, axis] of ['x', 'y', 'z'].entries()) vf.add(beam.at, i, i === 2 ? 0 : -4, 4, 0.005).name(`stands ${axis}`).onChange(then)
+        }
       }
 
       // ---------- the traction panel ----------

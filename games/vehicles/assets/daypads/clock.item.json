@@ -1,0 +1,52 @@
+{
+ "item": "clock",
+ "kind": "icons/time/clock_face",
+ "keys": {
+  "Hour": 0,
+  "Minute": 0,
+  "Rim": "gold",
+  "Radius": 1
+ },
+ "materials": [
+  "icon_rim_gold",
+  "icon_dial_cream",
+  "icon_ink"
+ ],
+ "clips": {
+  "about": "Each kit thing that moves: its clips as its kind wrote them (what it is and how a player meets it, whether it plays at the start, whether it loops, its seconds). A clip of tracks is the glb's animation named in its `animation`, moving the bones of the kit mesh's skin. A clip of poses moves the parts it names: each pose a time and its morph target on the glb's kit mesh, null where the pose is the thing as it stands, each corner going in a straight line between two poses. Each joint is a bone a game may pose with no clip: `joint` its node among the skin's joints, `axis` in that node's own space, `range` the degrees from rest it may turn, and `couple` (where it has one) the joint whose turn drives it, `ratio` times over, as the thing's own linkage does.",
+  "things": [],
+  "joints": [
+   {
+    "thing": "clock",
+    "bone": "hour hand",
+    "joint": 1,
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "range": [
+     -360,
+     360
+    ]
+   },
+   {
+    "thing": "clock",
+    "bone": "minute hand",
+    "joint": 2,
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "range": [
+     -360,
+     360
+    ]
+   }
+  ]
+ },
+ "spawns": [],
+ "grows": [],
+ "wears": []
+}

@@ -163,6 +163,8 @@
         "cart-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/cart.engine.json" },
         "truck": { "type": "model", "url": "/games/vehicles/assets/truck/truck.glb", "preload": true },
         "kit-looks": { "type": "json", "url": "/games/vehicles/assets/kit.looks.json", "preload": true },
+        "clock-glb": { "type": "binary", "url": "/games/vehicles/assets/daypads/clock.glb", "preload": true },
+        "clock-item": { "type": "json", "url": "/games/vehicles/assets/daypads/clock.item.json", "preload": true },
         "jeep-body": { "type": "binary", "url": "/games/vehicles/assets/jeep/body.kit.glb" },
         "jeep-body-looks": { "type": "json", "url": "/games/vehicles/assets/jeep/body.kit.looks.json", "preload": true },
         "jeep-wheel-left": { "type": "binary", "url": "/games/vehicles/assets/jeep/wheel-left.kit.glb" },
@@ -463,9 +465,9 @@
               "bezel": 0.025,
               "beam": {
                 "intensity": 120,
-                "distance": 60,
-                "decay": 2,
-                "angle": 0.45,
+                "distance": 250,
+                "decay": 0.5,
+                "angle": 0.78,
                 "penumbra": 0.5,
                 "dip": 0.06,
                 "at": [1.66, 0.195, 0.382]
@@ -586,9 +588,9 @@
               "bezel": 0.012,
               "beam": {
                 "intensity": 60,
-                "distance": 40,
-                "decay": 2,
-                "angle": 0.45,
+                "distance": 250,
+                "decay": 0.5,
+                "angle": 0.78,
                 "penumbra": 0.5,
                 "dip": 0.06
               },
@@ -820,9 +822,9 @@
               "bezel": 0.04,
               "beam": {
                 "intensity": 200,
-                "distance": 80,
-                "decay": 2,
-                "angle": 0.45,
+                "distance": 250,
+                "decay": 0.5,
+                "angle": 0.78,
                 "penumbra": 0.5,
                 "dip": 0.05
               },
@@ -1202,13 +1204,18 @@
     },
     "particle3d": {
       "effects": "effects",
-      "mods": { "sources": ["box3dvehicle"] },
+      "mods": { "sources": ["box3dvehicle"], "light": "skydome3d" },
       "attach": [
         { "on": "wheel", "effect": "tyre" },
         { "on": "exhaust", "of": "jeep", "effect": "exhaust" },
         { "on": "exhaust", "of": "utv", "effect": "exhaust" },
         { "on": "exhaust", "of": "truck", "effect": "diesel" }
       ]
+    },
+    "item3d": {
+      "items": {
+        "clock": { "glb": "clock-glb", "file": "clock-item" }
+      }
     },
     "audio": { "hold": 0.25, "space": { "model": "inverse", "ref": 4, "max": 250, "rolloff": 1 }, "cues": {} },
     "instances3d": { "cutout": 0.45, "coverage": 0.25 },
@@ -1344,6 +1351,7 @@
     "hud": {},
     "atlas": {},
     "waypoint": { "pos": null, "yaw": 0, "n": 0 },
+    "daypads": { "pads": [], "foot": null, "in": [] },
     "pedestrian": {
       "pos": [0, 0, 0],
       "yaw": 0,
