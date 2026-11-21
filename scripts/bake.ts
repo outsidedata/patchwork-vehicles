@@ -24,13 +24,17 @@
 //                          matrices of its own (instancing) would draw it at that scale's inverse
 //                          (`-cc -kn -km -ke -vpf -tw`)
 //   webp(src, out, size)   a picture cut to `size` pixels square and written as WebP at quality 80
-//   ktx2(srcs, out, size)  the pictures `srcs`, each cut to `size` pixels square, written by Basis
+//   ktx2(srcs, out, size, space)  the pictures `srcs`, each cut to `size` pixels square, written by Basis
 //                          Universal's basisu as one GPU-compressed KTX2 (an array of them, a layer each,
-//                          in order; one alone a plain texture): ETC1S at basisu's own settings, linear
-//                          (the bytes kept as they are, for a shader that decodes each layer itself),
-//                          mipmapped in linear. ETC1S, so the file is about as small as the WebPs it stands
-//                          for and still uploads compressed; UASTC's quality is many times the download.
-//                          The loader reads a `.ktx2` texture entry (its KTX2).
+//                          in order; one alone a plain texture): ETC1S at basisu's own settings. `space`
+//                          is `linear` when left out: the file says linear and is mipmapped in linear, the
+//                          bytes kept as they are, for a picture of numbers (a normal, a roughness map) or
+//                          a shader that decodes each layer itself. `srgb` is a picture of colours: the file
+//                          says sRGB, so the GPU decodes it to linear light as it samples, and it is
+//                          mipmapped in linear light. ETC1S, so the file is about as small as the WebPs it
+//                          stands for and still uploads compressed; UASTC's quality is many times the
+//                          download. The loader reads a `.ktx2` texture entry (its KTX2), in the colour
+//                          space its file says.
 //   mean(src, size)        a picture cut to `size` square, its mean of 0.2126 r + 0.7152 g + 0.0722 b with
 //                          each channel taken from sRGB to linear: supershader3d's `lookMeans` of it
 //   stack(looks, folder, out)  a looks file (`Looks`) with its `stack`: every picture it lists, read from
@@ -68,6 +72,22 @@
 //                          `<scene>_pictures`, url `<pictures>/<scene>.pictures.ktx2`. A look that is not in
 //                          the library, a setting that is neither a number nor a colour, and a picture
 //                          the set does not hold each throw, naming it.
+//   garment(spec)          a garment of the library's garment shop draped on a body the game draws, for
+//                          fabric3d's `garment` cut (`garment.ts` says the whole of it): `spec` is `{ body,
+//                          figure, kit, config, garment, out }`, `body` the game's baked body (a glb of one
+//                          skin, at rest in its T-pose), `figure` the name the shop keeps it under, `kit`
+//                          and `config` a kit of the shop and one of its configs, `garment` the name of the
+//                          one of its garments to write, and `out` the glb. The shop drapes it on the body
+//                          (by the draper `GARMENT_DRAPER` names, else here), and it is written as `out`, a
+//                          mesh a pattern piece, packed, and its sidecar `<out less .glb>.garment.json`
+//                          beside it, which the catalogue lists as a `model` and a `json` entry.
+//   items(spec)            kit items of the library's pro-ng, for the item3d plugin (`items.ts` says the whole
+//                          of it): `spec` is `{ sheet, out }`, `sheet` an items sheet (`{ items: { <item>: {
+//                          kind, keys } } }`, each a kit kind and its keys), `out` the folder each is written
+//                          into as `<item>.glb` and its sidecar `<item>.item.json`, which the catalogue lists as
+//                          a `binary` and a `json` entry. It hands back `{ items, materials }`, the materials
+//                          the items are drawn in, for the `looks` tool to compose with the scene's own into
+//                          its one looks file.
 // Each throws with the tool's output when it fails, so a bake stops at its first failure.
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
@@ -77,20 +97,25 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { config, cut, texture, type Map } from './cc0.ts'
 import { checks, resolve } from './health.ts'
 import type { Looks, Shader } from '#plugins/supershader3d/supershader3d.plugin.ts'
+import type { Garment } from '#plugins/loader/loader.fabric3d.ts'
 import { packLooks } from './pack-looks.ts'
+import { garment, type GarmentSpec } from './garment.ts'
+import { items, type Items, type ItemsSpec } from './items.ts'
 
 export type Tools = {
   library: string
   blender: (args: string[]) => Promise<string>
   pack: (raw: string, out: string) => Promise<string>
   webp: (src: string, out: string, size: number) => Promise<string>
-  ktx2: (srcs: string[], out: string, size: number) => Promise<string>
+  ktx2: (srcs: string[], out: string, size: number, space?: 'linear' | 'srgb') => Promise<string>
   mean: (src: string, size: number) => Promise<number>
   stack: (looks: Looks, folder: string, out: string) => Promise<Looks>
   flipbooks: (file: string) => Promise<string>
   scratch: (name: string) => string
   texture: (zip: string) => Promise<Partial<Record<Map, string>>>
   looks: (spec: LooksSpec) => Promise<Looks>
+  garment: (spec: GarmentSpec) => Promise<Garment>
+  items: (spec: ItemsSpec) => Promise<Items>
 }
 
 // A material of a looks bake: its look, the settings it gives over the look's own, its flat colour.
@@ -106,7 +131,8 @@ const linear = (hex: string) => [1, 3, 5].map(i => {
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
 })
 
-// The shared GLSL chunks every scene's shader may read (`pro-ng/material/looks/shared/`).
+// The shared GLSL chunks every scene's shader may read (`pro-ng/material/looks/shared/`); a look that names
+// another (its `shared`: `ruin`, `heat`) has that one read too.
 const SHARED = ['noise', 'layout', 'random']
 
 // The looks tool: the library's pro-ng composes the materials' looks, the pictures are cut, the JSON
@@ -124,7 +150,7 @@ async function composeLooks(library: string, t: Pick<Tools, 'texture' | 'webp' |
     looks[m.look] = (await import(pathToFileURL(file).href)).default
   }
   const shared: Record<string, string> = {}
-  for (const s of SHARED) shared[s] = (await import(pathToFileURL(path.join(prong, 'looks', 'shared', `${s}.js`)).href)).default
+  for (const s of new Set([...SHARED, ...Object.values(looks).flatMap(l => (l.shared ?? []) as string[])])) shared[s] = (await import(pathToFileURL(path.join(prong, 'looks', 'shared', `${s}.js`)).href)).default
   const names = Object.keys(materials)
   const list = names.map(name => {
     const m = materials[name]
@@ -207,11 +233,12 @@ export const tools = (root: string, shell: Record<string, string | undefined>, w
     blender: args => run(blender, ['--background', ...args], carried),
     pack: (raw, out) => (into(out), run(gltfpack, ['-i', raw, '-o', out, '-cc', '-kn', '-km', '-ke', '-vpf', '-tw'], carried)),
     webp: (src, out, size) => (into(out), run(magick, [src, '-resize', `${size}x${size}!`, '-quality', '80', out], carried)),
-    ktx2: async (srcs, out, size) => {
+    ktx2: async (srcs, out, size, space = 'linear') => {
       into(out)
       const layers = srcs.map((_, i) => path.join(work, `${path.basename(out)}.${i}.png`))
       for (const [i, src] of srcs.entries()) await run(magick, [src, '-resize', `${size}x${size}!`, `PNG32:${layers[i]}`], carried)
-      return run(basisu, ['-etc1s', '-linear', '-mipmap', '-mip_linear', '-tex_type', layers.length > 1 ? '2darray' : '2d', '-ktx2', '-output_file', out, ...layers], carried)
+      const colours = space === 'srgb' ? ['-srgb', '-mipmap', '-mip_srgb'] : ['-linear', '-mipmap', '-mip_linear']
+      return run(basisu, ['-etc1s', ...colours,'-tex_type', layers.length > 1 ? '2darray' : '2d', '-ktx2', '-output_file', out, ...layers], carried)
     },
     // the mean of 0.2126 r + 0.7152 g + 0.0722 b over a picture cut to `size` square, each channel taken
     // from sRGB to linear first, as supershader3d's `lookMeans` holds it
@@ -230,6 +257,15 @@ export const tools = (root: string, shell: Record<string, string | undefined>, w
     scratch: name => path.join(work, name),
     texture: zip => texture(library, zip),
     looks: spec => composeLooks(library, t, spec),
+    // a garment's pieces have no material, and gltfpack drops the uv of a mesh with none: `-kv` keeps every
+    // attribute. It rounds each mesh's points to a grid of that mesh's own, which parts two pieces at the
+    // seam they share: `-noq` leaves every number as it was written
+    garment: spec => garment(spec, {
+      library, scratch: t.scratch,
+      pack: (raw, out) => (into(out), run(gltfpack, ['-i', raw, '-o', out, '-cc', '-kn', '-km', '-ke', '-kv', '-noq'], carried)),
+      node: args => run(process.execPath, args, carried),
+    }),
+    items: spec => items(spec, { library, scratch: t.scratch, blender: t.blender }),
   }
   return t
 }

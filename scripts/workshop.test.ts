@@ -8,6 +8,9 @@ describe('yarn workshop', () => {
     expect(asked(5180, ['ui', 'mech']).url).toBe('http://127.0.0.1:5180/ui?game=mech')
     expect(asked(5180, ['particles', 'portal2']).url).toBe('http://127.0.0.1:5180/particles?game=portal2')
     expect(asked(5180, ['poses']).url).toBe('http://127.0.0.1:5180/poses')
+    expect(asked(5180, ['puppet3d', 'demo_puppet3d']).url).toBe('http://127.0.0.1:5180/puppet3d?game=demo_puppet3d')
+    expect(asked(5180, ['hair3d', 'demo_hair3d']).url).toBe('http://127.0.0.1:5180/hair3d?game=demo_hair3d')
+    expect(asked(5180, ['grass3d', 'demo_grass3d']).url).toBe('http://127.0.0.1:5180/grass3d?game=demo_grass3d')
   })
 
   it('hands the particle workshop its effect, its file, and an effects file with its sheets', () => {
@@ -19,6 +22,7 @@ describe('yarn workshop', () => {
 
   it('refuses what no page takes', () => {
     expect(() => asked(5180, ['ui'])).toThrow('needs a game')
+    expect(() => asked(5180, ['puppet3d'])).toThrow('puppet3d workshop needs a game')
     expect(() => asked(5180, ['particles'])).toThrow('needs a game or an effects file')
     expect(() => asked(5180, ['poses', 'mech'])).toThrow('takes no game')
     expect(() => asked(5180, ['particles', 'portal2', '--effects', 'a.json'])).toThrow('not both')

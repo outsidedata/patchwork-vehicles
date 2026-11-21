@@ -52,6 +52,22 @@ is called done (`yarn particle-score`, below, measures each one when it is asked
    standing on its own. No `lamp` goes in until the effect reads right with none; a lamp then
    adds to an effect that already works, and is the last layer added.
 
+### One effect for many kinds: the kind says the numbers, the effect reads them as they are
+
+When one effect serves several kinds (one dust for every walker, one splash for every boat), each kind's
+definition says what its effect is, in plain numbers, and the effect's fields read those drivers
+directly: `"n": ["count", "count"]`, `"size": ["size", "size"]`, `"alphas": [[0, 0], [0.12, "opacity"], [1, 0]]`.
+A number that changes with how the thing moves is given at both ends on the definition, `walk` and
+`run`, and the plugin that throws the effect moves each between the two by one share (its speed over its
+top speed) and hands them over. Nothing else is worked out anywhere.
+
+Never one "size" or "heft" number on the kind that the effects file turns into counts, lives, speeds and
+opacities through a chain of derived drivers (`sqrt(heft)`, `clamp(log(heft) / 4, 0, 1)`, `0.18 + 0.4 *
+kick`). It was built so once, for mech's footfall dust, and failed: the colossus's dust could not be
+seen and nobody could say why without working the maze backwards, and making it right meant changing
+equations instead of saying "24 puffs, 18 m across, 10 seconds". Whoever tunes it has to be able to read
+a kind's two lines and know what will be drawn. Mech's `look.dust` and `footfall` are the example.
+
 ### Scoring an effect: `yarn particle-score`
 
 ```
@@ -189,7 +205,9 @@ Two places hold every number of an effect, and neither is code:
   has with no art: `puff`/`puff2` for smoke, `glow`, `halo`, `spark`, `streak` (with `stretch`), `ring`,
   `star`, and `bolt`/`bolt2` for lightning (with `beam`). A layer with neither is a hard square, so start smoke on `puff`. `bounce` (0 to 1)
   bounces a particle off the spawn's `floor` (the workshop's stage spawns with floor 0, its ground) and
-  off the solids `world.particle3d.mods.solids` hands over (shapes3d's shapes). A layer that gives a
+  off the solids `world.particle3d.mods.solids` hands over (shapes3d's shapes); gpuparticle3d's
+  particles, moved on the GPU, bounce off what gpgpu3d holds there, the land too
+  (`world.gpuparticle3d.mods.solids: 'gpgpu3d'`, `using-gpgpu3d`). A layer that gives a
   word a mod delivers is drawn by it in place of quads: `"mesh": { rows, look, seed? }`, with
   `world.particle3d.mods.behaviors: ['instances3d']` and instances3d listed, draws each particle as an
   instanced 3D mesh (rocks, shards) that tumbles with `spin`, falls and bounces. One effect thrown in more than one

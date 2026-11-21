@@ -37,8 +37,12 @@ test('a glb of the wrong shape throws, naming what is wrong', async () => {
   loose.gltf.animations = [{ name: 'fan spin', channels: [{ sampler: 0, target: { node: 4, path: 'rotation' } }], samplers: [{ input: 0, output: 0 }] }]
   await expect(unpack(glbOf(loose))).rejects.toThrow('supershader3d: the glb\'s animation fan spin moves the node fan rotor, which is no joint of its skin')
   const wrong = made()
-  wrong.gltf.animations[0].channels[0].target.path = 'scale'
-  await expect(unpack(glbOf(wrong))).rejects.toThrow('supershader3d: the glb\'s animation fan spin moves scale, which is not a bone\'s rotation or translation')
+  wrong.gltf.animations[0].channels[0].target.path = 'weights'
+  await expect(unpack(glbOf(wrong))).rejects.toThrow('supershader3d: the glb\'s animation fan spin moves weights, which is not a bone\'s rotation, translation or scale')
+  // a bone's scale is a track as its place is
+  const scaled = made()
+  scaled.gltf.animations[0].channels[0].target.path = 'scale'
+  expect((await unpack(glbOf(scaled))).animations[0].tracks[0].path).toBe('scale')
   const stepped = made()
   stepped.gltf.animations[0].samplers[0].interpolation = 'STEP'
   await expect(unpack(glbOf(stepped))).rejects.toThrow('supershader3d: the glb\'s animation fan spin is STEP, and its clips are linear')

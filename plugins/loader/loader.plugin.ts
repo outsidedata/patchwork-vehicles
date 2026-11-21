@@ -1,6 +1,6 @@
 // The browser half of loader. The catalogue is the scene's `world.loader.assets`, which no packet
-// carries: this client reads it off its own scene. Everything marked `preload` starts on the first
-// tick; anything else starts when something calls `load` or `on`. A name asked for before the first
+// carries: this client reads it off its own scene. Every entry starts on the first tick unless it
+// says `preload: false`; one that does starts when something calls `load` or `on`. A name asked for before the first
 // tick waits for it, and is neither started nor failed until then.
 //
 // Every table this half keeps is this client's own and goes with it: what it has decoded, what is
@@ -126,9 +126,9 @@
 // skeleton of its own: its meshes' geometry and materials are the decoded model's, shared by every
 // copy. In a page, a meshopt-packed glb's buffers are unpacked off the page, in three workers, and no
 // more than four models are fetched and decoded at once, the rest waiting their turn in the order they
-// were asked for. No model starts until every font and every `preload` entry `for: "ui"` has landed or
-// failed: what the ui draws first, a loading screen's words and pictures among it (`loader.ui.ts`),
-// comes down before the models crowd it out.
+// were asked for. No entry of any type starts, a model, a binary, a json or a texture alike, until every
+// font and every preloaded entry `for: "ui"` has landed or failed: what the ui draws first, a loading
+// screen's words and pictures among it (`loader.ui.ts`), comes down before the rest crowds it out.
 //
 // Whatever has been decoded does not land the moment it is: each tick hands over what has been decoded,
 // in the order it was, those fonts and ui entries ahead of everything else, until four milliseconds of
@@ -156,7 +156,13 @@
 // compiles before drawing), 0 when the scene names none; the loading screen waits on it too and says it
 // is compiling shaders. It throws, as `provided` does, when the scene names a plugin it does not list.
 //
-// `preloads()` is `{ done, of }`: how many entries the first tick starts, every `preload` and every
+// `settled()` is whether every plugin the scene's `world.loader.mods.ready` names says what it draws
+// of the world is whole, each its `ready(plugins)` → boolean (`terrain3d.loader.ts`: the land and
+// everything terrain3d's own `mods.ready` waits on, lod3d's tiles say, done where the camera stands);
+// true when it names none. The loading screen waits on it too, so the game is never shown in a world
+// still being made. It throws, as `provided` does, when the scene names a plugin it does not list.
+//
+// `preloads()` is `{ done, of }`: how many entries the first tick starts, every one not marked `preload: false` and every
 // font, and how many of them have landed or failed, so a loading screen (`loader.ui.ts`) knows how far
 // it is and when it is over. Asked before the first tick, it throws, as the catalogue does.
 //
@@ -173,8 +179,9 @@
 import type { Plugins } from '#engine/browser.ts'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
-import { mod, provided } from '#addons/scenemanager/scenemanager.addon.ts'
-import { beside, decodePng, fetched, frameOf, fresh, inPage, isPng, mount, pick, refill, sealed, writes as rewrites, type Entry, type Frame, type Sheet, type Tiled } from './loader.sim.ts'
+import { mod, modsOf, provided } from '#addons/scenemanager/scenemanager.addon.ts'
+import { uncover } from './loader.ui.ts'
+import { beside, decodePng, fetched, frameOf, fresh, inPage, isPng, mount, pick, preloaded as preloads, refill, sealed, writes as rewrites, type Entry, type Frame, type Sheet, type Tiled } from './loader.sim.ts'
 
 export type { Sheet, Tiled }
 
@@ -349,7 +356,7 @@ export function loader() {
 
   // What the ui draws first, the loading screen among it: every font, and every entry for the ui the
   // first tick starts.
-  const uiFirst = (it: Entry) => it.type === 'font' || (it.for === 'ui' && !!it.preload)
+  const uiFirst = (it: Entry) => it.type === 'font' || (it.for === 'ui' && preloads(it))
 
   // `thing` landed as `name` on a tick, once its pictures are on the GPU; what the ui draws first goes
   // ahead of everything else waiting.
@@ -658,7 +665,8 @@ export function loader() {
     if (it.space !== undefined && it.space !== 'linear') throw new Error(`its space is ${it.space}, and a texture's is linear or left out`)
     if (it.wrap !== undefined && it.wrap !== 'repeat') throw new Error(`its wrap is ${it.wrap}, and a texture's is repeat or left out`)
     if (it.anisotropy !== undefined && !(Number.isInteger(it.anisotropy) && it.anisotropy >= 1)) throw new Error(`its anisotropy is ${it.anisotropy}, and a texture's is a whole number from 1`)
-    return decodeEntry(p, name, it)
+    // What the ui draws first starts at once; everything else waits until it is in.
+    return uiFirst(it) ? decodeEntry(p, name, it) : firstIn.then(() => decodeEntry(p, name, it))
   }
 
   // Every failure of `name` says so first, in these words.
@@ -715,8 +723,12 @@ export function loader() {
         if (inPage()) MeshoptDecoder.useWorkers(workers)
         preloaded = true
         mount(p.wire.scene.world ?? {}).catch(e => console.error(e))
-        for (const [name, it] of Object.entries(catalogue())) if (it.preload || it.type === 'font') wanted.add(name)
+        for (const [name, it] of Object.entries(catalogue())) if (preloads(it) || it.type === 'font') wanted.add(name)
         firstIn = Promise.allSettled(Object.entries(catalogue()).filter(([, it]) => uiFirst(it)).map(([name]) => start(name)))
+        // The page's loading cover (`loader.cover.ts`) stays up until the ui's loading screen is drawn
+        // under it (`loader.ui.ts`); a scene that shows none takes it off now.
+        const panels = Object.values((p.wire.scene.world?.ui?.panels ?? {}) as Record<string, { loading?: unknown }>)
+        if (!p.ui || !panels.some(panel => panel.loading)) uncover()
         ticked()
       }
       if (p.render3d?.renderer) haveRenderer(p.render3d.renderer)
@@ -829,10 +841,17 @@ export function loader() {
       provided(plugins!.wire.scene, 'loader', 'shaders')
       return f(plugins!)
     },
+    // Whether every plugin the scene's `world.loader.mods.ready` names says the world it draws is
+    // whole; true when it names none.
+    settled(): boolean {
+      const scene = plugins!.wire.scene
+      provided(scene, 'loader', 'ready')
+      return modsOf<(p: Plugins) => boolean>(scene.world!, 'loader', 'ready').every(f => f(plugins!))
+    },
     // Of the catalogue's entries the first tick starts, every `preload` and every font, how many there
     // are and how many have landed or failed: what a loading screen waits on.
     preloads(): { done: number; of: number } {
-      const first = Object.entries(catalogue()).filter(([, it]) => it.preload || it.type === 'font')
+      const first = Object.entries(catalogue()).filter(([, it]) => preloads(it) || it.type === 'font')
       return { done: first.filter(([name]) => made.has(name) || failed.has(name)).length, of: first.length }
     },
     close() {

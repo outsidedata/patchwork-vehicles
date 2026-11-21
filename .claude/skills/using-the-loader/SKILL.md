@@ -1,6 +1,6 @@
 ---
 name: using-the-loader
-description: Use in core, or any clone of it, whenever the loader comes up, and to migrate any game's bake to the KTX2 compression, a game baked before or a new one - how a scene's files come down and reach the game (`plugins.loader`'s `load`, `on`, `get`, `ready`, `model`, `preloads()`, `shaders()`), how a load runs without stalling the game (four models at a time, meshopt workers, a few things landing each tick with their textures on the GPU first, fonts and the ui's pictures first), GPU-compressed `.ktx2` textures and supershader3d's KTX2 picture stack, render3d compiling shaders before the first draw, the loading screen (`plugins/loader/loader.ui.ts`, the ui's `loading` word, "Compiling shaders"), and migrating a game's bake to KTX2. Also when a scene chugs, stalls or freezes ("kill/wait") or goes black while its art comes down, a test that awaits `plugins.loader.load` hangs, a model or texture never lands, a `.ktx2` entry fails, or the loading screen does not show.
+description: Use in core, or any clone of it, whenever the loader comes up, and to migrate any game's bake to the KTX2 compression, a game baked before or a new one - how a scene's files come down and reach the game (`plugins.loader`'s `load`, `on`, `get`, `ready`, `model`, `preloads()`, `shaders()`), how a load runs without stalling the game (four models at a time, meshopt workers, a few things landing each tick with their textures on the GPU first, fonts and the ui's pictures first), GPU-compressed `.ktx2` textures and supershader3d's KTX2 picture stack, render3d compiling shaders before the first draw, the loading screen (`plugins/loader/loader.ui.ts`, the ui's `loading` word, "Compiling shaders") and its cover in the page's first bytes (`loader.cover.ts`), and migrating a game's bake to KTX2. Also when a scene chugs, stalls or freezes ("kill/wait") or goes black while its art comes down, a test that awaits `plugins.loader.load` hangs, a model or texture never lands, a `.ktx2` entry fails, or the loading screen does not show, or shows only after a black screen.
 ---
 
 # Using the loader
@@ -20,8 +20,13 @@ moves its pictures to KTX2. The headers of `loader.plugin.ts`, `loader.ui.ts`, `
 - `get(name)`, `ready(name)`: the thing, or undefined while it is coming.
 - `model(name)`: `{ scene, animations }`, the node tree and skeleton cloned per call, geometry and
   materials shared by every copy.
-- `preloads()`: `{ done, of }`, every `preload` entry and every font, landed or failed.
+- `preloads()`: `{ done, of }`, every preloaded entry and every font, landed or failed.
+
+Every entry is preloaded, started on the first tick, unless it says `preload: false`; one that does
+starts only when something calls `load` or `on`. `"preload": true` on an entry says nothing.
 - `shaders()`: how many things render3d is still compiling, through `world.loader.mods.shaders`.
+- `settled()`: whether every plugin `world.loader.mods.ready` names says its world is whole
+  (terrain3d's land and lod3d's tiles where the camera starts).
 
 No row ever carries whether a file has landed: a fetch takes a different time on every machine.
 
@@ -29,8 +34,8 @@ No row ever carries whether a file has landed: a fetch takes a different time on
 
 A game calls the loader as above and things arrive a frame or two later; nothing else changes for it.
 
-- **Fonts and the ui's pictures first.** No model starts until every font and every `preload` entry
-  `for: "ui"` has landed or failed, and those land ahead of anything else waiting. The ui draws nothing
+- **Fonts and the ui's pictures first.** Nothing else starts, of any type (a model, a `binary` kit, a
+  json, a texture), until every font and every preloaded entry `for: "ui"` has landed or failed, and those land ahead of anything else waiting. The ui draws nothing
   until its fonts are in, so this is what lets a loading screen show within a frame or two.
 - **Four models at a time**, the rest waiting their turn in the order asked.
 - **Meshopt off the page.** A gltfpack glb's buffers are unpacked in three workers in a page.
@@ -77,9 +82,13 @@ One holding several layers is a CompressedArrayTexture.
 - Its colour space is the file's unless the entry gives `space`; `wrap` and `anisotropy` as on any
   texture. In node it is the 1×1 white texture every picture is.
 
-The bake writes it (`scripts/bake.ts`): `ktx2(srcs, out, size)` cuts each source to `size` square and has
-`basisu` write ETC1S at its own settings, linear, mipmapped, as one array (several sources) or one
-texture. ETC1S keeps the file about as small as the WebPs; UASTC is many times the download and is not
+The bake writes it (`scripts/bake.ts`): `ktx2(srcs, out, size, space)` cuts each source to `size` square
+and has `basisu` write ETC1S at its own settings, mipmapped, as one array (several sources) or one
+texture. `space` is the colour space the file says, which the loader samples it in:
+- `'linear'`, when left out: the bytes read as they are, for a picture of numbers (a normal or a
+  roughness map) and for supershader3d's stack, whose shader decodes each layer itself.
+- `'srgb'`: a picture of colours (a colour map), which the GPU decodes to linear light as it samples.
+  Written linear, a colour map is drawn washed out, and an entry's `space` cannot say sRGB. ETC1S keeps the file about as small as the WebPs; UASTC is many times the download and is not
 used. `yarn health` checks `basisu` (`brew install basis_universal`, or `BASISU` in `.env`).
 
 ### supershader3d's stack
@@ -113,8 +122,11 @@ own repo. Each step is checked before the next.
    pictures', so baking again keeps it.
 4. **The game's other textures.** Each loose `texture` entry render3d draws (a ground layer, a model's
    own picture cut as a texture, a sheet page for render3d), not one `for: "ui"`: the bake writes it with
-   `t.ktx2([source], '<name>.ktx2', size)` in place of `t.webp`, and its entry's url names the `.ktx2`,
-   its `space`, `wrap` and `anisotropy` kept.
+   `t.ktx2([source], '<name>.ktx2', size, space)` in place of `t.webp`, `'srgb'` for a colour map and
+   `'linear'` for a normal or roughness map, and its entry's url names the `.ktx2`, its `space`, `wrap`
+   and `anisotropy` kept. A game whose maps a `cc0-textures.json` cut as WebP moves its sets to a data
+   file its bake reads, and cuts each with `t.texture(set)` and `t.ktx2`; left in, the cc0 cut writes
+   the WebPs again.
 5. **Shaders on the loading screen** (when the game shows one): `world.loader.mods.shaders: "render3d"`
    in each scene with render3d, and the `loading` panel's `shaders` line (The loading screen, below).
 6. **Commit** the `.ktx2` files with the rest of the baked art (`committing-a-game`); the WebPs the
@@ -129,7 +141,7 @@ A mod of the loader's for the ui, `plugins/loader/loader.ui.ts`, the word `loadi
 asks for it; nothing shows it unasked. It covers the canvas in `fill`, draws each picture once it
 lands, fills the bar to `preloads()`, shows one line of `text` at a time; once every file is in and while
 `shaders()` is above 0, shows its `shaders` line in place of the tips and fills the bar as they finish;
-then fades over `fade` seconds and never shows again for that client, so each scene shows its own while
+waits, bar full and tips going round, until `settled()`; then fades over `fade` seconds and never shows again for that client, so each scene shows its own while
 its own art comes down. Every field is in its header.
 
 ## Adding a loading screen to a game
@@ -144,8 +156,8 @@ of it is code.
    - drawn by hand, committed as WebP or PNG as they are, small: the screen's art is the first thing
      fetched, ahead of everything else.
    Keep a logo's transparency in PNG or WebP with alpha.
-2. **The catalogue.** Each picture a `texture` entry `for: "ui"` with `preload` (the screen refuses one
-   without), in the catalogue of every scene that shows the screen, the manager's when every scene
+2. **The catalogue.** Each picture a `texture` entry `for: "ui"`, preloaded (the screen refuses one
+   that says `"preload": false`), in the catalogue of every scene that shows the screen, the manager's when every scene
    shares it:
    ```json
    "splash": { "type": "texture", "url": "/games/<game>/assets/loading/splash.webp", "for": "ui", "preload": true },
@@ -192,10 +204,50 @@ of it is code.
    files are in and shaders are still compiling, in the same place.
 6. **Shaders.** `world.loader.mods.shaders: "render3d"` in each scene with render3d, so the screen waits
    for the shaders and says so; left out, it fades once the files are in.
-7. **Check it.** The game's tests beside what changed. Then `dev.html` in Chrome, with its fetches
-   slowed if the load is too fast to see on a local machine: the backdrop, logo, bar and words show
-   within a frame or two of entering the scene, "Compiling shaders" after the files, then the fade.
-   Look at a screenshot of each.
+7. **The world.** In each scene with terrain3d, `world.loader.mods.ready: ["terrain3d"]`,
+   `world.terrain3d.preload: true`, and in `world.terrain3d.mods.ready` every plugin standing on the
+   land the scene lists (`"lod3d"`, `"grass3d"`), so the screen stays up until the land, its trees and
+   its grass stand whole where the camera starts; left out, the game shows while they are still being
+   made.
+
+   **Check it, every time a scene's world is invisible or half made when the screen lifts.** The
+   three are a chain, and each link is needed:
+   - `world.terrain3d.preload: true` alone holds nothing: it only makes terrain3d's `shown()` wait.
+     The screen waits on it only when the scene's `world.loader.mods.ready` names `terrain3d`.
+   - A game whose `world.loader` is the manager's (`vehicles.scene.json`) gets `mods.ready` there for
+     every child that has no `world.loader` of its own; a child with its own loader block (vehicles'
+     title) needs it in that block too, since a child's world replaces the manager's key by key.
+   - `world.terrain3d.mods.ready` names each of lod3d and grass3d the scene lists; a scene that names
+     only `grass3d` shows before its trees.
+   - A scene's terrain3d settings may come from a partial it `extends` (vehicles'
+     `plains.partial_scene.json`); read the partial as well as the scene.
+
+   vehicles had `preload: true` and grass3d under `terrain3d.mods.ready` and still showed an empty
+   world, because no scene named `terrain3d` under `world.loader.mods.ready`.
+8. **Check it.** The game's tests beside what changed. Then `index.html` in Chrome, with the network
+   throttled and the cache off. The page's cover shows the backdrop, logo, bar and words within one
+   fetch of the page opening, before the code has come down. The ui's screen then takes over with no
+   change you can see, shows "Compiling shaders" after the files, then fades. Take each screenshot on
+   a signal from the page (the cover's picture shown, its bar, the cover gone), and look at each one.
+   A restarted dev server is needed after `scripts/bundle.ts` or `loader.cover.ts` changes: Vite
+   doesn't reload what its config imports.
+
+### The cover: the screen before any code
+
+A page can't run the ui until its code has come down, and the scenemanager waits for every truth's
+`prepare` before the ui has a client. That `prepare` fetches every preloaded file a rule reads: kits,
+data, definitions. So the screen above, on its own, shows only once nearly everything is in. The
+cover solves this, and the game does nothing for it. When the entry scene has a `loading` panel, the
+bundle writes the cover into the first bytes of `index.html` and `client.html`
+(`plugins/loader/loader.cover.ts`, `loader.cover.js`). The cover:
+- draws the same panel in the DOM, where the ui will draw it;
+- fetches every scene's files the loader fetches first, the screen's pictures and fonts ahead of the
+  rest, while the code comes down;
+- hands those fetches to the loader, so nothing is fetched twice.
+
+The ui's screen takes the cover off the frame after it has drawn every picture under it. Its bar
+starts from where the cover's was. On a published site the cover takes the place of
+`scripts/loading.html`. `dev.html` has none: it can enter any scene.
 
 The screen is a mod because the drawing is the ui's and the waiting is the loader's. The ui keeps a
 table of words: any field of a panel's entry that is not a placing field (`anchor`, `at`, `size`, `clip`,
@@ -224,5 +276,6 @@ the actors (`connecting-plugins-using-mods`).
 - Should the loader compile shaders? No: render3d, once a model is dressed.
 - Should a material be compiled on its own, ahead of any mesh? No: through the mesh that draws it.
 - UASTC, or a higher ETC1S quality? No: ETC1S at basisu's own settings.
+- A colour map as KTX2, linear, with `space` on its entry? No: `ktx2(..., 'srgb')`; the file says its space.
 - Does a game get the loading screen without asking? No: `world.ui.mods.behaviors` and a `loading`
   panel.

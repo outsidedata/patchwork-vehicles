@@ -14,7 +14,9 @@
 // Its rolls come from `seed` when the spawn gives one, so pages that emit one effect with one seed
 // draw the same particles, and from `Math.random` when it gives none. `has(name)` says whether the
 // effects file has an effect of that name, false until the file has been read; this half asks the
-// loader for it in its `tick`, before any actor ticks, so an actor can ask.
+// loader for it in its `tick`, before any actor ticks, so an actor can ask. `advance(plugins, seconds)`
+// runs every effect on that many seconds at once, a frame of the engine's `dt` at a time (`step`,
+// what `afterTick` runs each frame), so a shot shows effects as they stand once they have run a while.
 //
 // The space is the world's, in metres: y is up, and a direction is a vector [x, y, z], so [0, 1, 0]
 // is straight up.
@@ -311,6 +313,9 @@
 //   of       what it is of, which an attachment may name too: box3dvehicle's is the car's vehicle
 //   at       its point this frame; `dir` the way it throws, `floor` the height its particles rest at
 //   drivers  numbers by name, each a driver of the effects file, which drive its effect alone
+//   effect   left out by most: an effect of the file the source throws by itself, kept running on it as an
+//            attachment's is, with no attachment written (item3d's are each item's own effects, which its
+//            sidecar names); one the file has not throws, naming the source
 //
 // and `world.particle3d.attach` is a list, each `{ on, effect, of?, when? }`: the effect `effect` thrown
 // from every source whose `on` is `on` (and whose `of` is `of`, where the attachment gives one), kept
@@ -439,7 +444,7 @@ export const WORLD = ['effects', 'hold', 'attach', 'mods'] as const
 // Attachments).
 export type Attach = { on: string; effect: string; of?: string; when?: string }
 export const ATTACH = ['on', 'effect', 'of', 'when'] as const satisfies readonly (keyof Attach)[]
-export type Source = { key: string; on: string; of?: string; at: number[]; dir?: number[]; floor?: number; drivers: Record<string, number> }
+export type Source = { key: string; on: string; of?: string; effect?: string; at: number[]; dir?: number[]; floor?: number; drivers: Record<string, number> }
 export type Sources = (plugins: Plugins) => readonly Source[]
 // The fields of an emitter that are not numbers, which no driver drives: its names, and what is on or off.
 export const NAMES = ['sheet', 'clip', 'shape', 'carry'] as const satisfies readonly (keyof Emitter)[]
@@ -940,29 +945,42 @@ export function particle3d() {
     const { world } = plugins.wire.scene
     const sources = modsOf<Sources>(world!, 'particle3d', 'sources').flatMap(f => f(plugins))
     const kept = new Set<string>()
+    const driving = (s: Source) => {
+      for (const [n, v] of Object.entries(s.drivers)) {
+        if (!solver!.names.includes(n)) throw new Error(unknown(n, `particle3d's ${s.on} source ${s.key}`))
+        if (!Number.isFinite(v)) throw new Error(`particle3d's ${s.on} source ${s.key} has its driver ${n} at ${v}, and a driver is a finite number`)
+      }
+    }
+    // The effect `effect` kept running on the source, under `key`.
+    const keep = (key: string, effect: string, s: Source) => {
+      kept.add(key)
+      let fx = attached.get(key)
+      if (!fx) attached.set(key, (fx = spawn(effect, s.at, { dir: s.dir, floor: s.floor, life: Infinity, drivers: s.drivers }, Math.floor(Math.random() * 2 ** 32))))
+      fx.at = [...s.at]
+      fx.dir = s.dir && [...s.dir]
+      fx.floor = s.floor
+      for (const n of Object.keys(fx.drivers)) if (!(n in s.drivers)) delete fx.drivers[n]
+      Object.assign(fx.drivers, s.drivers)
+    }
     list.forEach((a, i) => {
       for (const s of sources) {
         if (s.on !== a.on || (a.of !== undefined && s.of !== a.of)) continue
-        for (const [n, v] of Object.entries(s.drivers)) {
-          if (!solver!.names.includes(n)) throw new Error(unknown(n, `particle3d's ${s.on} source ${s.key}`))
-          if (!Number.isFinite(v)) throw new Error(`particle3d's ${s.on} source ${s.key} has its driver ${n} at ${v}, and a driver is a finite number`)
-        }
+        driving(s)
         if (a.when !== undefined) {
           let run = whens.get(a.when)
           if (!run) whens.set(a.when, (run = driven(a.when, solver!.names, `world.particle3d.attach ${i}'s when`)))
           if (run(solver!.run({ ...over, ...s.drivers }, time)) === 0) continue
         }
-        const key = `${i}:${s.key}`
-        kept.add(key)
-        let fx = attached.get(key)
-        if (!fx) attached.set(key, (fx = spawn(a.effect, s.at, { dir: s.dir, floor: s.floor, life: Infinity, drivers: s.drivers }, Math.floor(Math.random() * 2 ** 32))))
-        fx.at = [...s.at]
-        fx.dir = s.dir && [...s.dir]
-        fx.floor = s.floor
-        for (const n of Object.keys(fx.drivers)) if (!(n in s.drivers)) delete fx.drivers[n]
-        Object.assign(fx.drivers, s.drivers)
+        keep(`${i}:${s.key}`, a.effect, s)
       }
     })
+    // a source that names its own effect, thrown from it with no attachment
+    for (const s of sources) {
+      if (s.effect === undefined) continue
+      if (!(s.effect in file!.effects)) throw new Error(`particle3d's ${s.on} source ${s.key} throws the effect ${s.effect}, which the effects file has not: list the file that holds it under the effects file's files`)
+      driving(s)
+      keep(`:${s.key}`, s.effect, s)
+    }
     for (const [key, fx] of attached) {
       if (kept.has(key)) continue
       fx.life = fx.age
@@ -1873,7 +1891,7 @@ export function particle3d() {
       })
   }
 
-  return {
+  const me = {
     // A page's own effect, from this frame on, its rolls seeded with `seed` when it is given. With
     // `age`, it has already run that many seconds: its bursts of those seconds are rolled and their
     // particles aged to now, as a page that joins a ledger entry late sees it, so a stream opens full.
@@ -1899,10 +1917,22 @@ export function particle3d() {
     // Asks the loader for the effects file before the actors tick, so `has` answers them.
     tick(plugins: Plugins) { setup(plugins) },
     afterTick(plugins: Plugins) {
+      const dt = plugins.wire.scene.prefabs.engine?.dt
+      if (!dt) throw new Error('scene has no engine prefab with dt')
+      me.step(plugins, dt)
+    },
+    // Every effect run on `seconds` at once, in steps no longer than the engine's `dt`, as that many
+    // frames would run it: a shot of effects as they stand once they have been running a while.
+    advance(plugins: Plugins, seconds: number) {
+      const dt = plugins.wire.scene.prefabs.engine?.dt
+      if (!dt) throw new Error('scene has no engine prefab with dt')
+      if (!(seconds >= 0)) throw new Error(`particle3d: advance is a number of seconds, 0 or more, not ${seconds}`)
+      for (let left = seconds; left > 1e-9; left -= dt) me.step(plugins, Math.min(dt, left))
+    },
+    // One frame of `dt` seconds: what `afterTick` runs each frame.
+    step(plugins: Plugins, dt: number) {
       const { scene } = plugins.wire
       const own = setup(plugins)
-      const dt = scene.prefabs.engine?.dt
-      if (!dt) throw new Error('scene has no engine prefab with dt')
 
       // The file checked the first frame it is read and the first after it is written, and its drivers
       // planned; then every driver's value this frame, before anything moves by a number driven.
@@ -1915,7 +1945,7 @@ export function particle3d() {
       if (solver) solve(plugins)
       // The attachments' effects started, moved and driven by their sources, or stopped, before anything
       // moves this frame, as an actor's `emit` in its tick is.
-      if (solver && own.attach) attach(plugins, own.attach)
+      if (solver && (own.attach || modsOf(scene.world!, 'particle3d', 'sources').length)) attach(plugins, own.attach ?? [])
 
       meets = modsOf<Solids>(scene.world!, 'particle3d', 'solids').map(f => f(plugins))
       for (const q of parts) move(q, dt)
@@ -2031,4 +2061,5 @@ export function particle3d() {
       parts = []
     },
   }
+  return me
 }

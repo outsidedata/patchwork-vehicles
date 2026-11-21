@@ -134,7 +134,7 @@ const yard: Scene = {
       },
     },
     motion3d: {
-      kinds: { body: { motion: 'motion', baked: 'baked', rig: 'rig', model: 'figure', fade: 0.2, reads: { pos: 'pos', yaw: 'yaw', vel: 'vel', grounded: 'grounded', limp: 'limp' }, lean: { most: 0.3, ease: 0.1 } } },
+      kinds: { body: { motion: 'motion', baked: 'baked', rig: 'rig', model: 'figure', fade: 0.2, blend: 'cross', reads: { pos: 'pos', yaw: 'yaw', vel: 'vel', grounded: 'grounded', limp: 'limp' }, lean: { most: 0.3, ease: 0.1 } } },
       anywhere: ANYWHERE,
       mods: { spaces: 'shapes3d' },
     },

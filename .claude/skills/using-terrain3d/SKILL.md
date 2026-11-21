@@ -22,7 +22,7 @@ The files, in `plugins/terrain3d/`:
 | `terrain3d.worker.ts` | worker | builds rings and runs `task`s off the page |
 | `terrain3d.bake.ts` | page | the baked rings: the look rendered into textures round the camera |
 | `terrain3d.present.ts` | worker or page | which ground layers the ground round a point hits, for the near maps |
-| `terrain3d.<p>.ts` (16) | either | mods: what plugin `p` gets when a scene names terrain3d in `world.<p>.mods` |
+| `terrain3d.<p>.ts` (19) | either | mods: what plugin `p` gets when a scene names terrain3d in `world.<p>.mods` |
 
 The headers of `terrain3d.sim.ts`, `terrain3d.warp.ts`, `terrain3d.plugin.ts`, `terrain3d.rings.ts`
 and `terrain3d.bake.ts` hold the whole contract. This skill summarises them. Where they disagree with
@@ -482,6 +482,9 @@ A scene switches each on with `world.<p>.mods: { <function>: 'terrain3d' }`. The
 | `box3d` | `ground` | chunk [i, j] as a height-field Static of `world.box3d.chunk.count` heights a side, `chunk.cell` m apart |
 | `box3dvehicle` | `land` (page), `grip`, `drag` (server) | dust spray and tyre marks off the painted surface, and its grip and rolling drag |
 | `lod3d` | `surfaces` (server), `seen` (page), `behaviors` | the land as one surface, `land`, of the word `land` (its (u, v) the world's (x, z)), which a layer stands on with `"on": ["land"]`: a foot at `heightAt`, its normal off the height half a metre either side, kept by the paint's `cover`, its rules over the land record (`layer:<name>` too), so the trunk a rule hits is the one a seat sees. `seen` hands the land as this page has it, its `version` moving with a new land and each stroke, `shown`, `prepared` (the place `prepare` holds), and `worker` (this module, with the field and unsaved strokes) for lod3d's workers. The other way round, lod3d's own `lod3d.terrain3d.ts` is terrain3d's `mods.ready`: whether every layer is held and every tile in reach of a prepared place worked |
+| `grass3d` | `land` (page) | the land a meadow stands on: `ground` (`height`, `cover`, `ramp`, `rules`), `version` moving with a new land and each stroke, `cell`, the finest ring's cell, so every blade stands on the triangle that is drawn, `shown`, `prepared`, and `worker` (this module, with the field and unsaved strokes) for grass3d's workers. The other way round, grass3d's own `grass3d.terrain3d.ts` is terrain3d's `mods.ready`: whether every block of ground round a prepared place is filled (`using-grass3d`) |
+| `gpgpu3d` | `things`, `behaviors` (page) | the land as a thing on the GPU, of the word `land`: a window of heights on the finest ring's lattice round the camera, wide enough to hold `world.gpgpu3d.reach` metres, filled in terrain3d's workers when its middle moves and when the land does, the old window handed until the new one lands. gpuparticle3d's particles bounce off it, fabric3d's cloths lie on it and hair3d's locks are kept out of it. A line that starts under the land or off the window meets nothing (`using-gpgpu3d`) |
+| `puppet3d` | `land` (page) | the ground puppet3d's bodies stand on: their feet put down on it, their trunks riding it. List terrain3d before puppet3d |
 | `solids` | `land` | models stood on the land |
 | `hitscan3d` | `ground` | `{ t, normal }` where a shot meets the land, or undefined |
 | `flight3d` | `ground` | `heightAt`: a plane that flies into the sea has hit it |

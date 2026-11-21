@@ -12,6 +12,9 @@
 //   shadows     `soft`, `hard` or `none`.
 //   background  a colour the scene is cleared to. Through the composer it is tone mapped with the
 //               rest of the frame; drawn straight, three clears to it as given.
+//   transparent true: the canvas drawn see-through wherever the scene draws nothing (the renderer made
+//               with `alpha` and cleared to nothing), so a shot of it is a picture with no backdrop, an
+//               icon. A scene with a `background` too throws.
 //   ao          { on, radius, thickness, falloff, scale, intensity, samples }: three's GTAOPass, run
 //               through an EffectComposer, while `on` is true; off when it is false or left out, so a
 //               scene keeps its AO's settings with the AO off. An `ao` that is off is as no `ao`
@@ -197,6 +200,7 @@ export type Prefab = {
   exposure?: number
   shadows?: 'soft' | 'hard' | 'none'
   background?: THREE.ColorRepresentation
+  transparent?: boolean
   ao?: { on?: boolean; radius: number; thickness: number; falloff: number; scale: number; intensity: number; samples: number }
   bloom?: { strength: number; radius: number; threshold: number }
   ssr?: Ssr
@@ -602,7 +606,8 @@ export function render3d() {
     if (renderer || !mounted || !prefab) return
     const p = prefab
     const [width, height] = size
-    const r = new THREE.WebGLRenderer({ canvas: mounted, reversedDepthBuffer: !!aoOf(p) })
+    const r = new THREE.WebGLRenderer({ canvas: mounted, reversedDepthBuffer: !!aoOf(p), alpha: !!p.transparent })
+    if (p.transparent) r.setClearColor(0x000000, 0)
     r.setPixelRatio(ratioOf(p))
     r.setSize(width, height)
     if (p.tone !== undefined) r.toneMapping = TONES[p.tone]
@@ -798,6 +803,7 @@ export function render3d() {
       camera.position.fromArray(at)
       camera.lookAt(...look)
       me.camera = camera
+      if (p.background !== undefined && p.transparent) throw new Error('render3d: a transparent scene is cleared to nothing, and this one gives a background too')
       if (p.background !== undefined) scene.background = new THREE.Color(p.background)
       if (p.ssr) {
         late.set('ssr', { ...SSR, uniforms: ssrUniforms })

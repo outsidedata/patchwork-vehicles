@@ -24,12 +24,13 @@
 //
 //   fill      what covers the whole canvas under everything else, a PixiJS fill; black when left out.
 //   pictures  drawn in their order over the fill, each `picture` a `texture` entry of the loader's
-//             catalogue `for: "ui"` with `preload`, so it starts on the first tick, its top left at
+//             catalogue `for: "ui"` not marked `preload: false`, so it starts on the first tick, its top left at
 //             `at`, stretched to `size`. Each is drawn once it has landed, the fill alone showing where
 //             it has not. A picture that is no such entry throws the first frame.
 //   bar       the ui's `bar` (`size`, `edge`, `frame`, `track`), its top left at `at`, filled in `fill`
 //             to how much of what the loader's first tick started has landed or failed
-//             (`plugins.loader.preloads()`), every `preload` and every font; then, while shaders are
+//             (`plugins.loader.preloads()`), every entry not marked `preload: false` and every font,
+//             never less than the page's loading cover had shown (below); then, while shaders are
 //             compiling, to how many of the most it has seen compiling at once have finished; left
 //             out, no bar.
 //   lines     one line of `text` at a time in the ui's style `style`, its middle at `at`, the next
@@ -39,13 +40,22 @@
 //             scene's `world.loader.mods.shaders`, render3d's); left out, nothing is said, and the screen
 //             still waits for them.
 //   fade      seconds the screen takes to fade out, from the frame everything the first tick started
-//             has landed or failed and no shader is compiling; 0 takes it away that frame.
+//             has landed or failed, no shader is compiling, and every plugin the scene's
+//             `world.loader.mods.ready` names says the world it draws is whole
+//             (`plugins.loader.settled()`; terrain3d's land and lod3d's tiles where the camera stands,
+//             through `terrain3d.loader.ts`); 0 takes it away that frame. The bar stays full and the
+//             tips go round while the world is still being made.
 //
 // The screen is shown from the first frame the ui ticks until it has faded, and never again for that
 // client: a page makes a client per scene, so each scene shows its own while its own art comes down.
 // Give its panel `modal`, so while it is up no click or key reaches the game and the player's keys are
 // let go, and a `layer` over every other panel. A scene with nothing to preload shows it for one frame
 // and fades it.
+//
+// The entry scene's screen is drawn before this one: the page's loading cover (`loader.cover.ts`),
+// the same screen in the DOM in the page's first bytes, fetching the files while the game's code comes
+// down. This takes it off the page the frame after the frame it drew every one of its pictures, so
+// the screen never blinks between the two, or once it has faded, whichever comes first.
 import type { Plugins } from '#engine/browser.ts'
 import type { Bar, Behaviors, Ui } from '../ui/ui.plugin.ts'
 
@@ -61,7 +71,21 @@ export type Loading = {
 // What one client's loading screen on one panel has come to: when it was first drawn and when what it
 // waits on was all in, in seconds, the most shaders it has seen compiling at once, and whether it has
 // gone.
-type Screen = { began: number; over?: number; peak: number; gone: boolean }
+type Screen = { began: number; over?: number; peak: number; gone: boolean; drawn: boolean }
+
+// The page's loading cover, which drew this screen in the page's first bytes (`loader.cover.ts`): taken
+// off the page once this screen is drawn under it. A page has one when the cover has put its fetches
+// where the loader reads them.
+const COVER = Symbol.for('loader: cover')
+export const uncover = () => {
+  if (!(globalThis as Record<symbol, unknown>)[COVER]) return
+  document.getElementById('loader-cover')?.remove()
+}
+
+// How much of its files the page's cover had in, 0 to 1, and 0 on a page with none: the ui's bar never
+// shows less while the files come, so taking over from the cover never moves it back. The cover counts
+// a file in once fetched, the loader once it has landed, which is later.
+const covered = (): number => ((globalThis as Record<symbol, { progress?: () => number } | undefined>)[COVER]?.progress?.() ?? 0)
 
 // The look's numbers, which come from the scene file, checked once.
 function check(look: Loading, panel: string, loader: Plugins['loader']) {
@@ -69,7 +93,7 @@ function check(look: Loading, panel: string, loader: Plugins['loader']) {
   if (!(typeof look.fade === 'number' && look.fade >= 0)) throw new Error(`${where} fade ${look.fade} is not a number of seconds from 0`)
   for (const p of look.pictures ?? []) {
     const it = loader.catalogued(p.picture)
-    if (!it || it.type !== 'texture' || it.for !== 'ui' || !it.preload) throw new Error(`${where} picture ${p.picture} is no preloaded texture entry for ui in world.loader.assets`)
+    if (!it || it.type !== 'texture' || it.for !== 'ui' || it.preload === false) throw new Error(`${where} picture ${p.picture} is no preloaded texture entry for ui in world.loader.assets`)
   }
   const l = look.lines
   if (l && !(typeof l.every === 'number' && l.every > 0)) throw new Error(`${where} lines every ${l.every} is not a number of seconds above 0`)
@@ -85,21 +109,26 @@ export const behaviors = (): Behaviors => {
       let s = screens.get(panel)
       if (!s) {
         check(look, panel, loader)
-        s = { began: now, peak: 0, gone: false }
+        s = { began: now, peak: 0, gone: false, drawn: false }
         screens.set(panel, s)
       }
       if (s.gone) return
+      // the frame after one that drew every picture, the cover over it comes off
+      if (s.drawn) uncover()
       const { done, of } = loader.preloads()
       const files = of ? done / of : 1
       const pending = loader.shaders()
       s.peak = Math.max(s.peak, pending)
       // the files first, then the shaders still compiling once every file is in
       const compiling = files >= 1 && pending > 0
-      const k = compiling ? 1 - pending / s.peak : files
-      if (files >= 1 && !pending && s.over === undefined) s.over = now
+      const k = compiling ? 1 - pending / s.peak : Math.max(files, covered())
+      // and the world the game is played in whole, as every plugin `world.loader.mods.ready` names says
+      const whole = loader.settled()
+      if (files >= 1 && !pending && whole && s.over === undefined) s.over = now
       const alpha = s.over === undefined ? 1 : look.fade > 0 ? 1 - (now - s.over) / look.fade : 0
       if (alpha <= 0) {
         s.gone = true
+        uncover()
         return
       }
       const { PIXI } = ui
@@ -146,6 +175,7 @@ export const behaviors = (): Behaviors => {
       }
 
       for (const it of shown) it.alpha = alpha
+      if ((look.pictures ?? []).every(p => !!loader.get(p.picture))) s.drawn = true
     },
   }
 }

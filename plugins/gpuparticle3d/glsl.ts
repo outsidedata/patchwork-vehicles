@@ -21,7 +21,6 @@ import { defines } from './layout.ts'
 // The width in texels of the table, of the effects texture and of the live texture.
 export const TW = 1024
 export const LIVE = 4
-export const SOLID = 12 // numbers a solid
 
 // Reading the table: a number, and two or three in a row by whole texels, one texel read for a run that sits
 // in one texel and two for one that crosses into the next.
@@ -66,9 +65,7 @@ uniform sampler2D sB;
 uniform sampler2D sC;
 uniform sampler2D sD;
 uniform sampler2D sR;
-uniform sampler2D solidsTex;
 uniform int S;
-uniform int solidsN;
 uniform float dt;
 
 ${TABLE}
@@ -164,8 +161,16 @@ float sized(P q) {
 vec3 place(P q) { return on(q.layer + L_follow) ? q.p + pointOf(q.fx) - q.o : q.p; }
 `
 
+// The `meet` of a scene that names no `solids` mod: a line meets nothing.
+export const NOTHING = /* glsl */ `
+bool meet(vec3 from, vec3 dir, float far, out float t, out vec3 normal) { t = far; normal = vec3(0.0); return false; }
+`
+
 // The step: particle3d's 'move', each force set's 'push' and 'whirl', the bounce off the solids and the floor.
-export const MOVE = /* glsl */ `
+// `meet` is the solids' GLSL, the `solids` mod's or NOTHING: it defines
+//   bool meet(vec3 from, vec3 dir, float far, out float t, out vec3 normal)
+// where a line from `from` along the unit `dir` first meets a solid within `far`, and the solid's normal there.
+export const MOVE = (meet: string) => /* glsl */ `
 // The seconds back the step being run is, for a particle the spawn is ageing to its effect's age.
 float behind = 0.0;
 // The scale of the effect of the particle being moved, read once a move.
@@ -275,115 +280,7 @@ void strike(inout P q, vec3 n, float into) {
   if (at(q.layer + L_spin) != 0.0 && radius > 0.0) q.spin = (q.spin < 0.0 ? -1.0 : 1.0) * (slide / radius);
 }
 
-// The solids (SOLID numbers each): a box, a plane, a hyperplane and a cylinder, met as shapes3d's and
-// hitscan3d's lines meet them (lineBox, linePlane, lineHyperplane, cylinder).
-float sld(int s, int k) { int i = s * ${SOLID} + k; int t = i >> 2; return texelFetch(solidsTex, ivec2(t % TW, t / TW), 0)[i & 3]; }
-vec3 qrot(vec4 r, vec3 v) { vec3 t = 2.0 * cross(r.xyz, v); return v + r.w * t + cross(r.xyz, t); }
-bool lineBox(int s, vec3 o, vec3 d, float far, out float t, out vec3 normal) {
-  vec3 pos = vec3(sld(s, 1), sld(s, 2), sld(s, 3)), size = vec3(sld(s, 4), sld(s, 5), sld(s, 6));
-  float c = cos(sld(s, 7)), sn = sin(sld(s, 7));
-  vec3 r = o - pos;
-  vec3 lo = vec3(r.x * c - r.z * sn, r.y, r.x * sn + r.z * c);
-  vec3 ld = vec3(d.x * c - d.z * sn, d.y, d.x * sn + d.z * c);
-  vec3 mn = vec3(-size.x / 2.0, 0.0, -size.z / 2.0), mx = vec3(size.x / 2.0, size.y, size.z / 2.0);
-  float tin = -1e30, tout = 1e30;
-  vec3 nin = vec3(0.0);
-  for (int i = 0; i < 3; i++) {
-    if (abs(ld[i]) < 1e-12) { if (lo[i] < mn[i] || lo[i] > mx[i]) return false; continue; }
-    float t1 = (mn[i] - lo[i]) / ld[i], t2 = (mx[i] - lo[i]) / ld[i];
-    vec3 n1 = vec3(0.0), n2 = vec3(0.0);
-    n1[i] = -1.0; n2[i] = 1.0;
-    if (t1 > t2) { float tt = t1; t1 = t2; t2 = tt; vec3 nn = n1; n1 = n2; n2 = nn; }
-    if (t1 > tin) { tin = t1; nin = n1; }
-    if (t2 < tout) tout = t2;
-    if (tin > tout) return false;
-  }
-  if (tin < 0.0 || tin > far) return false;
-  t = tin;
-  normal = vec3(nin.x * c + nin.z * sn, nin.y, -nin.x * sn + nin.z * c);
-  return true;
-}
-bool linePlane(int s, vec3 o, vec3 d, float far, out float t, out vec3 normal) {
-  vec3 pos = vec3(sld(s, 1), sld(s, 2), sld(s, 3));
-  vec2 size = vec2(sld(s, 4), sld(s, 5));
-  float c = cos(sld(s, 6)), sn = sin(sld(s, 6)), slope = sld(s, 7);
-  vec3 r = o - pos;
-  vec3 lo = vec3(r.x * c - r.z * sn, r.y, r.x * sn + r.z * c);
-  vec3 ld = vec3(d.x * c - d.z * sn, d.y, d.x * sn + d.z * c);
-  float across = ld.y - ld.z * slope;
-  if (abs(across) < 1e-12) return false;
-  t = -(lo.y - lo.z * slope) / across;
-  if (t < 0.0 || t > far) return false;
-  float hx = lo.x + ld.x * t, hz = lo.z + ld.z * t;
-  if (abs(hx) > size.x / 2.0 || abs(hz) > size.y / 2.0) return false;
-  float l = sqrt(1.0 + slope * slope), back = across > 0.0 ? -1.0 : 1.0;
-  vec3 n = vec3(0.0, back / l, (-slope * back) / l);
-  normal = vec3(n.x * c + n.z * sn, n.y, -n.x * sn + n.z * c);
-  return true;
-}
-bool lineHyperplane(int s, vec3 o, vec3 d, float far, out float t, out vec3 normal) {
-  vec3 pos = vec3(sld(s, 1), sld(s, 2), sld(s, 3));
-  vec2 size = vec2(sld(s, 4), sld(s, 5));
-  vec4 rot = vec4(sld(s, 6), sld(s, 7), sld(s, 8), sld(s, 9));
-  vec4 back = vec4(-rot.xyz, rot.w);
-  vec3 lo = qrot(back, o - pos), ld = qrot(back, d);
-  if (abs(ld.y) < 1e-12) return false;
-  t = -lo.y / ld.y;
-  if (t < 0.0 || t > far) return false;
-  if (abs(lo.x + ld.x * t) > size.x / 2.0 || abs(lo.z + ld.z * t) > size.y / 2.0) return false;
-  normal = qrot(rot, vec3(0.0, ld.y > 0.0 ? -1.0 : 1.0, 0.0));
-  return true;
-}
-bool lineCylinder(int s, vec3 o, vec3 d, float far, out float t, out vec3 normal) {
-  vec3 c = vec3(sld(s, 1), sld(s, 2), sld(s, 3));
-  float r = sld(s, 4), y0 = c.y, y1 = c.y + sld(s, 5);
-  bool found = false;
-  float best = 1e30; vec3 bn = vec3(0.0);
-  float ox = o.x - c.x, oz = o.z - c.z;
-  float a = d.x * d.x + d.z * d.z;
-  bool inside = ox * ox + oz * oz <= r * r;
-  if (a > 1e-12) {
-    float b = ox * d.x + oz * d.z;
-    float disc = b * b - a * (ox * ox + oz * oz - r * r);
-    if (disc >= 0.0) {
-      float sq = sqrt(disc);
-      float tt = inside ? (-b + sq) / a : (-b - sq) / a;
-      float y = o.y + d.y * tt;
-      if (y >= y0 && y <= y1 && tt >= 0.0 && tt <= far) {
-        float px = ox + d.x * tt, pz = oz + d.z * tt;
-        vec3 n = normalize(vec3(px, 0.0, pz)) * (inside ? -1.0 : 1.0);
-        found = true; best = tt; bn = n;
-      }
-    }
-  }
-  if (abs(d.y) > 1e-12) {
-    for (int i = 0; i < 2; i++) {
-      float y = i == 0 ? y0 : y1;
-      float tt = (y - o.y) / d.y;
-      float px = ox + d.x * tt, pz = oz + d.z * tt;
-      if (tt >= 0.0 && tt <= far && px * px + pz * pz <= r * r && tt < best) {
-        found = true; best = tt; bn = vec3(0.0, (i == 0) == (d.y > 0.0) ? -1.0 : 1.0, 0.0);
-      }
-    }
-  }
-  t = best; normal = bn;
-  return found;
-}
-bool meet(vec3 from, vec3 dir, float far, out float t, out vec3 normal) {
-  bool any = false;
-  t = 1e30;
-  for (int s = 0; s < 1024; s++) {
-    if (s >= solidsN) break;
-    float st; vec3 sn;
-    int kind = int(sld(s, 0));
-    bool hit = kind == 0 ? lineBox(s, from, dir, far, st, sn)
-      : kind == 1 ? linePlane(s, from, dir, far, st, sn)
-      : kind == 2 ? lineHyperplane(s, from, dir, far, st, sn)
-      : lineCylinder(s, from, dir, far, st, sn);
-    if (hit && st < t) { any = true; t = st; normal = sn; }
-  }
-  return any;
-}
+${meet}
 
 void move(inout P q, float dt) {
   int l = q.layer;
@@ -402,7 +299,7 @@ void move(inout P q, float dt) {
   float left = dt * k;
   float bounce = at(l + L_bounce);
   for (int b = 0; b < 4; b++) {
-    if (bounce < 0.0 || solidsN == 0 || left <= 0.0) break;
+    if (bounce < 0.0 || left <= 0.0) break;
     float speed = length(q.v), far = speed * left;
     float t; vec3 nrm;
     if (!(far > 0.0) || !meet(q.p, q.v / speed, far, t, nrm)) break;
@@ -461,7 +358,7 @@ void free() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
 
 // The step of every particle: moved one step of dt, and its slot freed the step it dies. A particle whose slot
 // the CPU has freed and given to another this frame is written over after, by the spawn.
-export const STEP = /* glsl */ `${PRELUDE}${MOVE}${OUTS}
+export const STEP = (meet: string) => /* glsl */ `${PRELUDE}${MOVE(meet)}${OUTS}
 void main() {
   int slot = int(gl_FragCoord.y) * S + int(gl_FragCoord.x);
   P q = load(slot);
@@ -491,7 +388,7 @@ void main() {
   gl_PointSize = 1.0;
 }
 `
-export const SPAWN = /* glsl */ `${PRELUDE}${MOVE}${OUTS}
+export const SPAWN = (meet: string) => /* glsl */ `${PRELUDE}${MOVE(meet)}${OUTS}
 uniform sampler2D burstsTex;
 flat in int vSlot;
 flat in int vBurst;

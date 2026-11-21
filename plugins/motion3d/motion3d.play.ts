@@ -11,10 +11,20 @@
 //   model   a loader `model` entry: the body the browser half draws
 //   glb     a loader `binary` entry of the model's same file: the body the server poses
 //   fade    seconds a change of clip fades over
+//   blend   how: `cross` or `inertial` (Inertialization); a kind that gives neither throws
 //   reads   the names of the row's fields it reads: `pos`, `yaw`, `vel`, `grounded`, `limp`
-//   props   `[{ model, bone, at, turn }]`, loader models hung on bones (the browser half's)
+//   props   `[{ model, bone, at, turn }]`, loader models hung on bones (the browser half's); the `props` mod
+//           may hang props on the kind too, after these (`held(kind)`: item3d's, off its bodies sheet), and
+//           `propsOf` is the two together
+//   capsules  `[{ from, to, radius }]`, the body as gpgpu3d holds it for what is moved on the GPU
+//           (`motion3d.gpgpu3d.ts`): each a capsule `radius` metres round between the bones whose names
+//           end with `from` and `to`, or `{ bone, at, radius }`, a ball carried by a bone, `at` metres in
+//           its frame; the `capsules` mod (`world.motion3d.mods.capsules`, item3d's) may give the kind
+//           capsules after these, and `capsulesOf` is the two together
 // The motion3d file's `moves` and `turns` say which one-shots carry travel: one that ends more than `moves` metres
-// from its start, or turns `turns` degrees or more; under `turns`, its yaw column is zeroed.
+// from its start, or turns `turns` degrees or more; under `turns`, its yaw column is zeroed. Its `down`,
+// metres, is how far over its lowest an ankle stands while its foot is down, which keeps mixed clips in
+// step (Mixes); a file whose motions mix nothing needs none.
 //
 // The rig file:
 //   clips   name to a file string, or `{ file, loop, markers, scale, rate, mirror, rebase }`: `loop` laps
@@ -36,7 +46,8 @@
 //            `.poses.json` beside its FBX, and its time, `at` seconds (`plugins/anim/anim.export.py`).
 //
 // A row that plays carries `state` (`act` while its clip plays, `done` once a one-shot has played out),
-// `clip`, `clipT` (seconds into it), `rate`, `blend`, `from` and `fromT`; and the upper half's own two
+// `clip`, `clipT` (seconds into it), `rate`, `blend`, `from` and `fromT`; `inert`, the changes of clip
+// being inertialized (Inertialization); and the upper half's own two
 // slots, as anim's upper channel: `upper` the clip played over the body from the bone `upperBone` and
 // every bone under it, `upperT` its playhead and `upperW` its share, and `was`, `wasT`, `wasW`, `wasBone`
 // the one it fades out from.
@@ -47,6 +58,31 @@
 // whatever the body plays, each bone turned on by as much as the clip turns it from its own first
 // frame, at the layer's weight `w` (and moved on by as much as the clip moves it), from the bone `bone`
 // up, or the whole body with none: a flinch over a run, breathing over anything.
+// Mixes: `mix`, `[{ clip, t, w }]`, the clips drawn with the body's `clip`, each at its playhead and its
+// share of the clip's weight, the clip itself the rest (a strafe drawn between its forward and its left);
+// `fromMix` those drawn with `from` as it fades out, frozen with it. motion3d's server half sets them
+// (`motion3d.sim.ts`, Mixes). Mixed loops are kept in step by the left foot coming down (`downOf`): each
+// as far through its lap from that as the body's clip is through its own (`inStep`). `play` and `stop`
+// freeze the mix into `fromMix` as they freeze the clip into `from`, and begin the new clip unmixed.
+// Inertialization. A kind's `blend` says how its body goes from one clip to the next over its `fade`:
+// `cross`, the clip it leaves frozen and drawn at 1 − `blend` under the one it goes to; `inertial`, the
+// clip it goes to drawn whole at once, and each joint's offset from the pose the body left in to the
+// pose that clip began in laid on, decaying to nothing over the fade along its own axis from the speed it
+// moved at (`decayed`, Bollo's). Each change is an entry of the row's `inert` (`Inert`): `play` starts one
+// from the clip it leaves, `settle` takes where the clip gone to began once a motion has set its playhead
+// and its mix, the server half folds in the jump of the body's place (`left`, `root`) so the hips go on
+// from where they were drawn, and `animate` takes it on and lets it go through the fade. A change cut
+// short by another keeps decaying beside it, so the body goes on from the pose drawn, where a crossfade
+// drops the clip half faded in and pops back to the one it froze. `posed` and the browser half lay the
+// same offsets (`inertiaOf`) on the clip's pose. The upper half's two and the additive layers fade as
+// they do either way.
+//   inertiaOf(from, me)  each joint's turn and move left of every change the row inertializes
+//   decayed(x0, v0, T, t)  an offset's decay
+//   settle(me)        the change into the row's clip taking its playhead and mix as they are now
+//   downOf(from, me, clip)  when a loop's left foot comes down in its lap, seconds: the start of the
+//                     stretch round the lap its left ankle stands within the motion3d file's `down`
+//                     metres of its lowest, off the rig's `ends` (a mirrored clip's, its source's right)
+//   inStep(from, me, clip, t, other)  where `other` stands in step with `clip` at `t`
 //   lay(me, name, clip, { most, loop, bone })  the layer `name` begun on `clip` from 0, fading in to
 //                     `most` over `fade` (a layer of that name already on taken off first)
 //   lift(me, name)    the layer `name` let go: it fades out over `fade` and is taken off
@@ -88,10 +124,13 @@
 //   "strike"   the second the fastest of its hands and feet moves fastest: where a blow lands
 //   "takeoff"  the second its last foot leaves the ground it stood on at the start: where a jump leaves it
 //   "landing"  the second a foot comes down again after the takeoff: where a jump lands
+//   "plant"    the second its first hand comes down on something: where a vault's hand meets the box;
+//              a clip whose hands plant on nothing has none, and a time at it throws
 // A clip whose feet never leave the ground has its takeoff and its landing at 0 and at its end. A moment
 // may be moved on or back by seconds, "strike-0.08", held within the clip.
 import type { Row, W } from '#engine/engine.ts'
-import type { Wire } from '#engine/browser.ts'
+import type { Plugins, Wire } from '#engine/browser.ts'
+import { ahead, mod, provided } from '#addons/scenemanager/scenemanager.addon.ts'
 import { Matrix4, Quaternion, Vector3 } from 'three'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { binary, json } from '#plugins/loader/loader.sim.ts'
@@ -109,7 +148,10 @@ export type Measure = {
   travel: number[][]
 }
 export type Reads = { pos: string; yaw: string; vel: string; grounded: string; limp: string }
-export type Prop = { model: string; bone: string; at: number[]; turn: number[] }
+// A prop hung on a bone: a loader model, or an item the `props` mod hands (`motion3d.plugin.ts`, Props).
+export type Prop = ({ model: string } | { item: string }) & { bone: string; at: number[]; turn: number[] }
+// A prop's name, which a carry's `prop` names it by: its model's, or its item's.
+export const propName = (p: Prop) => ('item' in p ? p.item : p.model)
 export type Plant = { point: string; from: number; to: number; at: number[]; on: string }
 export type Touch = { case: string; loop: boolean; dur: number; plants: Plant[]; [field: string]: unknown }
 export type Limb = 'handL' | 'handR' | 'footL' | 'footR'
@@ -126,7 +168,41 @@ export type Rig = {
 }
 // A pose: a frame of a clip of the rig, and its time in seconds.
 export type Pose = { clip: string; frame: number; at: number }
-export type Body = { rig: string; measured?: string; model: string; glb?: string; fade: number; reads: Reads; props?: Prop[] }
+export type Capsule = { from: string; to: string; radius: number } | { bone: string; at: number[]; radius: number }
+export type Body = { rig: string; measured?: string; model: string; glb?: string; fade: number; blend: 'cross' | 'inertial'; reads: Reads; props?: Prop[]; capsules?: Capsule[] }
+// What the `props` mod hands of a kind's props (`motion3d.plugin.ts`, Props): `held(kind)`, the props it hangs
+// on every body of that kind, [] for a kind it hangs none on. The `capsules` mod: `capsules(plugins)` hands back
+// the capsules it gives a kind, [] for a kind it gives none.
+export type Held = (plugins: Plugins) => { held(kind: string): Prop[] }
+export type Capsules = (plugins: Plugins) => (kind: string) => Capsule[]
+// A kind's props on this page: its own (`<kind>.props`), then those the `props` mod hangs on it, in that order,
+// which is the order of `plugins.motion3d.props(id)` and the one a carry finds its prop in.
+export function propsOf(plugins: Plugins, kind: string): Prop[] {
+  const scene = plugins.wire.scene
+  const own: Prop[] = scene.world!.motion3d?.kinds?.[kind]?.props ?? []
+  const from = mod<Held>(scene.world!, 'motion3d', 'props')
+  if (!from) return own
+  ahead(scene, 'motion3d', 'props')
+  const more = from(plugins).held(kind)
+  return !own.length ? more : !more.length ? own : [...own, ...more]
+}
+// A kind's capsules on this page: its own (`<kind>.capsules`), then those the `capsules` mod gives it.
+export function capsulesOf(plugins: Plugins, kind: string): Capsule[] {
+  const scene = plugins.wire.scene
+  const own: Capsule[] = scene.world!.motion3d?.kinds?.[kind]?.capsules ?? []
+  const from = mod<Capsules>(scene.world!, 'motion3d', 'capsules')
+  if (!from) return own
+  provided(scene, 'motion3d', 'capsules')
+  const more = from(plugins)(kind)
+  return !own.length ? more : !more.length ? own : [...own, ...more]
+}
+// One change of the body's clip being inertialized (Inertialization, the header): the clip it came from,
+// its playhead, its mix and the row's rate as it was left; the clip it went to, its playhead and its mix
+// as it began, and the row's rate it began at; how far through the kind's `fade` it is, 0 to 1; and, once
+// the server half has placed the clip gone to (`motion3d.sim.ts`), where the body stood as it changed
+// (`left`, [x, y, z, yaw] and its tilt after) and the turn and move from where it stood to where it
+// stands now, in its own frame (`root`, a matrix's 16 numbers), or null for none.
+export type Inert = { from: string; t: number; mix: Mix[]; rate: number; to: string; t0: number; mix0: Mix[]; rate0: number; s: number; left: number[] | null; root: number[] | null }
 export type Clip = {
   name: string
   source: string // the clip whose tracks it draws: its own name, or the clip it mirrors
@@ -143,7 +219,9 @@ export type Marker = { name: string; clip: string }
 // A clip's markers and windows in seconds on one body.
 export type Times = { markers: { name: string; t: number }[]; windows: { name: string; from: number; to: number }[] }
 export type Travel = { move: number[]; yaw: number }
-export type Moves = { moves: number; turns: number }
+export type Moves = { moves: number; turns: number; down?: number }
+// A clip drawn with the body's own (Mixes, the header): its name, its playhead and its share.
+export type Mix = { clip: string; t: number; w: number }
 
 const DEG = Math.PI / 180
 // An angle in (−180, 180] degrees, or (−π, π] radians with `half` π.
@@ -168,11 +246,11 @@ const entryOf = (rig: Rig, name: string) => {
 }
 
 // The moments a time may name (Moments, the header).
-const MOMENTS = ['peak', 'strike', 'takeoff', 'landing']
+const MOMENTS = ['peak', 'strike', 'takeoff', 'landing', 'plant']
 
 // A time's check as the rig is read: seconds, "NN%" or a moment.
 function checkTime(clip: string, marker: string, at: Time) {
-  if (typeof at === 'number' ? Number.isFinite(at) : MOMENTS.includes(at) || /^\d+(?:\.\d+)?%$/.test(at) || /^(peak|strike|takeoff|landing)[+-]\d+(?:\.\d+)?$/.test(at)) return
+  if (typeof at === 'number' ? Number.isFinite(at) : MOMENTS.includes(at) || /^\d+(?:\.\d+)?%$/.test(at) || /^(peak|strike|takeoff|landing|plant)[+-]\d+(?:\.\d+)?$/.test(at)) return
   throw new Error(`motion3d: ${clip}'s marker ${marker} is at ${JSON.stringify(at)}, which is no seconds, "NN%" or one of ${MOMENTS.join(', ')}, maybe moved by seconds ("strike-0.1")`)
 }
 
@@ -252,6 +330,7 @@ const worldOf = (from: W | Wire) => ('find' in from ? from.world : from.scene.wo
 export function numbersOf(from: W | Wire, kind: string): Body {
   const k = worldOf(from).motion3d?.kinds?.[kind]
   if (!k) throw new Error(`motion3d has no kind ${kind}: world.motion3d.kinds names none`)
+  if (k.blend !== 'cross' && k.blend !== 'inertial') throw new Error(`motion3d kind ${kind} gives blend ${JSON.stringify(k.blend)}, which is neither cross nor inertial`)
   return k
 }
 // The motion3d file, read for its `moves` and `turns`.
@@ -291,6 +370,64 @@ const FRESH = {
 export function fill(d: any) {
   for (const [k, v] of Object.entries(FRESH)) d[k] ??= v
   d.adds ??= []
+  d.mix ??= []
+  d.fromMix ??= []
+  d.inert ??= []
+}
+
+// The clip the body went to, begun at another playhead or mix than `play` began it at (a motion's
+// `begin`, a pose, the clips mixed with it): the change being inertialized into it takes them as where it
+// began (Inertialization, the header).
+export function settle(me: Row) {
+  const d = me.data
+  fill(d)
+  const last = (d.inert as Inert[])[d.inert.length - 1]
+  if (!last || last.to !== d.clip || last.s !== 0) return
+  d.inert = [...d.inert.slice(0, -1), { ...last, t0: d.clipT, mix0: (d.mix as Mix[]).map(m => ({ ...m })), rate0: d.rate }]
+}
+
+// ---------------------------------------------------------------- mixes
+
+// When a loop's left foot comes down in its lap, seconds (Mixes, the header): off the rig's `ends` for
+// the kind's `model`, the start of the stretch, round the lap, the left ankle stands within the motion3d
+// file's `down` metres of its lowest. A mirrored clip's is its source's right foot. A file with no `down`
+// throws, as does a clip with no ends or a one-shot.
+const downs = new WeakMap<object, Map<string, number>>()
+export function downOf(from: W | Wire, me: Row, clip: string): number {
+  const kind = playKind(me)
+  const rig = rigOf(from, kind)
+  const c = clipOf(rig, clip)
+  if (!c.loop) throw new Error(`motion3d: ${clip} is mixed, and it is no loop`)
+  const near = movesOf(from, kind).down
+  if (typeof near !== 'number') throw new Error(`motion3d: ${kind}'s motion3d file gives no down, which keeps the clips it mixes in step`)
+  const body = numbersOf(from, kind).model
+  let byClip = downs.get(rig.ends ?? rig)
+  if (!byClip) downs.set(rig.ends ?? rig, (byClip = new Map()))
+  const key = `${body} ${clip} ${near}`
+  const had = byClip.get(key)
+  if (had !== undefined) return had
+  const e = rig.ends?.[body]?.[c.source]
+  const rows = e?.[c.mirrored ? 'footR' : 'footL'] as number[][] | undefined
+  if (!e || !rows) throw new Error(`motion3d: ${clip} is mixed, and ${kind}'s rig has no ends of ${c.source} for ${body}; bake it`)
+  // The lap's frames, its last the first again.
+  const n = rows.length - 1
+  const at = (f: number) => rows[((f % n) + n) % n][1]
+  let low = 0
+  for (let f = 1; f < n; f++) if (at(f) < at(low)) low = f
+  let down = low
+  for (let k = 0; k < n && at(down - 1) <= at(low) + near; k++) down--
+  const t = ((((down % n) + n) % n) / n) * c.dur
+  byClip.set(key, t)
+  return t
+}
+
+// Where clip `to` stands in step with `from` at `t` seconds into it (Mixes, the header): as far through
+// its lap from its left foot coming down as `from` is through its own.
+export function inStep(w: W | Wire, me: Row, from: string, t: number, to: string): number {
+  const rig = rigOf(w, playKind(me))
+  const a = clipOf(rig, from), b = clipOf(rig, to)
+  const share = (t - downOf(w, me, from)) / a.dur + downOf(w, me, to) / b.dur
+  return (share - Math.floor(share)) * b.dur
 }
 
 // ---------------------------------------------------------------- additive layers
@@ -396,10 +533,14 @@ export function play(me: Row, clip: string, { rate }: { rate?: number } = {}) {
     if (d.blend >= 1) {
       d.from = d.clip
       d.fromT = d.clipT
+      d.fromMix = d.mix
     }
     d.blend = 0
+    // The change inertialized (Inertialization, the header): from the clip it played as it left it.
+    d.inert = [...d.inert, { from: d.clip, t: d.clipT, mix: d.mix, rate: d.rate, to: clip, t0: 0, mix0: [], rate0: rate ?? 1, s: 0, left: null, root: null }]
   }
   d.clip = clip
+  d.mix = []
   d.state = 'act'
   d.clipT = 0
   d.rate = rate ?? 1
@@ -411,6 +552,7 @@ export function pose(me: Row, w: W, name: string) {
   if (!p) throw new Error(`motion3d: ${kind}'s rig has no pose ${name}`)
   play(me, p.clip, { rate: 0 })
   me.data.clipT = p.at
+  settle(me)
 }
 
 export function stop(me: Row) {
@@ -420,9 +562,11 @@ export function stop(me: Row) {
     if (d.blend >= 1) {
       d.from = d.clip
       d.fromT = d.clipT
+      d.fromMix = d.mix
     }
     d.blend = 0
   }
+  d.mix = []
   d.state = 'done'
 }
 
@@ -530,6 +674,15 @@ function airOf(from: W | Wire, me: Row, c: Clip): { takeoff: number; landing: nu
   return { takeoff, landing: after.length ? Math.min(...after) : c.dur }
 }
 
+// When a clip's first hand comes down on something (Moments, the header): the earliest start of a run
+// either hand is planted in. A clip whose hands plant on nothing has no plant, and a time at it throws.
+function plantOf(from: W | Wire, me: Row, c: Clip, marker: string): number {
+  const p = plantsOf(from, me, c.name)
+  const starts = [...p.handL, ...p.handR].map(r => r[0])
+  if (!starts.length) throw new Error(`motion3d: ${c.name}'s ${marker} is at its plant, and neither hand of it is planted on anything`)
+  return Math.min(...starts)
+}
+
 // A time in seconds on the row's body.
 function secondsOf(from: W | Wire, me: Row, c: Clip, marker: string, at: Time): number {
   if (typeof at === 'number') return at
@@ -538,11 +691,12 @@ function secondsOf(from: W | Wire, me: Row, c: Clip, marker: string, at: Time): 
     return c.measure.peak
   }
   // A moment moved on or back by seconds: "strike-0.1".
-  const by = /^(peak|strike|takeoff|landing)([+-]\d+(?:\.\d+)?)$/.exec(at)
+  const by = /^(peak|strike|takeoff|landing|plant)([+-]\d+(?:\.\d+)?)$/.exec(at)
   if (by) return Math.max(0, Math.min(c.dur, secondsOf(from, me, c, marker, by[1]) + Number(by[2])))
   if (at === 'strike') return strikeOf(from, me, c).t
   if (at === 'takeoff') return airOf(from, me, c).takeoff
   if (at === 'landing') return airOf(from, me, c).landing
+  if (at === 'plant') return plantOf(from, me, c, marker)
   return (Number(at.slice(0, -1)) / 100) * c.dur
 }
 
@@ -596,7 +750,7 @@ export function open(from: W | Wire, me: Row, clip: string, t: number): string[]
 // the motion file's moves and turns. It throws for a kind with no `glb`, and for a clip the glb has none of.
 
 const swapSide = (name: string) => name.replace(/Left|Right/g, s => (s === 'Left' ? 'Right' : 'Left'))
-const bareBone = (name: string) => name.replace(/^mixamorig\d*:?/, '')
+export const bareBone = (name: string) => name.replace(/^mixamorig\d*:?/, '')
 
 type Track = { times: Float32Array; values: Float32Array }
 export type Skeleton = {
@@ -695,19 +849,21 @@ export type Part = { slot: 'to' | 'from' | 'upper' | 'was' | 'add'; clip: string
 
 const SHARE = 0.999 // as anim's: the most of an upper bone the upper half holds, short of the 1 its weight s/(1 − s) cannot reach
 
-// The parts the row's fields draw: its clip at `blend`, and the one it fades from at the rest; over them
+// The parts the row's fields draw: its clip at `blend`, and the one it fades from at the rest, each
+// sharing its weight with the clips mixed with it (`mix`, `fromMix`); over them
 // the upper half's two, each from its own bone up; and on top of all of them each additive layer (`add`)
 // at its weight, from its bone up or over the whole body. The mixer keeps a running weighted average, so a part of
 // share s over a base of weight 1 is given weight s/(1 − s): shares a and b get weights a·k and b·k,
 // k = s/(a + b)/(1 − s), s = min(0.999, a + b), so together they hold s of every bone under them.
-export function partsOf(d: any): Part[] {
+export function partsOf(d: any, inertial: boolean): Part[] {
   const into = fresh()
-  return into.slice(0, partsInto(d, into))
+  return into.slice(0, partsInto(d, into, inertial))
 }
 
 // The same parts, of some weight each, written over the first of `into` and counted. `posed` reads them
 // every call to see whether the row's pose has moved, so they are written into parts it keeps rather than made.
-function partsInto(d: any, into: Part[]): number {
+// A kind that inertializes (Inertialization, the header) draws its clip whole and nothing it fades from.
+function partsInto(d: any, into: Part[], inertial: boolean): number {
   let n = 0
   const put = (slot: Part['slot'], clip: string, t: number, w: number, bone?: string) => {
     if (!(w > 0)) return
@@ -720,9 +876,16 @@ function partsInto(d: any, into: Part[]): number {
     p.bone = bone
   }
   if (d.clip == null) return 0
-  const blend = d.from != null ? d.blend : 1
-  put('to', d.clip, d.clipT, blend)
-  if (d.from != null && blend < 1) put('from', d.from, d.fromT, 1 - blend)
+  const blend = d.from != null && !inertial ? d.blend : 1
+  // The clip and the clips mixed with it (Mixes), sharing its weight; the one it fades from, and those
+  // mixed with that, sharing the rest.
+  const mix = (d.mix ?? []) as Mix[], fromMix = (d.fromMix ?? []) as Mix[]
+  put('to', d.clip, d.clipT, blend * (1 - mix.reduce((s, m) => s + m.w, 0)))
+  for (const m of mix) put('to', m.clip, m.t, blend * m.w)
+  if (d.from != null && blend < 1) {
+    put('from', d.from, d.fromT, (1 - blend) * (1 - fromMix.reduce((s, m) => s + m.w, 0)))
+    for (const m of fromMix) put('from', m.clip, m.t, (1 - blend) * m.w)
+  }
   const a = d.upper != null ? d.upperW : 0
   const b = d.was != null ? d.wasW : 0
   if (a + b > 0) {
@@ -776,16 +939,17 @@ function sampled(rig: Rig, sk: Skeleton, clip: string, bone: string, what: 'r' |
 }
 
 // Each row's last pose, and everything it was posed from: the skeleton, the rig's `clips` and `table`
-// (the loader parses a changed file into new ones), the motion file's moves and turns, and the parts.
-type Kept = { sk: Skeleton; clips: Rig['clips']; table: Rig['table']; moves: number; turns: number; parts: Part[]; bones: Map<string, Matrix4> }
+// (the loader parses a changed file into new ones), the motion file's moves and turns, the parts, and the
+// changes it inertializes.
+type Kept = { sk: Skeleton; clips: Rig['clips']; table: Rig['table']; moves: number; turns: number; parts: Part[]; inert: string; bones: Map<string, Matrix4> }
 const lastPose = new WeakMap<Row, Kept>()
 
 // The parts a row's fields draw this call, written here first and kept only when the pose is made again.
 const drawn = fresh()
 
 // Whether the row is to be posed as it was last posed.
-function unmoved(had: Kept, sk: Skeleton, rig: Rig, a: Moves, n: number): boolean {
-  if (had.sk !== sk || had.clips !== rig.clips || had.table !== rig.table) return false
+function unmoved(had: Kept, sk: Skeleton, rig: Rig, a: Moves, n: number, inert: string): boolean {
+  if (had.sk !== sk || had.clips !== rig.clips || had.table !== rig.table || had.inert !== inert) return false
   if (had.moves !== a.moves || had.turns !== a.turns || had.parts.length !== n) return false
   for (let i = 0; i < n; i++) {
     const p = drawn[i], q = had.parts[i]
@@ -794,18 +958,12 @@ function unmoved(had: Kept, sk: Skeleton, rig: Rig, a: Moves, n: number): boolea
   return true
 }
 
-export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
-  const kind = playKind(me)
-  const rig = rigOf(from, kind)
-  const sk = skeletonOf(from, kind)
-  const a = movesOf(from, kind)
-  const n = partsInto(me.data, drawn)
-  const had = lastPose.get(me)
-  if (had && unmoved(had, sk, rig, a, n)) return had.bones
-  const parts = drawn.slice(0, n).map(p => ({ ...p }))
-  const names = Object.keys(sk.bones)
-  const local = new Map<string, { t: Vector3; q: Quaternion; s: Vector3 }>()
-  for (const name of names) {
+// Each joint's place, turn and scale in its parent's frame, drawn from `parts` (each at its weight, the
+// rest of a joint's weight its bind), its hips pinned as their clips have them (`pin`).
+type Local = Map<string, { t: Vector3; q: Quaternion; s: Vector3 }>
+function localPose(rig: Rig, sk: Skeleton, parts: Part[], a: Moves): Local {
+  const local: Local = new Map()
+  for (const name of Object.keys(sk.bones)) {
     const rest = sk.bones[name]
     const q = [0, 0, 0, 1], p = [0, 0, 0]
     let wq = 0, wp = 0
@@ -831,6 +989,31 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     local.set(name, { t: new Vector3().fromArray(p), q: new Quaternion().fromArray(q), s: new Vector3().fromArray(rest.s) })
   }
   pin(rig, sk, local.get(sk.hips)!, parts.filter(p => p.slot === 'to' || p.slot === 'from'), a)
+  return local
+}
+
+export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
+  const kind = playKind(me)
+  const rig = rigOf(from, kind)
+  const sk = skeletonOf(from, kind)
+  const a = movesOf(from, kind)
+  const inertial = numbersOf(from, kind).blend === 'inertial'
+  const n = partsInto(me.data, drawn, inertial)
+  const inert = inertial ? JSON.stringify(me.data.inert ?? []) : ''
+  const had = lastPose.get(me)
+  if (had && unmoved(had, sk, rig, a, n, inert)) return had.bones
+  const parts = drawn.slice(0, n).map(p => ({ ...p }))
+  const names = Object.keys(sk.bones)
+  const local = localPose(rig, sk, parts, a)
+  // Each change of clip inertialized: every joint turned and moved on by what is left of its offset.
+  if (inertial) {
+    for (const [name, o] of inertiaOf(from, me)) {
+      const b = local.get(name)
+      if (!b) continue
+      b.q.premultiply(o.q)
+      b.t.add(o.t)
+    }
+  }
   // Each additive layer laid on top (`added`).
   for (const part of parts) if (part.slot === 'add') added(rig, sk, names, local, part)
   // Each joint's matrix in the body's frame, its parent's first.
@@ -849,7 +1032,112 @@ export function posed(from: W | Wire, me: Row): Map<string, Matrix4> {
     return out
   }
   const out = world()
-  lastPose.set(me, { sk, clips: rig.clips, table: rig.table, moves: a.moves, turns: a.turns, parts, bones: out })
+  lastPose.set(me, { sk, clips: rig.clips, table: rig.table, moves: a.moves, turns: a.turns, parts, inert, bones: out })
+  return out
+}
+
+// ---------------------------------------------------------------- inertialization
+
+// The step a joint's speed is read over, seconds: a sixtieth, the clip's own frame or finer.
+const H = 1 / 60
+
+// How far an offset `x0` that moves at `v0` a second has left to go `t` seconds into a decay of `T`
+// seconds (Bollo, "Inertialization", GDC 2018): a fifth-order curve from x0 at v0 to nothing at rest by
+// t1, the sooner of T and the time v0 would take it there five times over, its speed and its acceleration
+// there none, never past nothing. A speed away from nothing is taken as none, as Bollo takes it: carried,
+// a joint's speed goes on only along its own offset's axis, and the body's limbs, whose speeds lie
+// across it, come out more jolted than a crossfade leaves them (measured, walking let go into its stop).
+export function decayed(x0: number, v0: number, T: number, t: number): number {
+  if (!(x0 > 0) || !(T > 0)) return 0
+  const v = Math.min(0, v0)
+  const t1 = v < 0 ? Math.min(T, (-5 * x0) / v) : T
+  if (t >= t1) return 0
+  const a0 = Math.max(0, (-8 * v * t1 - 20 * x0) / (t1 * t1))
+  const A = -(a0 * t1 * t1 + 6 * v * t1 + 12 * x0) / (2 * t1 ** 5)
+  const B = (3 * a0 * t1 * t1 + 16 * v * t1 + 30 * x0) / (2 * t1 ** 4)
+  const C = -(3 * a0 * t1 * t1 + 12 * v * t1 + 20 * x0) / (2 * t1 ** 3)
+  return A * t ** 5 + B * t ** 4 + C * t ** 3 + (a0 / 2) * t * t + v * t + x0
+}
+
+// The parts of a clip at `t` with the clips mixed with it, each kept in step with it (`inStep`), its
+// shares as `mix` gives them.
+function partsAt(from: W | Wire, me: Row, clip: string, t: number, mix: Mix[]): Part[] {
+  const own = 1 - mix.reduce((s, m) => s + m.w, 0)
+  return [{ slot: 'to', clip, t, w: own }, ...mix.map(m => ({ slot: 'to' as const, clip: m.clip, t: inStep(from, me, clip, t, m.clip), w: m.w }))]
+}
+
+// A clip's playhead `back` seconds of the row's time before `t`, as it plays at `rate` on its own: held
+// within a one-shot, round a loop's lap.
+function before(rig: Rig, clip: string, t: number, rate: number, back: number): number {
+  const c = clipOf(rig, clip)
+  const at = t - back * rate * c.rate
+  if (!c.loop) return Math.max(0, Math.min(c.dur, at))
+  return at - Math.floor(at / c.dur) * c.dur
+}
+
+// What is left of every change the row inertializes (Inertialization, the header), joint by joint: a turn
+// to lay before its joint's own, and a move to add to its place. For each change, each joint's offset is
+// the pose the body left in (the clip it came from as it left it, with its mix) against the pose the clip
+// it went to began in, its speed the two poses' speeds a step before those, and it is decayed (`decayed`)
+// over the kind's `fade` from there, along the offset's own axis; the changes laid together.
+const inertiaKept = new WeakMap<Row, { key: string; out: Map<string, { q: Quaternion; t: Vector3 }> }>()
+export function inertiaOf(from: W | Wire, me: Row): Map<string, { q: Quaternion; t: Vector3 }> {
+  const kind = playKind(me)
+  const { fade } = numbersOf(from, kind)
+  const entries = (me.data.inert ?? []) as Inert[]
+  const key = JSON.stringify(entries)
+  const had = inertiaKept.get(me)
+  if (had && had.key === key) return had.out
+  const rig = rigOf(from, kind)
+  const sk = skeletonOf(from, kind)
+  const a = movesOf(from, kind)
+  const out = new Map<string, { q: Quaternion; t: Vector3 }>()
+  for (const e of entries) {
+    const src = localPose(rig, sk, partsAt(from, me, e.from, e.t, e.mix), a)
+    const srcBefore = localPose(rig, sk, partsAt(from, me, e.from, before(rig, e.from, e.t, e.rate, H), e.mix), a)
+    // The body moved and turned as it changed (`root`): its hips where they were drawn, in the frame of
+    // where it stands now, so the place's jump decays with the pose.
+    if (e.root) {
+      const into = sk.root.clone().invert().multiply(new Matrix4().fromArray(e.root)).multiply(sk.root)
+      for (const pose of [src, srcBefore]) {
+        const h = pose.get(sk.hips)!
+        new Matrix4().compose(h.t, h.q, h.s).premultiply(into).decompose(h.t, h.q, new Vector3())
+      }
+    }
+    const dst = localPose(rig, sk, partsAt(from, me, e.to, e.t0, e.mix0), a)
+    const dstBefore = localPose(rig, sk, partsAt(from, me, e.to, before(rig, e.to, e.t0, e.rate0, H), e.mix0), a)
+    const t = e.s * fade
+    for (const [name, s] of src) {
+      const d = dst.get(name)!, sp = srcBefore.get(name)!, dp = dstBefore.get(name)!
+      const o = out.get(name) ?? { q: new Quaternion(), t: new Vector3() }
+      // The turn: the offset from where the clip went to began to where the body left, about its axis.
+      const off = s.q.clone().multiply(d.q.clone().invert())
+      if (off.w < 0) off.set(-off.x, -off.y, -off.z, -off.w)
+      const sin = Math.hypot(off.x, off.y, off.z)
+      if (sin > 1e-9) {
+        const axis = new Vector3(off.x, off.y, off.z).divideScalar(sin)
+        const x0 = 2 * Math.atan2(sin, off.w)
+        const prev = sp.q.clone().multiply(dp.q.clone().invert())
+        // The short way round, as the offset is taken, so its angle about the axis is near the offset's.
+        if (prev.w < 0) prev.set(-prev.x, -prev.y, -prev.z, -prev.w)
+        const xp = 2 * Math.atan2(prev.x * axis.x + prev.y * axis.y + prev.z * axis.z, prev.w)
+        const x = decayed(x0, (x0 - xp) / H, fade, t)
+        // Laid inside the changes before it: each offset goes from the clip its change went to, which
+        // the change after it went on from, so the oldest is laid outermost.
+        o.q.multiply(new Quaternion().setFromAxisAngle(axis, x))
+      }
+      // The move: the offset from where the joint began in the clip gone to to where it left, along it.
+      const gap = s.t.clone().sub(d.t)
+      const far = gap.length()
+      if (far > 1e-9) {
+        const dir = gap.clone().divideScalar(far)
+        const xp = sp.t.clone().sub(dp.t).dot(dir)
+        o.t.addScaledVector(dir, decayed(far, (far - xp) / H, fade, t))
+      }
+      out.set(name, o)
+    }
+  }
+  inertiaKept.set(me, { key, out })
   return out
 }
 
@@ -972,5 +1260,7 @@ export function animate(me: Row, w: W, dt: number): { markers: Marker[]; travel:
     if (moved.ended) d.state = 'done'
   }
   d.blend = Math.min(1, d.blend + (fade > 0 ? dt / fade : Infinity))
+  // Each change inertialized on by the step, and let go once through the fade.
+  d.inert = (d.inert as Inert[]).map(e => ({ ...e, s: e.s + (fade > 0 ? dt / fade : Infinity) })).filter(e => e.s < 1)
   return { markers: crossed.sort((a, b) => a[0] - b[0]).map(([, m]) => m), travel }
 }

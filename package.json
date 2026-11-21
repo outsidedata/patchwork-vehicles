@@ -15,7 +15,7 @@
     "#scripts/*": "./scripts/*"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node --experimental-strip-types scripts/dev.ts",
     "serve": "node --experimental-strip-types scripts/serve.ts",
     "test": "vitest run",
     "test:game": "GAME=1 vitest run --project game",

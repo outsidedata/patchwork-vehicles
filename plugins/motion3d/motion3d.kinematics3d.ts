@@ -28,12 +28,14 @@
 // which motion3d's `drive` asks each step); a rule that never sets `jumpHeld` jumps as high as `jumpH`
 // every time.
 // `states()` delivers the states these leave (`is`): `still` slower than the kind's `move.still`, `moving`
-// faster; `pushed` its `want` not none. kinematics3d reports `ground`, `falling`, `rising` and `landed`.
+// faster; `pushed` its `want` not none; `reversed` its `want` turned further than the kind's `move.reverse`
+// degrees from the way it faces (a kind that gives none throws when asked). kinematics3d reports `ground`, `falling`, `rising` and `landed`.
 //
 // The numbers, `world.kinematics3d.kinds.<kind>`:
-//   move  `{ accel, turnRate, turnMax?, still }`: `vel` eases toward the want by 1 − exp(−accel·dt) a
-//         step, 1/s; the facing eases toward its aim by 1 − exp(−turnRate·dt) a step, 1/s, at most turnMax
-//         rad/s; slower than `still` m/s the body is `still`
+//   move  `{ accel, turnRate, turnMax?, still, reverse? }`: `vel` eases toward the want by 1 − exp(−accel·dt)
+//         a step, 1/s; the facing eases toward its aim by 1 − exp(−turnRate·dt) a step, 1/s, at most turnMax
+//         rad/s; slower than `still` m/s the body is `still`; its want further than `reverse` degrees, 0 to
+//         180, from the way it faces, it is `reversed`
 //   jump  `{ jumpH, jumpVelocityBoostMagnitude, cut? }`: metres, the times the speed across is multiplied
 //         by on taking off (1 keeps it, 0 jumps straight up), and the share of its upward speed a jump
 //         keeps when cut short, 0 to 1 (none: never cut short)
@@ -48,7 +50,7 @@ import { at, fallOf, joined, kept, kindOf, nearest as nearestOn, numbers as kind
 import { fits, type Constraint } from './motion3d.sim.ts'
 import { clipOf, playKind, rigOf, secondsIn } from './motion3d.play.ts'
 
-export type Move = { accel: number; turnRate: number; turnMax?: number; still: number }
+export type Move = { accel: number; turnRate: number; turnMax?: number; still: number; reverse?: number }
 export type Jump = { jumpH: number; jumpVelocityBoostMagnitude: number; cut?: number }
 
 const TOLERANCE = 1e-9
@@ -64,7 +66,8 @@ function block<T>(me: Row, w: W, word: string, fields: string[], above: string[]
   if (!k) throw new Error(`kinematics3d kind ${kindOf(me)} gives no ${word}, which the ${word} behavior reads`)
   for (const f of fields) {
     const v = k[f]
-    if (v === undefined && (f === 'turnMax' || f === 'cut')) continue
+    if (v === undefined && (f === 'turnMax' || f === 'cut' || f === 'reverse')) continue
+    if (f === 'reverse' && !(v <= 180)) throw new Error(`kinematics3d kind ${kindOf(me)}: ${word}.reverse ${v} is more than 180`)
     if (f === 'cut' && !(v <= 1)) throw new Error(`kinematics3d kind ${kindOf(me)}: ${word}.cut ${v} is more than 1`)
     if (!Number.isFinite(v) || (above.includes(f) ? v <= 0 : v < 0)) {
       throw new Error(`kinematics3d kind ${kindOf(me)}: ${word}.${f} ${v} is not a number ${above.includes(f) ? 'above' : 'at or above'} 0`)
@@ -73,7 +76,7 @@ function block<T>(me: Row, w: W, word: string, fields: string[], above: string[]
   checked.add(k)
   return k
 }
-const moving = (me: Row, w: W) => block<Move>(me, w, 'move', ['accel', 'turnRate', 'turnMax', 'still'], ['accel', 'turnRate', 'turnMax'])
+const moving = (me: Row, w: W) => block<Move>(me, w, 'move', ['accel', 'turnRate', 'turnMax', 'still', 'reverse'], ['accel', 'turnRate', 'turnMax'])
 const jumping = (me: Row, w: W) => block<Jump>(me, w, 'jump', ['jumpH', 'jumpVelocityBoostMagnitude', 'cut'], [])
 
 // The fields motion3d's behaviors keep on a row, filled the first time one moves it.
@@ -217,6 +220,21 @@ const STATES: Record<string, State> = {
   still: (me, w) => !(me.data.speed > moving(me, w).still),
   moving: (me, w) => me.data.speed > moving(me, w).still,
   pushed: me => math.hypot(me.data.want[0], me.data.want[1]) > 0,
+  // The want across the ground turned further than the kind's `move.reverse` degrees from the way the
+  // body faces: a body walked back the way it came.
+  reversed: (me, w) => {
+    const d = me.data
+    const most = moving(me, w).reverse
+    if (most === undefined) throw new Error(`kinematics3d kind ${kindOf(me)} gives no move.reverse, which the state reversed reads`)
+    if (!(math.hypot(d.want[0], d.want[1]) > 0)) return false
+    return Math.abs(wrap(math.atan2(d.want[0], d.want[1]) - d.yaw)) > (most * Math.PI) / 180
+  },
+}
+
+// The facing a body turns to this step, eased from `from` toward `aim` as `move` turns it (the kind's
+// `move.turnRate` and `turnMax`): a one-shot that steers (motion3d's `steer`) turns so.
+export function toward(me: Row, w: W, from: number, aim: number, dt: number): number {
+  return turned(from, aim, [0, 0, 0], moving(me, w), dt)
 }
 
 export const states = (): Record<string, State> =>

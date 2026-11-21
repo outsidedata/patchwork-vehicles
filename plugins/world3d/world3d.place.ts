@@ -19,10 +19,21 @@ export type Clip = {
   about: string; how: string; start: 'on' | 'off'; loop: boolean; seconds: number
   animation?: string; poses?: { time: number; target: number | null }[]
 }
-export type Clips = { things: { thing: string; kind: string; clips: Record<string, Clip> }[] }
+export type Clips = { things: { thing: string; kind: string; clips: Record<string, Clip> }[]; joints?: Joint[] }
 
-// The effects file's spawns: the effect, and its point and way in the world.
-export type Spawn = { effect: string; at: number[]; dir: number[] }
+// A joint a game may pose with no clip, as the clips file has it: its thing, its bone, `joint` its bone's number among
+// the skin's joints, `axis` the way it turns in its bone's own space (three's axes), `range` the degrees from rest it
+// may turn, and `couple` (where it has one) the joint whose turn drives it, `ratio` times over.
+export type Joint = { thing: string; bone: string; joint: number; axis: number[]; range: [number, number]; couple?: { joint: number; ratio: number } }
+
+// A part that grows hair, as the hairs file has it: the hair, its thing, the thing's row among the kit things, the
+// part's name and its number in the thing.
+export type Grow = { hair: string; thing: string; row: number; part: string; number: number }
+
+// The effects file's spawns: the effect, and its point and way in the world as the place stands at rest; `node`, where
+// a bone carries it, the name of the skin's joint node it goes with (`<thing> <bone>`, or the bone of a compound that
+// carries the thing).
+export type Spawn = { effect: string; at: number[]; dir: number[]; node?: string }
 
 // a clip made: its thing's name, its own, whether it plays from the start, whether it loops, its action
 export type Played = { thing: string; clip: string; start: boolean; loop: boolean; action: THREE.AnimationAction }
@@ -42,7 +53,7 @@ export function played(T: typeof THREE, mixer: THREE.AnimationMixer, mesh: THREE
         for (const t of a.tracks) {
           const bone = bones[t.joint].uuid
           if (t.path === 'rotation') tracks.push(new T.QuaternionKeyframeTrack(`${bone}.quaternion`, t.times, t.values))
-          else tracks.push(new T.VectorKeyframeTrack(`${bone}.position`, t.times, t.values))
+          else tracks.push(new T.VectorKeyframeTrack(`${bone}.${t.path === 'scale' ? 'scale' : 'position'}`, t.times, t.values))
         }
       } else if (c.poses) {
         // each target the poses name: weight 1 at its poses, 0 at every other, a straight line between

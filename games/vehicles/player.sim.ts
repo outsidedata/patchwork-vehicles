@@ -1,7 +1,8 @@
 // The row one seat possesses: the driver, with no body. `addons/player` spawns it and writes the slot it
 // gave the connection into `seat`, and every seat is sent it, the seat's own marked `mine`. The cars are
-// not it: each is a `box3dvehicle` row a `spot` actor made (`spot.sim.ts`), parked side by side, and the
-// driver holds one (`take` in `plugins/player`) for as long as its seat is in the scene. It has no place
+// not it: each is a `box3dvehicle` row made at a `spot` actor (`spot.sim.ts`) when a seat gets into
+// it, and the driver holds one (`take` in `plugins/player`) for as long as its seat is in the scene; a
+// car it lets go of is scrapped by its spot, so the scene holds one car a seat. It has no place
 // of its own: the camera, the HUD and every other reader go through the car it holds (`holding`). A page
 // running the scene ahead (`addons/predict`) runs every rule on its copy, so the car it holds answers
 // the keys on the next frame.
@@ -11,9 +12,10 @@
 //             a key or a trigger only when it changes, so one held down while the seat waits for a car,
 //             or while it moves to another car, is handed to the car the step it takes hold of it.
 //
-// `before`: each step it holds no car, it takes hold of the car of the spot its slot's `start` names,
-// once that spot has made it and while no seat holds it; failing that, the first car no seat holds, in
-// the order the scene lists the spots. The car taken is handed its `controls`.
+// `before`: each step it holds no car, it gets into the spot its slot's `start` names, while no seat
+// holds that spot's car; failing that, the first spot whose car no seat holds, in the order the scene
+// lists the spots. Getting into a spot makes its car there (`make`), and the car is handed its
+// `controls`.
 //
 // Its acts are the page's keys and gamepad (`player.client.ts`); each value arrives from outside the
 // program, so one that is not a finite number does nothing, and one past its range is kept to it:
@@ -21,10 +23,10 @@
 //             pedal (box3dvehicle's acts, `relay`); holding none, only kept.
 //   lights()  the car it holds has its headlights switched, on if off, off if on (box3dvehicle's
 //             `lights` act); holding none, nothing.
-//   next()    it lets go of its car, which its spot parks from the next step at whatever speed it goes,
-//             and takes the next one, in the order the scene lists the spots and round to the first,
-//             that no seat holds, so two seats never hold one car, handing it its `controls`. With no
-//             other car free, nothing.
+//   next()    it lets go of its car, which its spot scraps the step after, and gets into the next
+//             spot, in the order the scene lists the spots and round to the first, whose car no seat
+//             holds, so two seats never hold one car: that spot's car is made at the spot and handed
+//             its `controls`. With no other spot free, nothing.
 //   upright() the car it holds is put back on its wheels: its chassis and every wheel lifted LIFT
 //             metres, turned flat about the chassis on the heading its nose points along, and stilled,
 //             so it drops onto its wheels (box3d moves a body whose row a rule writes). Holding none,
@@ -32,7 +34,7 @@
 import type { Act, Kind, Row, W } from '#engine/engine.ts'
 import { holderOf, holding, letGo, relay, take } from '#plugins/player/player.sim.ts'
 import { turn } from '#plugins/box3dvehicle/box3dvehicle.sim.ts'
-import { carOf } from './spot.sim.ts'
+import { carOf, make } from './spot.sim.ts'
 
 type Vec3 = [number, number, number]
 type Quat = [number, number, number, number]
@@ -74,13 +76,16 @@ function upright(w: W, car: Row) {
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
-// Every spot's car, in the order the scene lists the spots, once each is made.
-const cars = (w: W): Row[] => w.all('spot').flatMap(s => carOf(w, s) ?? [])
+// A spot a seat may get into: its car not made, or made and held by no seat.
+const free = (w: W, spot: Row): boolean => {
+  const car = carOf(w, spot)
+  return !car || !holderOf(w, car)
+}
 
-// The car of the spot its slot's start names, once made.
-function ownCar(w: W, me: Row): Row | undefined {
+// The spot its slot's start names.
+const ownSpot = (w: W, me: Row): Row => {
   const name = w.find('start', s => s.data.slot === me.data.seat).data.spot
-  return carOf(w, w.find('spot', s => s.data.name === name))
+  return w.find('spot', s => s.data.name === name)
 }
 
 const relayed = relay({ box3dvehicle: ['pedal', 'steer', 'brake'] })
@@ -106,9 +111,9 @@ function into(me: Row, w: W, car: Row) {
 export const player: Kind = {
   before(me, _dt, w) {
     if (holding(w, me)) return
-    const own = ownCar(w, me)
-    const car = own && !holderOf(w, own) ? own : cars(w).find(c => !holderOf(w, c))
-    if (car) into(me, w, car)
+    const own = ownSpot(w, me)
+    const spot = free(w, own) ? own : w.all('spot').find(s => free(w, s))
+    if (spot) into(me, w, make(w, spot))
   },
   acts: {
     pedal: control('pedal'),
@@ -123,13 +128,13 @@ export const player: Kind = {
       if (car) upright(w, car)
     },
     next(me, w) {
-      const all = cars(w), now = holding(w, me)
-      const from = now ? all.indexOf(now) : -1
-      for (let k = 1; k <= all.length; k++) {
-        const car = all[(from + k) % all.length]
-        if (car === now || holderOf(w, car)) continue
+      const spots = w.all('spot'), now = holding(w, me)
+      const from = now ? spots.findIndex(s => carOf(w, s) === now) : -1
+      for (let k = 1; k <= spots.length; k++) {
+        const spot = spots[(from + k) % spots.length]
+        if (!free(w, spot)) continue
         letGo(me)
-        into(me, w, car)
+        into(me, w, make(w, spot))
         return
       }
     },

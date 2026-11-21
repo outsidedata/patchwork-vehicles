@@ -51,7 +51,7 @@
 // actor in the process: `json`, `sheet`, `palette`, `tilemap`, `pixels` and `binary`. A rule reads one handed its `w`,
 // an actor handed its `plugins.wire`. A rule reads a file on whatever step it needs it, and the step
 // cannot wait for a fetch, so the files are here before the first step: `prepare`, handed the loader
-// row, resolves once every `preload` entry of those six types has landed, with every other file it
+// row, resolves once every entry of those six types not marked `preload: false` has landed, with every other file it
 // names, and the scenemanager addon awaits it before it boots a scene and before a page makes a
 // scene's client, so the page's actors find the files there from their first frame. A file that is
 // fetched but cannot be decoded fails `prepare` with the reason, so a broken file stops the scene
@@ -235,6 +235,9 @@ export type Entry = {
   space?: 'linear'; wrap?: 'repeat'; anisotropy?: number
 }
 
+// Whether an entry starts on the first tick: every entry does unless it says `preload: false`.
+export const preloaded = (it: Entry) => it.preload !== false
+
 export type Props = Record<string, unknown>
 export type Shape = { points: [number, number][]; top: boolean }
 export type Tile = {
@@ -336,8 +339,20 @@ export async function fetched(url: string): Promise<ArrayBuffer> {
   return own ?? stored(url)
 }
 
-// The bytes of the file at `url` where it is stored: fetched in a tab, read from disk in node.
+// The files the page's cover fetched before any of the game's code had come down, by their url
+// (`loader.cover.ts`): each the promise of its bytes, or of undefined when the fetch failed. A file
+// the cover holds is read from its bytes, as a wad's is, so neither half fetches it again; one it
+// failed is fetched as any other file is, and fails as any does. A file written on the machine while
+// the game runs is let go of, and read from where it is stored from then on.
+const COVER = Symbol.for('loader: cover')
+const covered = (url: string): Promise<ArrayBuffer | undefined> | undefined =>
+  ((globalThis as Record<symbol, Map<string, Promise<ArrayBuffer | undefined>> | undefined>)[COVER])?.get(url)
+
+// The bytes of the file at `url` where it is stored: what the page's cover fetched, else fetched in a
+// tab, else read from disk in node.
 async function stored(url: string): Promise<ArrayBuffer> {
+  const had = await covered(url)
+  if (had) return had.slice(0)
   if (inPage()) {
     const res = await fetch(encodeURI(url))
     if (!res.ok) throw new Error(`loader could not fetch ${url}: ${res.status}`)
@@ -429,9 +444,12 @@ export function mount(world: Record<string, any>): Promise<void> {
   })).then(() => {})
 }
 
-// The bytes of the file at `url` when a wad holds it, a copy of its own, once every wad that has
-// started opening has opened or failed; else undefined.
+// The bytes of the file at `url` when the page's cover fetched it, or when a wad holds it, a copy of
+// its own, once every wad that has started opening has opened or failed; else undefined. So a
+// picture the cover fetched is decoded from its bytes, as a wad's is, and never fetched again.
 export async function sealed(url: string): Promise<ArrayBuffer | undefined> {
+  const had = await covered(url)
+  if (had) return had.slice(0)
   if (wads.size) await Promise.allSettled([...wads.values()])
   return unsealed.get(url)?.slice(0)
 }
@@ -526,7 +544,7 @@ async function need(name: string, e: Entry): Promise<void> {
 
 // The preloads a rule reads. A texture, a model and a sound are the browser half's to fetch and
 // decode, and a rule never reads one, so this half never fetches or keeps them.
-const preloads = (world: Record<string, any>) => Object.entries(catalogue(world)).filter(([, a]) => a.preload && DECODED.includes(a.type))
+const preloads = (world: Record<string, any>) => Object.entries(catalogue(world)).filter(([, a]) => preloaded(a) && DECODED.includes(a.type))
 
 // The scene's catalogue, `world.loader.assets`, which no packet carries.
 const catalogue = (world: Record<string, any>): Record<string, Entry> => {
@@ -1393,7 +1411,10 @@ export const holds = (url: string) => [...made.values()].some(m => m.urls.includ
 const rewrites = new Map<string, number>()
 export const writes = (url: string) => rewrites.get(url) ?? 0
 // The file at `url` was written on the machine: counted, so a picture of it is fetched anew.
-export function rewritten(url: string) { rewrites.set(url, writes(url) + 1) }
+export function rewritten(url: string) {
+  rewrites.set(url, writes(url) + 1)
+  ;(globalThis as Record<symbol, Map<string, unknown> | undefined>)[COVER]?.delete(url)
+}
 
 // Empties `into` and gives it everything `from` has, so whatever holds `into` reads `from`: a list's
 // items, or an object's fields.

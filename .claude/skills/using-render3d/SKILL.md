@@ -50,7 +50,8 @@ three's chunks is not reached; supershader3d is three's physical material patche
   depth the scene was drawn with (`effect.depth`, reversed under `ao`). lights3d's fog is one.
 - `finish(key, pass)`: after the tone mapping, on the screen's sRGB colours (a palette, a dither).
 - `overlay`: `{ scene, camera }`, drawn over the world with the depth cleared, its camera following
-  the main one with its own `near`/`far`: a cockpit, a held weapon.
+  the main one with its own `near`/`far`: a cockpit, a held weapon. A menu of 3D things the pointer
+  and keys select is ui3d's, which places them in the overlay (`plugins/ui3d/README.md`).
 - `ratio(r, 'blocks' | 'smooth')`: draw `r` pixels a canvas pixel, live; `ratio()` goes back.
 
 The composer's order: scene, AO, every pass, the history (with `ssr`), overlay, bloom, tone mapping,
@@ -72,6 +73,12 @@ each back (`guide-to-smooth-gameplay`). So:
   `.rotation`, anywhere, even once at setup.
 - A jump (a door, a respawn) raises `userData.teleport` on the frame it moves the object, off a count
   on the row, and lowers it on a later frame.
+- What hangs off a drawn object and is moved on the GPU (fabric3d's cloth pinned to a bone, hair3d's
+  locks rooted on a skin) is moved from the scene's `onBeforeRender`, the moment the scene is first
+  drawn in a frame: only there does every bone stand where the frame draws it. In an `afterTick` the
+  bones stand where the last step left them, not where the frame draws them, and what is moved there is
+  out of step with the body it hangs on. Each keeps whatever was hooked there before it and calls it
+  (`using-fabric3d`, `using-hair3d`).
 
 `drifted(f)` names each object the moment it drops out of the blend; `drew(f)` hands every frame
 where the camera and each mesh are drawn; `project(p)` is a world point on the canvas.

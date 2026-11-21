@@ -29,7 +29,7 @@ const SPAWNS = [{ effect: 'brazier', at: [1, 2, 3], dir: [0, 1, 0] }]
 // The scene's world, its catalogue's files written in memory and read as the loader reads them: the place `yard`,
 // its clips and its effects. The glb is handed by the loader's stand-in.
 let n = 0
-async function worldOf(clips: Clips = CLIPS) {
+async function worldOf(clips: Clips = CLIPS, spawns: unknown[] = SPAWNS) {
   const at = `/world3d-plugin-test/${++n}/`
   const assets = {
     'yard.glb': { type: 'binary', url: `${at}yard.glb`, preload: true },
@@ -37,7 +37,7 @@ async function worldOf(clips: Clips = CLIPS) {
     'yard.effects': { type: 'json', url: `${at}yard.effects.json`, preload: true },
   }
   written(assets['yard.clips'].url, JSON.stringify(clips))
-  written(assets['yard.effects'].url, JSON.stringify({ spawns: SPAWNS }))
+  written(assets['yard.effects'].url, JSON.stringify({ spawns }))
   const world = { loader: { assets }, world3d: { place: 'yard' } }
   await prepared(world, 'yard.clips')
   await prepared(world, 'yard.effects')
@@ -50,8 +50,8 @@ vi.spyOn(performance, 'now').mockImplementation(() => clock)
 afterEach(() => { clock = 0 })
 
 type Page = { plugins: Plugins; scene: THREE.Scene; emitted: unknown[][]; asked: string[]; burning: Set<string> }
-async function page({ glb = glbOf(place()), clips }: { glb?: Uint8Array; clips?: Clips } = {}): Promise<Page> {
-  const world = await worldOf(clips)
+async function page({ glb = glbOf(place()), clips, spawns }: { glb?: Uint8Array; clips?: Clips; spawns?: unknown[] } = {}): Promise<Page> {
+  const world = await worldOf(clips, spawns)
   const scene = new THREE.Scene()
   const emitted: unknown[][] = [], asked: string[] = []
   const burning = new Set<string>()
@@ -62,7 +62,8 @@ async function page({ glb = glbOf(place()), clips }: { glb?: Uint8Array; clips?:
     render3d: { THREE, scene },
     loader: { load: async (name: string) => { asked.push(name); return { bytes: glb } } },
     supershader3d: { looks: () => looks, material: (call: string) => materials[call] },
-    particle3d: { has: (e: string) => burning.has(e), emit: (...a: unknown[]) => emitted.push(a) },
+    // each emitted effect handed back as particle3d hands it, its point and way written as world3d moves it
+    particle3d: { has: (e: string) => burning.has(e), emit: (...a: unknown[]) => { emitted.push(a); const s = a[2] as { dir?: number[] }; return { name: a[0], at: [...(a[1] as number[])], dir: s.dir && [...s.dir] } } },
     // supershader3d's looks file lands
     land: () => { looks = LOOKS },
   } as unknown as Plugins
@@ -171,6 +172,55 @@ test('the sign\'s swing waits until started, poses its targets one after the oth
   expect(mesh.morphTargetInfluences![1]).toBeCloseTo(1, 6)
 })
 
+test('one clip played in place of the rest and held at a moment stands there however long the clock goes on, until let go', async () => {
+  const { plugins, scene } = await page()
+  const me = world3d()
+  plugins.land()
+  await tick(me, plugins)
+  await tick(me, plugins)
+  const mesh = placeOf(scene)!
+  const rotor = mesh.skeleton.bones[1]
+  expect(me.clips()).toEqual([{ thing: 'fan', clip: 'spin', start: true, loop: true }, { thing: 'sign', clip: 'swing', start: false, loop: false }])
+  me.only('swing')
+  me.hold(1)
+  // the swing at its first target, the spin stopped and the rotor back at rest
+  expect(mesh.morphTargetInfluences![0]).toBeCloseTo(1, 6)
+  expect(mesh.morphTargetInfluences![1]).toBeCloseTo(0, 6)
+  await tick(me, plugins, 700)
+  expect(mesh.morphTargetInfluences![0]).toBeCloseTo(1, 6)
+  expect(rotor.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6)
+  me.hold()
+  me.advance(0.5)
+  expect(mesh.morphTargetInfluences![0]).toBeCloseTo(0.5, 6)
+  expect(mesh.morphTargetInfluences![1]).toBeCloseTo(0.5, 6)
+  expect(() => me.only('wobble')).toThrow('world3d: no thing of the place has a clip wobble; the clips: spin, swing')
+  expect(() => me.hold(-1)).toThrow('world3d: hold is a number of seconds, 0 or more, not -1')
+})
+
+test('a joint posed turns about its axis from rest within its range, the joint it drives turned its ratio as far', async () => {
+  const joints = [
+    { thing: 'fan', bone: 'rotor', joint: 1, axis: [0, 1, 0], range: [-90, 90] as [number, number] },
+    { thing: 'fan', bone: 'blade', joint: 1, axis: [0, 1, 0], range: [-30, 30] as [number, number], couple: { joint: 1, ratio: 0.5 } },
+  ]
+  const { plugins, scene } = await page({ clips: { ...CLIPS, joints } })
+  const me = world3d()
+  plugins.land()
+  await tick(me, plugins)
+  await tick(me, plugins)
+  me.only('swing')
+  const rotor = placeOf(scene)!.skeleton.bones[1]
+  expect(me.joints()).toEqual(joints)
+  // the rotor at 60, then its coupled entry (on the same bone, standing after it) at half of it, within its range
+  me.pose('fan', 'rotor', 60)
+  const angle = () => (2 * Math.atan2(rotor.quaternion.y, rotor.quaternion.w) * 180) / Math.PI
+  expect(angle()).toBeCloseTo(30, 4)
+  await tick(me, plugins, 200)
+  expect(angle()).toBeCloseTo(30, 4)
+  expect(() => me.pose('fan', 'rotor', 120)).toThrow('world3d: the joint rotor of fan turns -90 to 90 degrees, not 120')
+  expect(() => me.pose('fan', 'blade', 10)).toThrow('world3d: the joint blade of fan is driven by its linkage, not posed alone')
+  expect(() => me.pose('fan', 'hub', 10)).toThrow('world3d: the place has no joint hub of fan; it has rotor of fan, blade of fan')
+})
+
 test('the place\'s effects burn for ever once particle3d holds them, emitted once', async () => {
   const { plugins, emitted, burning } = await page()
   const me = world3d()
@@ -180,6 +230,32 @@ test('the place\'s effects burn for ever once particle3d holds them, emitted onc
   await tick(me, plugins)
   await tick(me, plugins)
   expect(emitted).toEqual([['brazier', [1, 2, 3], { dir: [0, 1, 0], life: Infinity }]])
+})
+
+test('an effect a joint carries goes with it as the clip turns it, its way turned too; one on a joint the skin has not throws', async () => {
+  // a lamp on the fan's rotor, 1 m out along x from its pivot, shining along x
+  const at = [ROTOR[0] + 1, ROTOR[1], ROTOR[2]]
+  const { plugins, burning } = await page({ spawns: [{ effect: 'lamp', at, dir: [1, 0, 0], node: 'fan rotor' }] })
+  const fx: { at: number[]; dir: number[] }[] = []
+  const emit = plugins.particle3d.emit
+  plugins.particle3d.emit = ((...a: Parameters<typeof emit>) => { const f = emit(...a); fx.push(f as never); return f }) as typeof emit
+  const me = world3d()
+  burning.add('lamp')
+  plugins.land()
+  await tick(me, plugins)
+  await tick(me, plugins)
+  // at rest, where the spawn says
+  expect(fx[0].at.map(v => +v.toFixed(5))).toEqual(at)
+  // a quarter of the spin (a twelfth of a second) turns it 90 degrees about y: out along x goes to -z
+  await tick(me, plugins, 1000 / 12)
+  expect(fx[0].at.map(v => +v.toFixed(5) + 0)).toEqual([ROTOR[0], ROTOR[1], ROTOR[2] - 1])
+  expect(fx[0].dir.map(v => +v.toFixed(5) + 0)).toEqual([0, 0, -1])
+  const bad = await page({ spawns: [{ effect: 'lamp', at, dir: [1, 0, 0], node: 'fan hub' }] })
+  const other = world3d()
+  bad.burning.add('lamp')
+  bad.plugins.land()
+  await tick(other, bad.plugins)
+  await expect(tick(other, bad.plugins)).rejects.toThrow('world3d: the effect lamp goes with the joint fan hub, which the place\'s skin has not')
 })
 
 test('close takes the place away and lets go of its geometry, skeleton and course table', async () => {

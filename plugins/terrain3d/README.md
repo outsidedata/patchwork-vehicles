@@ -108,6 +108,18 @@ terrain3d hands its ground to almost every 3D plugin through a mod of its own:
   `land`, of the word `land`, so trees, grass and boulders stand on it, kept by its paint's `cover` and
   by rules over the land record; `seen` hands lod3d the place `prepare` holds, and the land's field for
   lod3d's workers. lod3d's `lod3d.terrain3d.ts` is a `ready` for prepared places.
+- **grass3d** (`terrain3d.grass3d.ts`: `land`): the land a meadow stands on, its height, its paint's
+  `cover` and rules over the land record, on the finest ring's lattice so each blade stands on the
+  triangle that is drawn; its version moves with every stroke, it hands the place `prepare` holds, and the
+  land's field for grass3d's workers. grass3d's `grass3d.terrain3d.ts` is a `ready` for prepared places.
+- **loader** (`terrain3d.loader.ts`: `ready`): the loading screen stays up until the land where the
+  camera starts is on the scene, `shown()`; with `preload` and `mods.ready: ['lod3d']` that is the land
+  and its trees whole, so the game never starts in an empty world. The scene names it in
+  `world.loader.mods.ready: ['terrain3d']`.
+- **gpgpu3d** (`terrain3d.gpgpu3d.ts`: `things`, `behaviors`): the land round the camera as a thing on
+  the GPU, of the word `land`: a window of heights on the finest ring's lattice, filled in terrain3d's
+  workers when the camera has moved a quarter of it or the land has changed, so what is moved on the GPU
+  (gpuparticle3d's particles) meets the land.
 - **ocean3d** (`terrain3d.ocean3d.ts`: `land`): the seabed the sea shoals over.
 - **skydome3d** (`terrain3d.skydome3d.ts`: `land`): rain splashes and biome weather.
 - **ragdoll3d** (`terrain3d.ragdoll3d.ts`: `land`), **dismember3d** (`terrain3d.dismember3d.ts`:

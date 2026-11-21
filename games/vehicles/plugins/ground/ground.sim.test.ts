@@ -1,6 +1,6 @@
 // vehicles's ground on the road, booted as the server boots it. At the start the road holds the chunks
-// under every spot, and each spot's car spawns at the land's height there plus the height its vehicle
-// stands at (box3dvehicle's `standing`) and its `spawnLift`, and settles on
+// under every spot and no car, and each seat's car spawns at its spot, at the land's height there plus
+// the height its vehicle stands at (box3dvehicle's `standing`) and its `spawnLift`, and settles on
 // its wheels. The car a seat holds, its pedal held down for 150 m: at every step the chunk under where its velocity
 // takes it in `ahead` seconds is listed, it never goes below the land, and the list never holds more
 // than `radius` and `ahead` allow.
@@ -60,29 +60,34 @@ async function road(seats: number, arrive = true) {
 }
 const listed = (rows: Row[]) => new Set((rows.find(r => r.kind === 'box3d')!.data.ground as number[][]).map(k => `${k[0]},${k[1]}`))
 
-test('at the start the road holds the chunks under every spot, and each spot\'s car spawns at the land plus where it stands and its spawnLift, and settles on its wheels', async () => {
+test('at the start the road holds the chunks under every spot and no car; each seat\'s car spawns at its spot at the land plus where it stands and its spawnLift, and settles on its wheels', async () => {
   const g = await road(2, false)
   const at0 = listed(g.road.rows)
   for (const pad of pads) expect(at0.has(keyOf(pad.x, pad.z))).toBe(true)
-  let spawned: number[][] = []
-  for (let k = 0; k < 3 && spawned.length < pads.length; k++) {
-    g.step()
-    spawned = g.road.rows.filter(r => r.kind === 'box3dvehicle').map(r => g.road.rows.find(c => c.id === r.data.chassis)?.data.pos).filter(Boolean)
+  g.step()
+  expect(g.road.rows.filter(r => r.kind === 'box3dvehicle')).toHaveLength(0)
+  const arrived = await road(2)
+  const padOf = (vehicle: string) => pads.find(p => p.vehicle === vehicle)!
+  let spawned: { pad: (typeof pads)[number]; pos: number[] }[] = []
+  for (let k = 0; k < 3 && spawned.length < 2; k++) {
+    arrived.step()
+    spawned = arrived.road.rows.filter(r => r.kind === 'box3dvehicle').map(r => ({ pad: padOf(r.data.vehicle), pos: arrived.road.rows.find(c => c.id === r.data.chassis)!.data.pos }))
   }
-  expect(spawned).toHaveLength(pads.length)
-  pads.forEach((pad, i) => {
-    expect(spawned[i][0]).toBeCloseTo(pad.x, 6)
-    expect(spawned[i][2]).toBeCloseTo(pad.z, 6)
-    expect(spawned[i][1]).toBeCloseTo(heightAt(w, pad.x, pad.z) + standing(fleet.vehicles[pad.vehicle]) + spawnLift, 2)
-  })
-  for (let k = 0; k < 60; k++) g.step()
-  const cars = g.road.rows.filter(r => r.kind === 'box3dvehicle')
+  expect(spawned.map(s => s.pad.vehicle).sort()).toEqual(['cart', 'jeep'])
+  for (const { pad, pos } of spawned) {
+    expect(pos[0]).toBeCloseTo(pad.x, 6)
+    expect(pos[2]).toBeCloseTo(pad.z, 6)
+    expect(pos[1]).toBeCloseTo(heightAt(w, pad.x, pad.z) + standing(fleet.vehicles[pad.vehicle]) + spawnLift, 2)
+  }
+  for (let k = 0; k < 60; k++) arrived.step()
+  const cars = arrived.road.rows.filter(r => r.kind === 'box3dvehicle')
   cars.forEach((car, i) => {
-    const chassis = g.road.rows.find(r => r.id === car.data.chassis)!.data
-    expect(Math.hypot(chassis.pos[0] - spawned[i][0], chassis.pos[1] - spawned[i][1], chassis.pos[2] - spawned[i][2])).toBeLessThan(0.5)
+    const chassis = arrived.road.rows.find(r => r.id === car.data.chassis)!.data
+    const from = spawned[i].pos
+    expect(Math.hypot(chassis.pos[0] - from[0], chassis.pos[1] - from[1], chassis.pos[2] - from[2])).toBeLessThan(0.5)
     // each wheel's bottom, its centre less its radius, within 0.5 m of the land
     car.data.wheels.forEach((id: number, k: number) => {
-      const [x, y, z] = g.road.rows.find(r => r.id === id)!.data.pos
+      const [x, y, z] = arrived.road.rows.find(r => r.id === id)!.data.pos
       expect(y - fleet.vehicles[car.data.vehicle].axles[k >> 1].wheel.radius - heightAt(w, x, z)).toBeLessThan(0.5)
     })
   })

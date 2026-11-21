@@ -16,10 +16,24 @@
 // Two plugins can draw the effects: particle3d, every particle on the CPU, and gpuparticle3d, every particle
 // on the GPU, which plays the same file. Both are made and both handed the stage's copy; `use(drawer)` picks
 // the one that steps and draws, and closes the other, its particles gone. gpuparticle3d's world is the
-// stage's particle3d world under its name: the same effects file, `hold` and `attach`, and its `solids`,
-// `behaviors` and `sources` mods those particle3d's names, since each plugin that hands particle3d solids,
-// words or sources hands gpuparticle3d them too (`shapes3d.gpuparticle3d.ts`, `instances3d.gpuparticle3d.ts`,
-// `box3dvehicle.gpuparticle3d.ts`).
+// stage's particle3d world under its name: the same effects file, `hold` and `attach`, and its `behaviors`
+// and `sources` mods those particle3d's names, since each plugin that hands particle3d words or sources
+// hands gpuparticle3d them too (`instances3d.gpuparticle3d.ts`, `box3dvehicle.gpuparticle3d.ts`). What its
+// particles bounce off is gpgpu3d's: where particle3d names `solids`, the stage has a gpgpu3d whose
+// `things` and `behaviors` are those plugins (`shapes3d.gpgpu3d.ts`), holding what stands within REACH
+// metres of the camera, and gpuparticle3d's `solids` is gpgpu3d (`gpgpu3d.gpuparticle3d.ts`).
+//
+// A scene that lists dither3d is drawn through it on the stage too, its `world.dither3d` the scene's: its
+// pass after render3d's tone mapping and its ratio, from the stage's first tick, as in the game. It is on
+// `plugins.dither3d`, whose `on` a page turns it off and on with.
+//
+// Handed a look of the summary's `ui3d` (`stage(found, view, ui)`), the stage is that scene's ui3d too: its
+// `world.ui3d` and the catalogue entries of its looks file and models laid over the stage's world, ui3d
+// listed ahead of particle3d, and `shipped` listed when the scene ships plugins of the game's own, so the
+// game's words for ui3d (a `<a>.ui3d.ts` of a plugin `world.shipped.plugins` names) are loaded and named as
+// the scene names them; the game's plugins themselves are not run on the stage. `ui3d` is then the
+// stage's ui3d, which the page shows a look with every frame, between `tick` and `step`, and `ui()` runs
+// its `afterTick`, its words handed the drawer in use as `particle3d`.
 //
 // It hands back:
 //   plugins   the page's plugins, as a look is handed them: `loader`, `particle3d`, `gpuparticle3d`, `render3d`, ...
@@ -32,6 +46,8 @@
 //   show(effects, { drivers, forceGenerators })   the effects particle3d plays from now on, by name, in
 //             place of the file's; and, when they are handed, the drivers and the force generators it
 //             plays them by, in place of the file's.
+//   ui3d      the stage's ui3d, when it was handed a look's scene; `ui()` its `afterTick`, once a frame
+//             after the page's `show` and before any step.
 //   tick()    every plugin's `tick`, the loader's first: once a frame, before any step.
 //   step(dt)  particle3d moved one step of `dt` seconds.
 //   draw()    the frame drawn: render3d's `afterTick`.
@@ -40,16 +56,25 @@ import * as THREE from 'three'
 import { loader } from '#plugins/loader/loader.plugin.ts'
 import { particle3d, type Effects, type Layer } from '#plugins/particle3d/particle3d.plugin.ts'
 import { gpuparticle3d } from '#plugins/gpuparticle3d/gpuparticle3d.plugin.ts'
+import { gpgpu3d } from '#plugins/gpgpu3d/gpgpu3d.plugin.ts'
 import { lights3d } from '#plugins/lights3d/lights3d.plugin.ts'
 import { instances3d } from '#plugins/instances3d/instances3d.plugin.ts'
+import { ui3d } from '#plugins/ui3d/ui3d.plugin.ts'
+import { dither3d } from '#plugins/dither3d/dither3d.plugin.ts'
 import { prepare } from '#addons/scenemanager/scenemanager.addon.ts'
 import { render3d } from '#plugins/render3d/render3d.plugin.ts'
 import { thrown, type Thrown } from './thrown.ts'
 
 type Json = any
+// Metres round the camera the stage's gpgpu3d holds things within: the stage's camera turns about its
+// middle, and its far plane is this far.
+const REACH = 2000
 // One entry of the server's particles summary: the effects file, and `listed`, each file it lists
 // (`files`), its path as `file` is written and the file as it is on disk.
-export type Found = { file: string; key: string; scenes: string[]; effects: Effects; world: Json; plugins: string[]; render3d: Json; dt: number; thrown: Thrown; listed: { file: string; effects: Effects }[] }
+export type Found = { file: string; key: string; scenes: string[]; effects: Effects; world: Json; plugins: string[]; render3d: Json; dt: number; thrown: Thrown; listed: { file: string; effects: Effects }[]; ui3d: Ui3dScene[] }
+// A scene's looks file, as the summary names it: the scene, the file's repo path, the file as it is on disk,
+// and the world the stage lays over its own to show its looks.
+export type Ui3dScene = { scene: string; file: string; looks: Record<string, Json>; world: Json }
 
 // The effects file with every file it lists laid over it, as particle3d lays them when it reads it, listing
 // none; and `owner`, the file each effect, force generator and driver is in, by its name, as the summary
@@ -78,7 +103,11 @@ export function gather(found: Found): { whole: Effects; owner: Owner } {
 export const streams = (effects: Record<string, Layer[]>, name: string, seen: string[] = []): boolean =>
   (effects[name] ?? []).some(l => ('lamp' in l ? false : 'effect' in l ? !seen.includes(l.effect) && streams(effects, l.effect, [...seen, name]) : !!l.every))
 
-export async function stage(found: Found, view: HTMLElement) {
+export async function stage(found: Found, view: HTMLElement, ui?: Ui3dScene) {
+  if (ui) {
+    found.world.ui3d = ui.world.ui3d
+    found.world.loader = { ...found.world.loader, assets: { ...found.world.loader?.assets, ...ui.world.loader.assets } }
+  }
   // What particle3d reads: the file with the files it lists laid over it, with the effects `show` was last
   // handed.
   const shown: Effects = gather(found).whole
@@ -93,14 +122,16 @@ export async function stage(found: Found, view: HTMLElement) {
     for (const f of heard) f()
   }
 
-  const order = ['loader', ...found.plugins.flatMap(n => (n === 'particle3d' ? ['particle3d', 'gpuparticle3d'] : [n]))]
   const cpuWorld = found.world.particle3d ?? {}
+  const solid = cpuWorld.mods?.solids
+  const order = ['loader', ...(ui && found.world.shipped ? ['shipped'] : []), ...found.plugins.flatMap(n => (n === 'particle3d' ? [...(ui ? ['ui3d'] : []), 'particle3d', ...(solid ? ['gpgpu3d'] : []), 'gpuparticle3d'] : [n]))]
+  if (solid) found.world.gpgpu3d = { reach: REACH, mods: { things: solid, behaviors: solid } }
   found.world.gpuparticle3d = {
     ...(cpuWorld.effects !== undefined ? { effects: cpuWorld.effects } : {}),
     ...(cpuWorld.hold !== undefined ? { hold: cpuWorld.hold } : {}),
     ...(cpuWorld.attach !== undefined ? { attach: cpuWorld.attach } : {}),
     mods: {
-      ...(cpuWorld.mods?.solids ? { solids: cpuWorld.mods.solids } : {}),
+      ...(solid ? { solids: 'gpgpu3d' } : {}),
       ...(cpuWorld.mods?.behaviors ? { behaviors: cpuWorld.mods.behaviors } : {}),
       ...(cpuWorld.mods?.sources ? { sources: cpuWorld.mods.sources } : {}),
     },
@@ -132,14 +163,19 @@ export async function stage(found: Found, view: HTMLElement) {
   type Drawer = keyof typeof drawers
   let drawer: Drawer = 'particle3d'
   const P: Json = { wire: { n: 1, rows: [], scene, between: 1 }, loader: handed, ...drawers, render3d: render3d() }
+  if (solid) P.gpgpu3d = gpgpu3d()
   if (found.plugins.includes('lights3d')) P.lights3d = lights3d()
   if (found.plugins.includes('instances3d')) P.instances3d = instances3d()
+  if (ui) P.ui3d = ui3d()
+  if (found.plugins.includes('dither3d')) P.dither3d = dither3d()
   const canvas = document.createElement('canvas')
   view.prepend(canvas)
   P.render3d.mount(canvas)
   real.tick(P)
   P.render3d.tick(P)
   P.render3d.ratio(devicePixelRatio)
+  // dither3d takes render3d's frame from its first tick, as it does in the game: its pass and its ratio
+  P.dither3d?.tick(P)
   const three = P.render3d.scene as THREE.Scene
   if (three.background === null) three.background = new THREE.Color(0x0b0b0e)
   const grid = new THREE.GridHelper(20, 20, 0x3a3d44, 0x24262b)
@@ -174,12 +210,17 @@ export async function stage(found: Found, view: HTMLElement) {
       drawers[drawer].close(P)
       drawer = next
     },
+    get ui3d() { return P.ui3d as ReturnType<typeof ui3d> | undefined },
     tick() {
       real.tick(P)
-      for (const n of order) if (n !== 'loader' && !(n in drawers && n !== drawer)) P[n].tick?.(P)
+      for (const n of order) if (n !== 'loader' && n !== 'shipped' && !(n in drawers && n !== drawer)) P[n].tick?.(P)
+    },
+    ui() {
+      P.ui3d.afterTick({ ...P, particle3d: drawers[drawer] })
     },
     step(dt: number) {
       engine.dt = dt
+      if (drawer === 'gpuparticle3d') P.gpgpu3d?.afterTick(P)
       drawers[drawer].afterTick(P)
     },
     draw() {

@@ -139,6 +139,12 @@ Blender -b --python plugins/box3dvehicle/truck/look.py -- <scene.json> <vehicle>
 
 ## Plugins it works with
 
+- **gpgpu3d**: the mod `box3dvehicle.gpgpu3d.ts` (`world.gpgpu3d.mods: { things: ['box3dvehicle'],
+  behaviors: ['box3dvehicle'] }`) hands gpgpu3d every car's body and wheels, the same boxes lod3d is
+  handed, each a `hyperbox`, a box turned any way, so what is moved on the GPU meets a car.
+- **grass3d**: the mod `box3dvehicle.grass3d.ts` (`world.grass3d.mods: { pressed: 'gpgpu3d', behaviors:
+  ['box3dvehicle'] }`) says how a `hyperbox` presses the grass: the grass bends away from the car, and
+  the wheels lay tracks of grass lying down behind it.
 - **box3d**: every part is a box3d body or joint. box3dvehicle's mod `box3dvehicle.box3d.ts`
   (`world.box3d.mods.kinds`) builds them; box3d's mod `box3d.box3dvehicle.ts`
   (`mods: { gravity: 'box3d' }`) hands back the gravity the springs are preloaded against.

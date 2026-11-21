@@ -111,11 +111,14 @@ it shadows its own light.
   tiles drawn a frame. A light that moves (one carried in a hand) keeps the still shadow it was first
   drawn with.
 - **The moving atlas**: what moves. A mesh is moving when the plugin that moves or poses it sets
-  `userData.moving = true`: anim on every body and every prop it holds, crowd3d on its crowds. A game's
+  `userData.moving = true`: anim on every body and every prop it holds, crowd3d on its crowds,
+  fabric3d on every fabric, hair3d on every patch of strands, grass3d on its blades. A game's
   own plugin that moves a mesh sets it the same way. Every frame, each face of a light whose view holds
   a moving mesh is cleared and drawn from the moving meshes alone, so a redraw costs a few bodies, never
-  the town. A mesh drawn wherever it is (`frustumCulled` false, crowd3d's) is in every face of every
-  light.
+  the town. A mesh drawn wherever it is (`frustumCulled` false: crowd3d's, fabric3d's fabrics, hair3d's
+  strands) is in every face of every light. A fabric and a patch of hair carry their own depth and
+  distance materials, so their shadows are drawn where the GPU has moved them, and grass3d's chunks
+  cast only within each grass's `shadow` metres of the camera.
 - A surface, and the fog, is lit by what gets past both.
 
 `plugins.lights3d.redrawn` is the still tiles drawn the last frame, `moving` the moving ones and

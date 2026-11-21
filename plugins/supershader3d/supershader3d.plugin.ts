@@ -96,7 +96,9 @@
 // `s3` (2), which any look may read for what its geometry hands it (a vertex without one reads zeros).
 //
 // It hands out `material(call)`, the call's material or undefined while the file has not landed or
-// the call draws nothing; `idOf(name)` and `callOf(name)`, a material's number and call by its name,
+// the call draws nothing; `surfaced(call, surface)`, a new material of that call dressed with a render3d
+// surface (`render3d.plugin.ts`, `dress`), for a plugin that poses its own copies of a geometry in the
+// vertex shader (crowd3d's held items), undefined as `material` is, and disposed on `close`; `idOf(name)` and `callOf(name)`, a material's number and call by its name,
 // undefined for a name the file does not hold; `looks()`, the file; `glsl()`, the `all` call's
 // preamble with the varyings its vertex side declares made plain globals, for a program of another plugin's that has no
 // tagged vertices and sets `vLookUv`, `vLookWorld`, `vLookWN`, `vLookInfo`, `vLookId`, `lookGx` and
@@ -117,6 +119,7 @@
 // texture it made.
 import type * as THREE from 'three'
 import type { Plugins } from '#engine/browser.ts'
+import type { Splice } from '#plugins/render3d/render3d.plugin.ts'
 import { mod, modsOf, provided } from '#addons/scenemanager/scenemanager.addon.ts'
 import { makeGlowmap, type Glowmap, type GlowSettings } from './supershader3d.glowmap.ts'
 
@@ -297,6 +300,9 @@ export function supershader3d() {
   const uniforms: Record<string, THREE.IUniform> = {}
   const materials: Partial<Record<Call, THREE.MeshPhysicalMaterial>> = {}
   const made: THREE.Texture[] = []
+  // each call's material made, set once the file lands, and the ones `surfaced` made, disposed on close
+  let build: ((call: Call, surface?: Splice) => THREE.MeshPhysicalMaterial | undefined) | undefined
+  const surfaces: THREE.Material[] = []
   const ids = new Map<string, number>()
   // the pictures: whether every one has landed or failed, and the stack drawn from them
   let landed = false
@@ -394,9 +400,11 @@ export function supershader3d() {
     rows.forEach((row, id) => row.forEach((s, at) => write(id, at, s.value)))
     uniforms.lookSettings = { value: grid }
     const swaps = chunks(t)
-    for (const call of CALLS) {
+    // A call's material: three's physical material, dressed by render3d (with `surface`, when it is one a
+    // plugin poses its own copies by), then patched with the call's looks.
+    build = (call, surface) => {
       const part = file.calls[call]
-      if (!part) continue
+      if (!part) return undefined
       const seeThrough = call === 'seeThrough'
       const material = new t.MeshPhysicalMaterial({
         color: 0xffffff, roughness: 1, metalness: 0,
@@ -409,7 +417,7 @@ export function supershader3d() {
       })
       material.shadowSide = t.FrontSide
       material.name = `supershader3d ${call}`
-      plugins.render3d.dress(material)
+      plugins.render3d.dress(material, surface ? { surface } : {})
       const dressed = material.onBeforeCompile, key = material.customProgramCacheKey
       const own = `supershader3d ${call} ${hash(part.fragmentPars)}`
       material.onBeforeCompile = (shader, renderer) => {
@@ -418,7 +426,11 @@ export function supershader3d() {
         patch(shader, file, part, swaps)
       }
       material.customProgramCacheKey = () => `${key.call(material)}|${own}`
-      materials[call] = material
+      return material
+    }
+    for (const call of CALLS) {
+      const material = build(call)
+      if (material) materials[call] = material
     }
     pictures(plugins, file)
   }
@@ -514,6 +526,11 @@ export function supershader3d() {
     glowmap: (): Glowmap | undefined => glow?.map(),
     looks: () => looks,
     material: (call: Call) => materials[call],
+    surfaced(call: Call, surface: Splice) {
+      const material = build?.(call, surface)
+      if (material) surfaces.push(material)
+      return material
+    },
     idOf: (name: string) => ids.get(name),
     callOf: (name: string): Call | undefined => { const id = ids.get(name); return id === undefined ? undefined : looks!.materials[id].call },
     glsl: () => (looks?.calls.all ? free(looks.calls.all.fragmentPars, looks.vertexPars) : undefined),
@@ -540,6 +557,8 @@ export function supershader3d() {
       glow = undefined
       depth = 0
       for (const call of CALLS) { materials[call]?.dispose(); delete materials[call] }
+      for (const m of surfaces.splice(0)) m.dispose()
+      build = undefined
       for (const t of made) t.dispose()
       made.length = 0
       stack?.dispose()

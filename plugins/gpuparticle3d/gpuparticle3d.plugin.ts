@@ -9,7 +9,7 @@
 // particle but for its life and its skip, which it rolls as the GPU does (`hash.ts`), so it knows the frame
 // each particle dies without reading anything back: the free slots, how many particles each effect has, and
 // when a carried effect stops. Each frame it hands the GPU the numbers of every layer played (`pack.ts`), of
-// every running effect, of every solid, and of the particles thrown this frame, and runs:
+// every running effect, and of the particles thrown this frame, and runs:
 //
 //   step    every particle moved one step of the scene's `dt` (particle3d's `move`: its own forces and its
 //           force generators' entries, its pace, its bounce off the solids and the floor, its swirl), its
@@ -41,10 +41,13 @@
 //   mods     sources    plugins whose `sources(plugins)` hand back, once a frame, the sources `attach` throws
 //                       from, particle3d's `Source`s (box3dvehicle's wheels and tailpipes,
 //                       `box3dvehicle.gpuparticle3d.ts`)
-//            solids     plugins whose `solids(plugins)` hands back the solids a particle that bounces bounces
-//                       off, as data: each `{ box: { pos, size, yaw } }`, `{ plane: { pos, size, yaw, slope } }`,
-//                       `{ hyperplane: { pos, size, rot } }` or `{ cylinder: { pos, radius, height } }`, met as
-//                       shapes3d and hitscan3d meet them (shapes3d's, `shapes3d.gpuparticle3d.ts`)
+//            solids     one plugin, whose `solids(plugins)` hands back what a particle that bounces bounces
+//                       off, as the GPU meets it: `{ glsl, uniforms }`, `glsl` defining `meet` (`glsl.ts`,
+//                       MOVE), where a line first meets a solid, and `uniforms` what it reads, written by
+//                       that plugin each frame, which is listed before gpuparticle3d (gpgpu3d's,
+//                       `gpgpu3d.gpuparticle3d.ts`: the things it holds, shapes3d's shapes and terrain3d's
+//                       land among them). Asked once, when the passes are made. With none named a
+//                       particle bounces off its effect's floor alone.
 //            behaviors  plugins whose `behaviors()` deliver words (`words.ts`)
 //
 // The file's `cap` is the most particles this page holds at once: a particle thrown with every slot taken is
@@ -87,7 +90,7 @@
 // numbers the first frame a layer of them bursts, and kept until `close`. A word's particles' tint and fade
 // are the word's own to draw.
 import type { Plugins } from '#engine/browser.ts'
-import { modsOf } from '#addons/scenemanager/scenemanager.addon.ts'
+import { ahead, mod, modsOf } from '#addons/scenemanager/scenemanager.addon.ts'
 import type { Anchor, Attach, Channels, Driven, Effects, Emitter, Force, Lamp, Layer, Lit, Sources } from '#plugins/particle3d/particle3d.plugin.ts'
 import { CELL, SHAPES, corners, strip } from './shapes.ts'
 import { driven, plan, type Compiled, type Values } from './drivers.ts'
@@ -95,7 +98,7 @@ import { flight, type Entry, type Land, type Spawn } from './gpuparticle3d.sim.t
 import { E, NONE, ROLL } from './layout.ts'
 import { roll } from './hash.ts'
 import { pack, type Framed, type In, type Visual } from './pack.ts'
-import { CARRY, KEYS, LOOK, PRELUDE, QUAD, QUAD_AFTER, QUAD_MAIN, QUAD_PARS, SOLID, SORT, SPAWN, SPAWN_VERTEX, STEP, TW } from './glsl.ts'
+import { CARRY, KEYS, LOOK, NOTHING, PRELUDE, QUAD, QUAD_AFTER, QUAD_MAIN, QUAD_PARS, SORT, SPAWN, SPAWN_VERTEX, STEP, TW } from './glsl.ts'
 
 export type View = {
   S: number; slots: number
@@ -322,13 +325,9 @@ function split(effects: Record<string, Layer[]>, name: string): { layers: Driven
   return { layers: all.filter((l): l is Driven<Emitter> => !('lamp' in l)), lamps: all.filter((l): l is Driven<Lit> => 'lamp' in l).map(l => l.lamp) }
 }
 
-// What a `solids` mod hands back: each solid, as data the step pass meets.
-export type Solid =
-  | { box: { pos: number[]; size: number[]; yaw: number } }
-  | { plane: { pos: number[]; size: number[]; yaw: number; slope: number } }
-  | { hyperplane: { pos: number[]; size: number[]; rot: number[] } }
-  | { cylinder: { pos: number[]; radius: number; height: number } }
-export type Solids = (plugins: Plugins) => Solid[]
+// What the `solids` mod hands back: the GLSL the step is made with, which defines `meet` (`glsl.ts`,
+// MOVE), and the uniforms it reads, whose values are the mod's plugin's to write.
+export type Solids = (plugins: Plugins) => { glsl: string; uniforms: Record<string, { value: any }> }
 
 // What `emit` hands back. `at`, `dir`, `to`, `floor` and `life` may be written, and its `drivers` written
 // into; `age` is read.
@@ -809,9 +808,8 @@ export function gpuparticle3d() {
     quad: any; scene: any; camera: any
     passes: { step: any; spawn: any; carry: any; keys: any; sort: any; look: any; clear: any }
     points: any; pointScene: any; room: number
-    tableTex?: any; effectsTex?: any; burstsTex?: any; solidsTex?: any
+    tableTex?: any; effectsTex?: any; burstsTex?: any
     effects: Float32Array; sent: Float32Array // the effects table, and as it was last uploaded
-    solids: Float32Array; solidsN: number // the solids last uploaded
   } | undefined
   let packed: ReturnType<typeof pack> | undefined
   // Every played layer's slot in the table, and each slot's layer, undefined for a free one. A layer keeps its
@@ -867,10 +865,15 @@ export function gpuparticle3d() {
     for (const fx of ledger) { fx.parts = 0; fx.lasting.clear() }
     const raw = (fragmentShader: string, uniforms: Record<string, any>, vertexShader = QUAD) =>
       new three.RawShaderMaterial({ glslVersion: three.GLSL3, vertexShader, fragmentShader, uniforms, depthTest: false, depthWrite: false, blending: three.NoBlending })
+    // what a particle bounces off: the `solids` mod's GLSL and the uniforms it reads, each the mod's own
+    // object in every pass, so the pass reads it as its plugin last wrote it
+    const solid = mod<Solids>(plugins.wire.scene.world!, 'gpuparticle3d', 'solids')?.(plugins)
+    const meet = solid?.glsl ?? NOTHING
     const common = () => ({
-      tableTex: { value: null }, effectsTex: { value: null }, liveTex: { value: null }, solidsTex: { value: null },
+      ...solid?.uniforms,
+      tableTex: { value: null }, effectsTex: { value: null }, liveTex: { value: null },
       sA: { value: null }, sB: { value: null }, sC: { value: null }, sD: { value: null }, sR: { value: null },
-      S: { value: S }, solidsN: { value: 0 }, dt: { value: 0 }, now: { value: 0 },
+      S: { value: S }, dt: { value: 0 }, now: { value: 0 },
     })
     const quad = new three.Mesh(new three.PlaneGeometry(2, 2))
     quad.frustumCulled = false
@@ -891,8 +894,8 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
       live: [], liveRows: 0,
       quad, scene, camera: new three.OrthographicCamera(-1, 1, 1, -1, 0, 1),
       passes: {
-        step: raw(STEP, common()),
-        spawn: raw(SPAWN, { ...common(), burstsTex: { value: null } }, SPAWN_VERTEX),
+        step: raw(STEP(meet), common()),
+        spawn: raw(SPAWN(meet), { ...common(), burstsTex: { value: null } }, SPAWN_VERTEX),
         carry: raw(CARRY, common()),
         keys: raw(KEYS, { ...common(), eye: { value: new three.Vector3() }, back: { value: new three.Vector3() }, top: { value: 0 } }),
         sort: raw(SORT, { keys: { value: null }, S: { value: S }, stage: { value: 0 }, span: { value: 0 } }),
@@ -901,7 +904,6 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
       },
       points, pointScene, room: 0,
       effects: new Float32Array(0), sent: new Float32Array(0),
-      solids: new Float32Array(0), solidsN: -1,
     }
     for (const t of gpu.state) run(gpu.passes.clear, t)
     dirty = true
@@ -918,7 +920,6 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
     u.tableTex.value = g.tableTex
     u.effectsTex.value = g.effectsTex
     u.liveTex.value = g.live[0]?.texture
-    u.solidsTex.value = g.solidsTex
     u.sA.value = state.textures[0]
     u.sB.value = state.textures[1]
     u.sC.value = state.textures[2]
@@ -937,7 +938,6 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
     gpu.tableTex?.dispose()
     gpu.effectsTex?.dispose()
     gpu.burstsTex?.dispose()
-    gpu.solidsTex?.dispose()
     for (const b of batches.values()) if (b.mesh) {
       plugins.render3d.scene.remove(b.mesh)
       b.mesh.geometry.dispose()
@@ -1089,20 +1089,6 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
     }
     return t
   }
-  // The solids the mods hand over this frame, SOLID numbers each.
-  const solidsTable = (plugins: Plugins) => {
-    const list = modsOf<Solids>(plugins.wire.scene.world!, 'gpuparticle3d', 'solids').flatMap(f => f(plugins))
-    const t = new Float32Array(Math.max(1, list.length) * SOLID)
-    list.forEach((s, i) => {
-      const o = i * SOLID
-      const put = (k: number, v: number[]) => v.forEach((n, j) => { t[o + k + j] = n })
-      if ('box' in s) { put(0, [0, ...s.box.pos, ...s.box.size, s.box.yaw]) }
-      else if ('plane' in s) { put(0, [1, ...s.plane.pos, ...s.plane.size, s.plane.yaw, s.plane.slope]) }
-      else if ('hyperplane' in s) { put(0, [2, ...s.hyperplane.pos, ...s.hyperplane.size, ...s.hyperplane.rot]) }
-      else { put(0, [3, ...s.cylinder.pos, s.cylinder.radius, s.cylinder.height]) }
-    })
-    return { t, n: list.length }
-  }
   // How deep effects are carried now: 0 for none, 1 for an effect a particle carries, 2 for one a particle of
   // that carries, and on.
   const deepest = () => {
@@ -1124,13 +1110,6 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
       g.effectsTex = dataTexture(three, g.effectsTex, table)
       g.sent = table.slice()
     }
-    // the solids uploaded only when they are not the ones last uploaded
-    const solids = solidsTable(plugins)
-    if (solids.n !== g.solidsN || solids.t.length !== g.solids.length || solids.t.some((v, i) => v !== g.solids[i])) {
-      g.solidsTex = dataTexture(three, g.solidsTex, solids.t)
-      g.solids = solids.t
-      g.solidsN = solids.n
-    }
 
     // the live texture, grown with the table's rows
     const liveRows = Math.max(1, Math.ceil((rows * 4) / TW))
@@ -1141,10 +1120,7 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
     }
 
     const [prev, cur] = [g.state[g.ping], g.state[1 - g.ping]]
-    const setCommon = (m: any, state: any) => {
-      bindCommon(m, state)
-      m.uniforms.solidsN.value = solids.n
-    }
+    const setCommon = bindCommon
     // every slot from top up is free on the CPU, so the step runs over the rows up to it alone, and the keys
     // count no slot past it (a texel there may still hold a particle the step stopped moving: no pass reads it,
     // and the spawn writes the slot whole when it is taken again)
@@ -1357,6 +1333,7 @@ void main() { oA = vec4(0.0); oB = vec4(0.0); oC = vec4(0.0); oD = vec4(0.0, 0.0
       const order = scene.plugins!
       if (order.indexOf('render3d') < order.indexOf('gpuparticle3d'))
         throw new Error('gpuparticle3d is listed after render3d, which would draw every particle before it has moved')
+      ahead(scene, 'gpuparticle3d', 'solids')
     }
     if (!asked) {
       if (!plugins.loader) throw new Error('gpuparticle3d reads its effects through loader, which this scene does not name')

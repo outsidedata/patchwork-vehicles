@@ -4,6 +4,10 @@
       "field": "land",
       "rings": [
         {
+          "reach": 64,
+          "seg": 256
+        },
+        {
           "reach": 256,
           "seg": 128
         },
@@ -18,7 +22,8 @@
       ],
       "shadowReach": 256,
       "budget": 6,
-      "seabed": false
+      "seabed": false,
+      "preload": true
     },
     "skydome3d": {
       "day": 1200,

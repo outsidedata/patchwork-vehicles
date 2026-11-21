@@ -142,12 +142,13 @@
       }
     },
     "loader": {
-      "mods": { "shaders": "render3d" },
+      "mods": { "shaders": "render3d", "ready": ["terrain3d"] },
       "assets": {
         "splash": { "type": "texture", "url": "/games/vehicles/assets/loading/splash.webp", "for": "ui", "preload": true },
         "Saira Condensed": { "type": "font", "url": "/games/vehicles/assets/title/SairaCondensed-ExtraBold.ttf" },
         "vehicles": { "type": "json", "url": "/games/vehicles/assets/vehicles.json", "preload": true },
         "effects": { "type": "json", "url": "/games/vehicles/assets/effects.json", "preload": true },
+        "smoke": { "type": "sheet", "url": "/games/vehicles/assets/smoke.json", "preload": true },
         "land": { "type": "json", "url": "/games/vehicles/assets/land.json", "preload": true },
         "desert": { "type": "json", "url": "/games/vehicles/assets/desert.json", "preload": true },
         "moon": { "type": "json", "url": "/games/vehicles/assets/moon.json", "preload": true },
@@ -155,7 +156,8 @@
         "gymShapes": { "type": "json", "url": "/games/vehicles/assets/gym.shapes3d.json", "preload": true },
         "park": { "type": "json", "url": "/games/vehicles/assets/park.json", "preload": true },
         "firs": { "type": "model", "url": "/games/vehicles/assets/firs.glb" },
-        "clumps": { "type": "model", "url": "/games/vehicles/assets/clumps.glb" },
+        "grasses": { "type": "json", "url": "/games/vehicles/assets/grasses.json", "preload": true },
+        "parkGrasses": { "type": "json", "url": "/games/vehicles/assets/park.grasses.json", "preload": true },
         "jeep-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/jeep.engine.json" },
         "truck-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/truck.engine.json" },
         "cart-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/cart.engine.json" },
@@ -1006,6 +1008,7 @@
           "look": {
             "lock": 2.2,
             "model": { "asset": "utv" },
+            "sound": { "engine": "jeep-engine", "at": [1.2, 0, 0], "range": 150 },
             "paint": {
               "body": 9081204,
               "cabin": 1777183,
@@ -1236,29 +1239,6 @@
           "size": [0.75, 0.8],
           "vary": 0.18,
           "mesh": { "asset": "firs", "lods": [0, 3], "shadow": 90, "leaf": 0.55 }
-        },
-        "clumps": {
-          "on": ["land"],
-          "rows": {
-            "grass01": { "weight": 4 },
-            "grass02": { "weight": 4 },
-            "grass03": { "weight": 3 },
-            "dry01": { "weight": 3 },
-            "dry02": { "weight": 3 },
-            "flowers01": { "weight": 1 },
-            "flowers02": { "weight": 1 },
-            "flowers03": { "weight": 1 },
-            "reeds": { "weight": 1 }
-          },
-          "cell": 2.2,
-          "spacing": 2.2,
-          "seed": 311,
-          "density": 0.8,
-          "rules": [{ "q": "slope", "lo": 0.46, "hi": 0.36 }],
-          "clearing": 0,
-          "size": [0.55, 0.7],
-          "vary": 0.22,
-          "mesh": { "asset": "clumps", "lods": [0], "shadow": 78, "leaf": 0.55 }
         },
         "rocks": {
           "on": ["land"],

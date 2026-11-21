@@ -156,6 +156,7 @@ import { child, mod, prepare } from '../../addons/scenemanager/scenemanager.addo
 import { boot, type Row, type W } from '../../engine/engine.ts'
 import { drawing, type Actor } from '../../engine/browser.ts'
 import type { Prop, Rig } from '../../plugins/anim/anim.sim.ts'
+import { propModel, propName } from '../../plugins/anim/anim.sim.ts'
 import { restOf, retarget, type Rest } from './retarget.ts'
 import { assemble, labels, movedTo, nodeGroups, pointOf, rootOf, standScene, stillRow, unbloomed, type Model as Solid, type Named, type Stand } from './drawn.ts'
 
@@ -358,7 +359,7 @@ function fitOf(): Fit | undefined {
   let f = fits.get(fitKey())
   if (!f) {
     const b = bodyOf()!, key = sel.model!
-    const hold = structuredClone(b.props.find(p => p.model === key) ?? { model: key, bone: 'RightHand', at: [0, 0, 0], turn: [0, 0, 0] })
+    const hold = structuredClone(b.props.find(p => propModel(p) === key) ?? { model: key, bone: 'RightHand', at: [0, 0, 0], turn: [0, 0, 0] })
     const had = b.ik && JSON.stringify(b.ik).includes(JSON.stringify(key)) ? structuredClone(b.ik) : undefined
     const ik: Ik = had ?? {
       anchor: { prop: key, bone: 'RightShoulder', at: [0, 0, 0], turn: [0, 0, 0], point: 'stock' },
@@ -465,7 +466,7 @@ function shown(): THREE.Object3D | undefined {
   if (lab.stage) return lab.stage
   if (!sel.body || !sel.model) return undefined
   const k = lab.world.anim.kinds[sel.body]
-  const i = (k?.props ?? []).findIndex((p: Prop) => p.model === sel.model)
+  const i = (k?.props ?? []).findIndex((p: Prop) => propModel(p) === sel.model)
   return i < 0 ? undefined : lab.P.anim.props(ROW)[i]
 }
 
@@ -2167,7 +2168,7 @@ function side() {
     // A body's own model is not a prop; anything else may be tried in any body's hand.
     for (const b of game.bodies.filter(() => !game.bodies.some(x => x.model === m.key))) {
       const btn = document.createElement('button')
-      const holds = b.props.some(p => p.model === m.key)
+      const holds = b.props.some(p => propModel(p) === m.key)
       btn.textContent = `on ${b.kind}`
       btn.className = (holds ? 'holds' : '') + (m.key === sel.model && b.kind === sel.body ? ' on' : '')
       btn.title = holds ? `${b.kind} holds ${m.key} in the game` : `try ${m.key} on ${b.kind}: Save adds it to ${b.kind}'s props`
@@ -2191,7 +2192,7 @@ function side() {
     row.className = 'item' + (b.kind === sel.body && !sel.model ? ' sel' : '')
     row.innerHTML = `<div class="top"><span></span><span class="count zero"></span></div>`
     row.querySelector('.top span')!.textContent = `${b.kind}`
-    row.querySelector('.count')!.textContent = b.props.map(p => p.model).join(', ') || 'holds nothing'
+    row.querySelector('.count')!.textContent = b.props.map(propName).join(', ') || 'holds nothing'
     if (b.drift.length) {
       const d = document.createElement('div')
       d.className = 'drift'
@@ -3232,7 +3233,7 @@ async function save() {
     const hold = JSON.stringify(f.hold) !== JSON.stringify(base.hold) ? { bone: f.hold.bone, at: f.hold.at, turn: f.hold.turn } : undefined
     const ik = f.ikOn && JSON.stringify(f.ik) !== JSON.stringify(base.ik) ? f.ik : undefined
     // A body that does not hold the model yet gets it, so the IK has a prop to reach.
-    const holds = bodyOf()!.props.some(p => p.model === sel.model)
+    const holds = bodyOf()!.props.some(p => propModel(p) === sel.model)
     if (hold || ik) {
       const r = await post<{ scenes: string[] }>(`/api/fit/${game.game}`, { body: sel.body, prop: sel.model, hold: hold ?? (holds ? undefined : { bone: f.hold.bone, at: f.hold.at, turn: f.hold.turn }), ik })
       r.scenes.forEach(s => wrote.add(s))
@@ -3413,7 +3414,7 @@ const bring = (() => {
   }
   function likes() {
     const key = sel$('key').value
-    const holders = (from?.bodies ?? []).filter(b => b.props.some(p => p.model === key))
+    const holders = (from?.bodies ?? []).filter(b => b.props.some(p => propModel(p) === key))
     sel$('like').replaceChildren(...(holders.length ? holders.map(b => new Option(b.kind, b.kind)) : [new Option('the right hand, unfitted', '')]))
   }
   sel$('from').onchange = () => pick().catch(fail)

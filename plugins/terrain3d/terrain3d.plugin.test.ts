@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type * as THREE from 'three'
-import { prepare } from '#addons/scenemanager/scenemanager.addon.ts'
+import { modsOf, prepare } from '#addons/scenemanager/scenemanager.addon.ts'
 import { render3d } from '#plugins/render3d/render3d.plugin.ts'
 import { land, type Field, type Program, type Stroke } from './terrain3d.sim.ts'
 import { terrain3d } from './terrain3d.plugin.ts'
@@ -189,25 +189,30 @@ writeFileSync(join(home, 'plugins', 'gate', 'gate.terrain3d.ts'), 'export const 
 afterAll(() => rmSync(home, { recursive: true }))
 const gate = (open: boolean) => { (globalThis as { terrain3dGate?: boolean }).terrain3dGate = open }
 
-test('a preloading scene puts nothing of the land on the scene until the camera\'s place is whole and every plugin standing on it is done, then all of it at once', async () => {
+test('a preloading scene puts nothing of the land on the scene until the camera\'s place is whole and every plugin standing on it is done, then all of it at once, and the loader\'s loading screen waits on it through terrain3d\'s mod', async () => {
   const { me, frame, plugins } = page({ preload: true, budget: 20 })
   const { scene: on } = plugins.wire
   on.plugins = ['loader', 'shipped', 'terrain3d', 'render3d']
-  Object.assign(on.world, { shipped: { plugins: ['gate'] }, scenemanager: { home: pathToFileURL(home + '/').href } })
+  Object.assign(on.world, { shipped: { plugins: ['gate'] }, scenemanager: { home: pathToFileURL(home + '/').href }, loader: { mods: { ready: ['terrain3d'] } } })
   on.world.terrain3d.mods = { ready: 'gate' }
   await prepare({}, [], on.world)
+  plugins.terrain3d = me
+  // what the loader's `settled()` asks of terrain3d (`terrain3d.loader.ts`)
+  const [ready] = modsOf<(p: unknown) => boolean>(on.world, 'loader', 'ready')
   gate(false)
   const scene = plugins.render3d.scene as THREE.Scene
   for (let n = 0; n < 30; n++) {
     frame()
     expect(scene.children.filter(c => (c as THREE.Mesh).isMesh)).toHaveLength(0)
     expect(me.ground!.shown()).toBe(false)
+    expect(ready(plugins)).toBe(false)
   }
   // The rings are built, and wait off the scene.
   expect(me.rings).toHaveLength(3)
   gate(true)
   frame()
   expect(me.ground!.shown()).toBe(true)
+  expect(ready(plugins)).toBe(true)
   for (const r of me.rings) expect(scene.children).toContain(r.mesh)
 })
 

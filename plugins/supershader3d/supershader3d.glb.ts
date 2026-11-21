@@ -27,7 +27,7 @@
 // A glb of the wrong shape throws, naming what is wrong: no extras `vertex` (bake it again with the library's
 // pro-ng/pack.mjs), a mesh the extras name that the glb has not, joints without a skin, meshes on more than one skin,
 // morph targets on more than one mesh, a bone hanging from a node that is no joint, an animation moving what is not a
-// bone's rotation or translation, or not linear, or a node that is no joint; a vertex's `lookId` that is no material
+// bone's rotation, translation or scale, or not linear, or a node that is no joint; a vertex's `lookId` that is no material
 // of the looks.
 import type * as THREE from 'three'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
@@ -63,7 +63,7 @@ type Mesh = {
 type Bone = { name: string; parent: number; translation: number[]; rotation: number[]; scale: number[] }
 // a channel of an animation: the bone it moves (its number among the skin's joints), the property, and the keys'
 // times and values, linear between keys
-type Track = { joint: number; path: 'translation' | 'rotation'; times: Float32Array; values: Float32Array }
+type Track = { joint: number; path: 'translation' | 'rotation' | 'scale'; times: Float32Array; values: Float32Array }
 export type Unpacked = {
   info: Info; meshes: Mesh[]
   skin?: { bones: Bone[]; inverses: Float32Array }
@@ -74,7 +74,7 @@ export const CALLS: Call[] = ['solid', 'relief', 'seeThrough']
 const WIDTH: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }
 const ARRAYS: Record<number, any> = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array }
 const MOST: Record<number, number> = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 }
-const PATHS = new Set(['translation', 'rotation'])
+const PATHS = new Set(['translation', 'rotation', 'scale'])
 
 export async function unpack(bytes: Uint8Array): Promise<Unpacked> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -171,7 +171,7 @@ export async function unpack(bytes: Uint8Array): Promise<Unpacked> {
   for (const a of gltf.animations ?? []) {
     const tracks = a.channels.map((c): Track => {
       const s = a.samplers[c.sampler]
-      if (!PATHS.has(c.target.path)) throw new Error(`supershader3d: the glb's animation ${a.name} moves ${c.target.path}, which is not a bone's rotation or translation`)
+      if (!PATHS.has(c.target.path)) throw new Error(`supershader3d: the glb's animation ${a.name} moves ${c.target.path}, which is not a bone's rotation, translation or scale`)
       if ((s.interpolation ?? 'LINEAR') !== 'LINEAR') throw new Error(`supershader3d: the glb's animation ${a.name} is ${s.interpolation}, and its clips are linear`)
       const path = c.target.path as Track['path']
       const joint = joints.indexOf(c.target.node!)

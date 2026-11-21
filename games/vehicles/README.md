@@ -22,7 +22,7 @@ Play it: https://outsidedata.github.io/patchwork-vehicles/
 | throttle, and brake or reverse | ↑ ↓ or W S | right and left triggers |
 | steer | ← → or A D | d-pad or left stick |
 | brake | Space | bottom button |
-| move to the next free car | Tab | left button |
+| swap to the next free car, made at its start | Tab | left button |
 | headlights | L | |
 | back on its wheels | P | |
 | look round | | right stick |

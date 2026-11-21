@@ -66,6 +66,15 @@
 // force generator made on this page goes into the file the workshop opened. Revert drops every change. The file written on disk loads the
 // page again on the same effect, unless there are changes not yet saved.
 //
+// ui3d mode. A game's scene that plays this effects file and lists ui3d with a looks file
+// (`world.ui3d.looks`) is found by the server as the effects file is (`ui3d` of its summary): the left
+// column lists every look of each such file under its scene. One chosen is shown on the stage by ui3d,
+// in place of the effect thrown, every frame, with that scene's ui3d world and words (the game's own
+// `<a>.ui3d.ts` among them) and its `particles` played from the working effects, so a change to an effect
+// it plays shows on it from the next step. The pointer over a look that can be selected selects it, so
+// a driver held at its `selected` is seen moving. Replay, and any change that throws the effect again,
+// shows it again from its first frame. Chosen again, it is put away.
+//
 // Score effect scores the chosen effect as it is edited, saved or not, against the rules of how an effect
 // is designed (`score.ts`), on a hidden stage of its own, from the camera as it stands and thrown as the bar
 // throws it: a modal says what it is looking at while it scores, and then shows each rule passed or failed,
@@ -89,6 +98,7 @@
 //   mute, solo, open layers by the number on their cards, from 1: muted (a list), played alone (one),
 //                    opened (a list)
 //   generator        the force generator shown in the right column
+//   ui3d             <scene>/<look>: a look of the scene's ui3d looks file shown on the stage (ui3d mode)
 //   d.<driver>       a driver's number or expression, changed and not yet saved
 import { Color } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -272,7 +282,7 @@ async function main() {
   const put = (k: string, v: string | number | boolean | number[] | undefined) => {
     if (v === undefined || v === '') shown.delete(k)
     else shown.set(k, Array.isArray(v) ? v.map(round).join(',') : typeof v === 'boolean' ? (v ? '1' : '0') : typeof v === 'number' ? String(round(v)) : v)
-    history.replaceState(null, '', `?${String(shown).replace(/%2C/g, ',')}`)
+    history.replaceState(null, '', `?${String(shown).replace(/%2C/g, ',').replace(/%2F/g, '/')}`)
   }
   // What the address says of a key, as the control wants it; a value it cannot be is named on the page.
   const wrong = (k: string, want: string) => { fail(`?${k}=${shown.get(k)} is not ${want}`); return undefined }
@@ -361,7 +371,24 @@ async function main() {
 
   // The stage (`stage.ts`), playing the working effects with the chosen effect's muted layers out.
   const view = $('#view')
-  const st = await stage(found, view)
+  // The ui3d mode: a look of a looks file a scene naming this effects file gives (`ui3d=<scene>/<look>`),
+  // shown on the stage with ui3d and that scene's words, every frame, in place of the chosen effect
+  // thrown; its particles played from the working effects. The stage is that scene's ui3d, or the first
+  // such scene's when no look is shown.
+  let look: { scene: string; name: string } | undefined
+  {
+    const said = shown.get('ui3d')
+    if (said !== null) {
+      const [scene, name] = said.split('/')
+      const u = found.ui3d.find(x => x.scene === scene)
+      if (!u || !(name in u.looks)) fail(`?ui3d=${said}: ${found.file} is played by no scene ${scene} with a look ${name}: ${found.ui3d.flatMap(x => Object.keys(x.looks).map(n => `${x.scene}/${n}`)).join(', ') || 'no scene of it gives ui3d looks'}`)
+      else look = { scene, name }
+    }
+  }
+  const uiScene = found.ui3d.find(x => x.scene === look?.scene) ?? found.ui3d[0]
+  // Each Replay shows the look under a new key, so ui3d makes it again and its clock starts again.
+  let replays = 0
+  const st = await stage(found, view, uiScene)
   const { loader: real, camera, canvas, grid, stick, bomb, toss } = st
   const restage = () => st.show(Object.fromEntries(Object.entries(working).map(([n, layers]) =>
     [n, n !== effect ? layers : layers.filter((_, i) => (solo === undefined ? !muted.has(i) : i === solo))])), { drivers, forceGenerators: generators })
@@ -373,9 +400,9 @@ async function main() {
     if (kept) { camera.position.fromArray(kept.position); controls.target.fromArray(kept.target) }
   } catch { /* kept only where the browser keeps it */ }
   // where the address puts the camera (`camera=x,y,z`) and the point it turns round (`look=x,y,z`)
-  const eye = saidNumbers('camera', 3), look = saidNumbers('look', 3)
+  const eye = saidNumbers('camera', 3), target = saidNumbers('look', 3)
   if (eye) camera.position.fromArray(eye)
-  if (look) controls.target.fromArray(look)
+  if (target) controls.target.fromArray(target)
   controls.update()
   // written into the address a moment after the camera stops moving, damping and all
   let still: ReturnType<typeof setTimeout> | undefined
@@ -411,7 +438,7 @@ async function main() {
     since = 0
     if (source === 'thrown') toss.again()
     riding = undefined
-    if (!working[effect]) return
+    if (look || !working[effect]) return
     const from = source === 'thrown' ? [...toss.pos] : [...spawn.at]
     // the stage's ground is y 0: a layer that bounces bounces off it, any other rests on it
     // a stream standing still opens already full: particle3d rolls the bursts of the seconds it is
@@ -424,6 +451,8 @@ async function main() {
   // again at once.
   const restart = () => {
     for (const e of st.fx.effects) e.life = Math.min(e.life, e.age)
+    // a look shown is shown again from its first frame, its effects thrown again
+    if (look) replays++
     stream = streams(effect)
     throwIt()
     bursts()
@@ -449,6 +478,13 @@ async function main() {
   bar.append(kind)
   function bursts() {
     kind.replaceChildren()
+    if (look) {
+      const again = make('button', 'go small', 'Replay')
+      again.title = 'Show the look again from its first frame'
+      again.onclick = () => { replays++ }
+      kind.append(make('b', '', `ui3d: ${look.name} of ${look.scene}, its particles from this file; the pointer over it selects it`), again)
+      return
+    }
     if (source === 'thrown') {
       const go = make('button', 'go small', 'Throw')
       go.onclick = restart
@@ -521,6 +557,15 @@ async function main() {
     box.onchange = () => { grid.visible = stick.visible = box.checked; put('grid', box.checked) }
     field(bar, 'Grid and stick', box)
   }
+  // The scene's dither3d, when it lists it: on as the scene starts it, or as the address says (`dither`).
+  if (st.plugins.dither3d) {
+    const d = st.plugins.dither3d as { on: boolean }
+    const box = make('input'); box.type = 'checkbox'
+    d.on = saidBool('dither') ?? d.on
+    box.checked = d.on
+    box.onchange = () => { d.on = box.checked; put('dither', box.checked) }
+    field(bar, 'Dither', box)
+  }
   // The light the stage is seen in: its background, its sky and sun (which light what a word draws, such
   // as instances3d's rocks), and the exposure the tone mapping is fed. The page's alone, never saved into
   // a file; kept in this browser across reloads. They start as the stage starts.
@@ -589,6 +634,10 @@ async function main() {
     controls.update()
     try {
       st.tick()
+      if (st.ui3d) {
+        if (look) st.ui3d.show(`${look.name}.${replays}`, look.name)
+        st.ui()
+      }
       while (left > 1e-9) {
         const dt = Math.min(found.dt, left)
         left -= dt
@@ -691,6 +740,34 @@ async function main() {
       generator = n
       fileChanged(); nav(); editor()
     })
+
+    // ui3d: every look of the looks files of the scenes that play this effects file. One chosen is shown
+    // on the stage in place of the effect; chosen again, it is put away. A look of another scene than
+    // the stage's opens the page again on it, which a change not yet saved holds back.
+    if (!found.ui3d.length) return
+    host.append(make('div', 'head', 'ui3d'))
+    for (const u of found.ui3d) {
+      const sub = make('div', 'sub', `${u.scene} · ${u.file.split('/').pop()}`)
+      sub.title = u.file
+      host.append(sub)
+      for (const n of Object.keys(u.looks)) {
+        const b = make('button', 'effect', n)
+        const on = look?.scene === u.scene && look.name === n
+        b.classList.toggle('on', on)
+        b.onclick = () => {
+          if (u !== uiScene) {
+            if (unsaved()) return fail(`Save or revert the changes before opening ${u.scene}'s look ${n}: the page opens again on that scene's stage`)
+            shown.set('ui3d', `${u.scene}/${n}`)
+            location.search = `?${String(shown).replace(/%2C/g, ',').replace(/%2F/g, '/')}`
+            return
+          }
+          look = on ? undefined : { scene: u.scene, name: n }
+          put('ui3d', look ? `${look.scene}/${look.name}` : undefined)
+          restart(); nav()
+        }
+        host.append(b)
+      }
+    }
   }
   // A name typed and an Add button, at the foot of a list of the left column.
   function named(host: HTMLElement, hint: string, add: (name: string) => void) {

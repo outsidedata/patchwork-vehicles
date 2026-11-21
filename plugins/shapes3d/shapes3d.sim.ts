@@ -16,7 +16,8 @@
 //          with the constraints its `points` name (`shapes3d.motion3d.ts`), carrying its `data`, `{
 //          <plugin>: { … } }`, keyed by the plugin each block is for and passed on untouched (motion3d
 //          reads `data.motion3d.autoChange`), and stand in nothing's
-//          way: `shapes`, and so every mod here but motion3d's and solids', leaves them out. A space
+//          way: `shapes` leaves them out, and so does every mod here that reads it; a space is not
+//          drawn. Only motion3d's `spaces`, crowd3d's `paths` and lod3d's points read them. A space
 //          is only where an activity is offered; a thing in the way there is a kind of its own.
 //   shapes `[name, …]`: shapes files, each the catalogue name of a `json` entry (`preload` it) of `{ kinds,
 //          shapes }`: `kinds` as above, and `shapes` `[{ kind, pos, yaw }]`, each a shape of its kind standing

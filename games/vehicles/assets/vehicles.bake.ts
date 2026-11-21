@@ -1,4 +1,4 @@
-// vehicles's bake, `yarn bake vehicles` (core's `scripts/bake.ts`): the trees and grass every scene's
+// vehicles's bake, `yarn bake vehicles` (core's `scripts/bake.ts`): the trees every scene's
 // lod3d draws, made by the library's scripts from the specs beside this file, and the truck's body,
 // made by box3dvehicle's own script, each packed by gltfpack and written where the catalogue reads it;
 // and the engines every car is heard by:
@@ -9,14 +9,14 @@
 //   title/title.glb   `title/title.py`, the marquee's words in 3D from the Saira Condensed font beside it
 //   firs.glb     the library's `trees/trees.py` from `firs.trees.json`: rows tall, mid and small, the
 //                library's spruce species, LODs 0 to 3, `<row>-<lod>-<part>`
-//   clumps.glb   the library's `foliage/foliage.py` from `clumps.foliage.json`: the nine clumps of the
-//                library's `props/lod-grass`, LODs 0 and 1, `<row>-<lod>`
 //   rover/, jeep/  the lunar rover's and the jeep's bodies, wheels and hubs from the library's pro-ng kit,
 //                and `kit.looks.json`, the looks file of every scene that draws them (`kit.make.ts`)
 //   sounds/      the library's `sounds/sounds.mjs` from `vehicles.sounds.json`: each car's engine as
 //                loops held at fixed rpms, `<car>-<rpm>.wav`, the jeep's a flat-plane V8, the truck's a
 //                V8 diesel and the cart's an electric motor, which each Vehicle's `look.sound`
 //                names
+//   smoke.png, smoke.json  the exhaust's smoke flipbook, rendered by Blender from the node tree
+//                `effects.json`'s `flipbooks` holds (`flipbooks`)
 // The trees' leaf and bark sets are asked of `texture` first, so each is downloaded into the library
 // before Blender reads it.
 import path from 'node:path'
@@ -27,14 +27,15 @@ import { kits } from './kit.make.ts'
 const here = import.meta.dirname
 
 export default async (tools: Tools) => {
-  const { blender, pack, scratch, library, texture } = tools
+  const { blender, pack, scratch, library, texture, flipbooks } = tools
   await kits(tools)
+  await flipbooks(path.join(here, 'effects.json'))
+  console.log('wrote', path.join('games', 'vehicles', 'assets', 'smoke.png'))
   const trees = path.join(here, 'firs.trees.json')
   const { leafSets, barkSets } = await import(pathToFileURL(path.join(library, 'trees', 'trees.mjs')).href) as { leafSets: (spec: string) => string[], barkSets: (spec: string) => string[] }
   for (const zip of [...leafSets(trees), ...barkSets(trees)]) await texture(zip)
   const made = [
     { out: 'firs.glb', script: path.join(library, 'trees', 'trees.py'), spec: trees },
-    { out: 'clumps.glb', script: path.join(library, 'foliage', 'foliage.py'), spec: path.join(here, 'clumps.foliage.json') },
   ]
   for (const { out, script, spec } of made) {
     const raw = scratch(out)

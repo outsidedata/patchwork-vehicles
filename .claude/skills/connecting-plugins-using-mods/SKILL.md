@@ -77,7 +77,7 @@ Three more rules of the table:
   its own table, and shapes3d delivers a `box` to each, in `shapes3d.hitscan3d.ts`, `shapes3d.walker.ts`
   and `shapes3d.cover3d.ts`.
 
-## Three real tables
+## Four real tables
 
 **lod3d is foo, and it draws nothing.** A layer's own fields place (`on`, `rows`, `cell`, `seed`,
 `spacing`, `density`, `size`, ...). Every other field is a word, and its value is that word's numbers.
@@ -100,6 +100,13 @@ ragdoll because `world.box3dvehicle` has `hit: { speed, damage }` and `mods: { b
 strike: 'hitscan3d' }`. `hitscan3d.box3dvehicle.ts`'s `bodies` is in turn whatever
 `world.hitscan3d.mods.bodies` names, so a car meets whatever bodies a shot meets. A chain of mods, each
 link a scene line.
+
+**gpgpu3d is foo, and it has no word of its own.** It holds the things of a scene on the GPU. Who hands
+a thing and who owns its word are two lists, `world.gpgpu3d.mods.things` and `behaviors`, and they need
+not be the same plugin: walker hands its bodies as `cylinder`, shapes3d's word, and motion3d and
+puppet3d hand theirs as `capsule`, anim's, so a new kind of body costs a `things` file and no GLSL. Its
+readers are hosts in turn: grass3d takes the things through `pressed` and asks its own `behaviors` how
+each word presses grass, which box3dvehicle and walker deliver in `<a>.grass3d.ts` (`using-gpgpu3d`).
 
 ## The order the work is done in
 

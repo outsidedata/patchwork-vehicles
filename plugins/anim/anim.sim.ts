@@ -14,7 +14,7 @@
 //             this.
 //   moves     metres: a one-shot carries travel when it ends more than this from its start,
 //   turns     degrees: or when it turns this far or further; turning less, its yaw column is zeroed.
-//   kinds     `{ <kind>: { rig, model, glb, fade, falls, reads, aim, props } }`: the rig file (a loader `json`
+//   kinds     `{ <kind>: { rig, model, glb, fade, falls, reads, aim, props, capsules } }`: the rig file (a loader `json`
 //             entry) and the model (a loader `model` entry) each kind's rows play, `glb`, a loader
 //             `binary` entry of the model's same file, which the server poses the body by (below,
 //             The pose), and which a kind no rule poses may leave out, `fade`, the
@@ -26,8 +26,17 @@
 //             may leave out, is the row's aim pitch in radians, positive up, and may be a dotted path
 //             into the row's fields, `"look.pitch"` its `look`'s `pitch`. `aim` `{ bones: { <bone
 //             suffix>: <share> } }` spreads that pitch over the bones it lists, and `props` `[{ model,
-//             bone, at, turn }]` hangs loader models on bones: the browser half's, which draws both,
-//             and nothing here reads them. `falls`, which a kind may leave out, is the falls it plays
+//             bone, at, turn }]` hangs loader models on bones, and a prop `{ item, bone, at, turn }`
+//             an item the `props` mod hands (`world.anim.mods.props`, item3d's): the browser half's,
+//             which draws both, and nothing here reads them. The `props` mod may hang props on a kind
+//             too, after the kind's own (`held(kind)`: item3d's, off its bodies sheet), and the
+//             `capsules` mod (`world.anim.mods.capsules`, item3d's) give it capsules after its own;
+//             `propsOf` and `capsulesOf` are the whole of each. `capsules` `[{ from, to, radius }]`, which a kind may leave
+//             out, is the body as gpgpu3d holds it for what is moved on the GPU (`anim.gpgpu3d.ts`):
+//             each a capsule `radius` metres round from the bone whose name ends with `from` to the
+//             one whose name ends with `to`, or `{ bone, at, radius }`, a ball `radius` metres round
+//             carried by the bone whose name ends with `bone`, `at` [x, y, z] metres in that bone's
+//             frame, its scale taken off (a head). `falls`, which a kind may leave out, is the falls it plays
 //             by how fast it falls: `[{ above, role }]`, `above` m/s, in rising order, each the role
 //             played once the body falls faster than its `above` (The moments, 1).
 //
@@ -187,7 +196,8 @@
 // imports no other plugin. A resolved clip is kept per rig file's `clips` and `table` objects, which
 // the loader replaces whole when the file is written, so an edit is read on the next step.
 import type { Row, W } from '#engine/engine.ts'
-import type { Wire } from '#engine/browser.ts'
+import type { Plugins, Wire } from '#engine/browser.ts'
+import { ahead, mod, provided } from '#addons/scenemanager/scenemanager.addon.ts'
 import { Matrix4, Quaternion, Vector3 } from 'three'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { binary, json } from '#plugins/loader/loader.sim.ts'
@@ -211,7 +221,39 @@ export type Moment = 'still' | 'jump' | 'leap' | 'fall' | 'land'
 // The fields of a row anim reads, each the name the row carries it by; `aim` a dotted path.
 export type Reads = { pos: string; yaw: string; vel: string; grounded: string; limp: string; aim?: string }
 // A loader model hung on a bone of a kind's body (the browser half's).
-export type Prop = { model: string; bone: string; at: number[]; turn: number[] }
+// A prop hung on a bone: a loader model, or an item the `props` mod hands (`anim.plugin.ts`, Props).
+export type Prop = ({ model: string } | { item: string }) & { bone: string; at: number[]; turn: number[] }
+// A prop's name: its model's, or its item's.
+export const propName = (p: Prop) => ('item' in p ? p.item : p.model)
+// A prop's loader model, undefined for a prop that is an item.
+export const propModel = (p: Prop) => ('model' in p ? p.model : undefined)
+export type Capsule = { from: string; to: string; radius: number } | { bone: string; at: number[]; radius: number }
+// What the `props` mod hands of a kind's props (`anim.plugin.ts`, Props): `held(kind)`, the props it hangs on
+// every body of that kind, [] for a kind it hangs none on. The `capsules` mod: `capsules(plugins)` hands back
+// the capsules it gives a kind, [] for a kind it gives none.
+export type Held = (plugins: Plugins) => { held(kind: string): Prop[] }
+export type Capsules = (plugins: Plugins) => (kind: string) => Capsule[]
+// A kind's props on this page: its own (`kinds.<kind>.props`), then those the `props` mod hangs on it, in that
+// order, which is the order of `plugins.anim.props(id)`.
+export function propsOf(plugins: Plugins, kind: string): Prop[] {
+  const scene = plugins.wire.scene
+  const own = numbersOf(plugins.wire).kinds[kind]?.props ?? []
+  const from = mod<Held>(scene.world!, 'anim', 'props')
+  if (!from) return own
+  ahead(scene, 'anim', 'props')
+  const more = from(plugins).held(kind)
+  return !own.length ? more : !more.length ? own : [...own, ...more]
+}
+// A kind's capsules on this page: its own (`kinds.<kind>.capsules`), then those the `capsules` mod gives it.
+export function capsulesOf(plugins: Plugins, kind: string): Capsule[] {
+  const scene = plugins.wire.scene
+  const own = numbersOf(plugins.wire).kinds[kind]?.capsules ?? []
+  const from = mod<Capsules>(scene.world!, 'anim', 'capsules')
+  if (!from) return own
+  provided(scene, 'anim', 'capsules')
+  const more = from(plugins)(kind)
+  return !own.length ? more : !more.length ? own : [...own, ...more]
+}
 export type Rig = {
   bodies?: Record<string, string>
   spread?: Record<string, number>
@@ -243,7 +285,7 @@ export type Limb = 'handL' | 'handR' | 'footL' | 'footR'
 export type Grip = { bone: string; guard: number[]; tip: number[] }
 export type Numbers = {
   still: number; shift: number; leap: number; landFall: number; moves: number; turns: number
-  kinds: Record<string, { rig: string; model: string; glb?: string; fade: number; falls?: Fall[]; reads: Reads; aim?: { bones: Record<string, number> }; props?: Prop[] }>
+  kinds: Record<string, { rig: string; model: string; glb?: string; fade: number; falls?: Fall[]; reads: Reads; aim?: { bones: Record<string, number> }; props?: Prop[]; capsules?: Capsule[] }>
 }
 // A band of falling: the role played once the body falls faster than `above`, m/s.
 export type Fall = { above: number; role: string }

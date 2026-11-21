@@ -87,6 +87,15 @@
 // armature is scaled to centimetres and a prop is modelled in metres, then moved by `at` (metres)
 // and turned by `turn` (degrees, an XYZ Euler), both in the bone's scale-free frame. A row's props
 // are made again when its kind's `props` change, and go with its model.
+//   A prop that names an `item` in place of a `model`, `{ item, bone, at, turn }`, is not the loader's:
+// the `props` mod hands it (`world.anim.mods: { props: 'item3d' }`, `plugins/item3d/item3d.anim.ts`),
+// `props(plugins)` handing back `{ ready(item), make(item) }`, `make` a new object of the item already
+// wearing its materials and casting its shadows. It is hung, placed and dropped as a model is, and never
+// dressed: its materials are its maker's. The mod's plugin is listed before anim (`ahead`). A prop that
+// names an item in a scene whose `world.anim.mods` names no `props` throws, naming the item.
+//   The `props` mod hangs props of its own on a kind too: `held(kind)` is a list as `kinds.<kind>.props` is,
+// models and items both, hung after the kind's own (item3d's are the `holds` of its bodies sheet's body of
+// that name). A kind's props are the two together (`anim.sim.ts`'s `propsOf`).
 //   A prop is placed after everything that poses the bones in the frame and before render3d draws
 // it. The client runs every plugin's `tick` in the scene's order, then every actor's, then every
 // plugin's `afterTick`, and render3d draws in its `afterTick`. anim poses a standing body in its
@@ -115,7 +124,11 @@
 import type * as THREE from 'three'
 import type { Plugins } from '#engine/browser.ts'
 import type { Row } from '#engine/engine.ts'
-import { animKind, at, carries, clipOf, momentOf, numbersOf, readsOf, rigOf, stanceOf, type Numbers, type Prop, type Reads, type Rig } from './anim.sim.ts'
+import { ahead, mod } from '#addons/scenemanager/scenemanager.addon.ts'
+import { animKind, at, carries, clipOf, momentOf, numbersOf, propsOf, readsOf, rigOf, stanceOf, type Numbers, type Prop, type Reads, type Rig } from './anim.sim.ts'
+
+// The `props` mod: what hands a prop that names an `item`, and the props it hangs on a kind (Props, the header).
+export type Props = (plugins: Plugins) => { ready(item: string): boolean; make(item: string): THREE.Object3D; held(kind: string): Prop[] }
 
 type Three = typeof import('three')
 type Kind = Numbers['kinds'][string]
@@ -279,6 +292,15 @@ export function anim() {
     b.aimed = []
   }
 
+  // What the `props` mod hands, for a prop that names the item `item`.
+  function items(plugins: Plugins, item: string) {
+    const scene = plugins.wire.scene
+    const from = mod<Props>(scene.world!, 'anim', 'props')
+    if (!from) throw new Error(`anim: the prop ${item} is an item, and world.anim.mods names no props to hand it`)
+    ahead(scene, 'anim', 'props')
+    return from(plugins)
+  }
+
   // Whether the loader's model has landed, asking for it once.
   function ready(plugins: Plugins, model: string) {
     const loader = plugins.loader
@@ -365,17 +387,21 @@ export function anim() {
   // The kind's props, each its own clone of its model, made once every one has landed, and made
   // again when the kind's `props` change, in place or not: they are walked against the copy taken
   // when they were last hung, and copied again only when they differ.
-  function props(b: Body, plugins: Plugins, k: Kind) {
-    const list: Prop[] = k.props ?? []
+  function props(b: Body, plugins: Plugins, k: Kind, kind: string) {
+    const list: Prop[] = propsOf(plugins, kind)
     if (!b.hung || !same(b.hung, list)) {
       unhang(b)
       b.hung = structuredClone(list)
     }
-    if (b.props || !list.length || !list.every(p => ready(plugins, p.model))) return
+    if (b.props || !list.length || !list.every(p => ('item' in p ? items(plugins, p.item).ready(p.item) : ready(plugins, p.model)))) return
     const T = three!
     b.props = list.map(p => {
-      const root = (plugins.loader.model(p.model) as { scene: THREE.Object3D }).scene
-      dress(root, plugins)
+      let root: THREE.Object3D
+      if ('item' in p) root = items(plugins, p.item).make(p.item)
+      else {
+        root = (plugins.loader.model(p.model) as { scene: THREE.Object3D }).scene
+        dress(root, plugins)
+      }
       scene!.add(root)
       const turn = new T.Quaternion().setFromEuler(new T.Euler(p.turn[0] * DEG, p.turn[1] * DEG, p.turn[2] * DEG, 'XYZ'))
       return { root, bone: boneOf(b, p.bone, k.model), offset: new T.Matrix4().compose(new T.Vector3().fromArray(p.at), turn, new T.Vector3(1, 1, 1)) }
@@ -544,7 +570,7 @@ export function anim() {
           bodies.set(r.id, b)
         }
         b.row = r
-        props(b, plugins, k)
+        props(b, plugins, k, kind)
         if (r.data[reads.limp]) {
           b.limp = true
           hang(b)

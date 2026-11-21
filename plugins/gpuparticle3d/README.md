@@ -78,8 +78,9 @@ mesh placed on the GPU.
 
 1. List `gpuparticle3d` before `render3d` (listed after it, it throws), add one `gpuparticle3d` row
    (`{ "next": 0, "live": [] }`), and give `world.gpuparticle3d: { effects, hold }`. Add
-   `mods: { solids: ['shapes3d'], behaviors: ['instances3d'] }` for bouncing particles and mesh
-   particles. Add `attach` and `mods: { sources: ['box3dvehicle'] }` to throw effects from what other
+   `mods: { solids: 'gpgpu3d', behaviors: ['instances3d'] }` for bouncing particles and mesh
+   particles, with gpgpu3d listed before gpuparticle3d and holding what they bounce off
+   (`"gpgpu3d": { "reach": 64, "mods": { "things": ["shapes3d", "terrain3d"], "behaviors": ["shapes3d", "terrain3d"] } }`). Add `attach` and `mods: { sources: ['box3dvehicle'] }` to throw effects from what other
    plugins hand over, a car's wheels and tailpipes (particle3d's README, Attachments).
 2. Write the effects file (particle3d's format) and add it to the scene's `loader` catalogue, with any
    sheets it names.
@@ -87,14 +88,15 @@ mesh placed on the GPU.
    `plugins.gpuparticle3d.emit('spark', at)`, `has(name)`, `drive(name, value)`, `drivers`, `effects`,
    `count`.
 
-`games/demo_gpuparticle3d` is demo_particle3d's scene played by gpuparticle3d. The particle workshop's
+`games/demo_gpuparticle3d` is demo_particle3d's scene played by gpuparticle3d, and its `bounce` scene
+is particles bouncing off the land and shapes gpgpu3d holds. The particle workshop's
 "Drawn by" setting plays any effects file with either plugin.
 
 ## Plugins it works with
 
 - **render3d:** the renderer its passes run through, and the scene and camera it draws in.
-- **shapes3d:** `shapes3d.gpuparticle3d.ts` hands over boxes, planes, hyperplanes and cylinders as
-  solids for `bounce`.
+- **gpgpu3d:** `gpgpu3d.gpuparticle3d.ts` is the solids for `bounce`: the things gpgpu3d holds on the
+  GPU, shapes3d's boxes, planes, hyperplanes and cylinders and terrain3d's land.
 - **instances3d:** `instances3d.gpuparticle3d.ts` delivers the `mesh` word.
 - **box3dvehicle:** `box3dvehicle.gpuparticle3d.ts` hands each car's wheels and tailpipes as sources
   for `attach`.

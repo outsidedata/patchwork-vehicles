@@ -1,0 +1,67 @@
+{
+  "budget": 3,
+  "wind": {
+    "toward": 210,
+    "speed": 2.5
+  },
+  "gust": {
+    "scale": 14,
+    "strength": 0.7,
+    "flutter": 0.05,
+    "rate": 2.4
+  },
+  "bend": 0.07,
+  "trample": {
+    "recover": 25,
+    "reach": 0.35
+  },
+  "grasses": {
+    "meadow": {
+      "rules": [
+        {
+          "q": "slope",
+          "lo": 0.46,
+          "hi": 0.36
+        }
+      ],
+      "density": 260,
+      "full": 6,
+      "reach": 110,
+      "fade": 25,
+      "tile": 3,
+      "height": [
+        0.42,
+        0.7
+      ],
+      "width": [
+        0.045,
+        0.5
+      ],
+      "widen": 0.5,
+      "widest": 6,
+      "lean": 0.25,
+      "segments": [
+        3,
+        2,
+        2,
+        1,
+        1
+      ],
+      "chunks": 4,
+      "colours": {
+        "root": "#1d3010",
+        "tip": "#8fae4c",
+        "dry": "#b9a462"
+      },
+      "dry": {
+        "amount": 0.45,
+        "scale": 11
+      },
+      "vary": 0.18,
+      "translucency": 0.55,
+      "roughness": 0.7,
+      "ao": 0.55,
+      "shadow": 0
+    }
+  }
+}

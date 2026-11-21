@@ -1,11 +1,9 @@
-// vehicles booted as the server boots it, with two connections on the road: the four cars stand side by
-// side on the land, and each seat holds the car its start names from the step that car is made, the
-// first seat the jeep, with no body of its own. The cars stay put with nobody driving, a seat's pedal
-// drives the car it holds and no other, held back from a stop it reverses, a value not a number does
-// nothing and one past its range is kept to it, `lights` switches its car's headlights, `next` moves the
-// seat to the next free car, carrying the controls it last sent, `upright` puts a car on its roof back
-// on its wheels, a car let go of, by `next` or by a seat
-// that leaves, is braked by its spot, and a seat whose own car another holds takes the first free one.
+// vehicles booted as the server boots it, with two connections on the road: the road holds only the two
+// cars its seats' starts name, each made on its wheels at its spot, the first seat in the jeep and the
+// second in the cart, with no body of its own. The cars stay put with nobody driving, a seat's pedal
+// drives the car it holds and no other, held back from a stop it reverses, `next` makes the next free
+// spot's car at that spot and moves the seat into it, `upright` puts a car on its roof back on its
+// wheels, and a car let go of, by `next` or by a seat that leaves, is scrapped with every part of it.
 // The jeep driven into the pedestrian knocks him down as a box3d ragdoll, and he stands again. Then two
 // pages drive it for half a minute on the simulator under 150 ms of lag.
 import { expect, test, vi } from 'vitest'
@@ -19,6 +17,7 @@ import { sim } from './vehicles.sim.ts'
 import { LIFT } from './player.sim.ts'
 import { sim as roadSim } from './road.sim.ts'
 import file from './vehicles.scene.json'
+import roadFile from './road.scene.json'
 import { possessed } from '#addons/player/player.addon.ts'
 
 vi.setConfig({ testTimeout: 60_000 })
@@ -85,23 +84,25 @@ const until = (g: Road, done: () => boolean, max: number, what: string) => {
 // Seat `s`'s first press, numbered `seq`, which changes nothing: it holds its car from the start.
 const getIn = (g: Road, s: number, seq: number) => press(g, s, seq, 'brake', 0)
 
-test('the golf cart, the jeep, the monster truck and the UTV stand side by side on their wheels on the land', async () => {
+// The road's spot named `name`, as its scene file lists it.
+const spotAt = (name: string) => roadFile.actors.find(a => a.is === 'spot' && a.name === name) as unknown as { x: number; z: number }
+
+test('the road holds only the jeep and the cart its two seats start in, each on its wheels on the land at its spot', async () => {
   const g = await road()
   g.step(90)
   const cars = vehicles(g.road)
-  expect(cars.map(c => c.data.vehicle)).toEqual(['cart', 'jeep', 'truck', 'utv'])
-  // every wheel's bottom, its centre less its radius, on the land
-  for (const car of cars) car.data.wheels.forEach((id: number, i: number) => {
-    const [x, y, z] = part(g.road, id).pos, r = fleet[car.data.vehicle].axles[i >> 1].wheel.radius
-    expect(Math.abs(y - r - heightAt(g.w, x, z))).toBeLessThan(0.15)
-  })
-  const [cart, jeep, truck, utv] = cars.map(c => chassisOf(g, c.id).pos)
-  expect(Math.abs(cart[0] - jeep[0])).toBeLessThan(0.5)
-  expect(Math.abs(truck[0] - jeep[0])).toBeLessThan(0.5)
-  expect(Math.abs(utv[0] - jeep[0])).toBeLessThan(0.5)
-  expect(cart[2]).toBeLessThan(jeep[2])
-  expect(jeep[2]).toBeLessThan(truck[2])
-  expect(truck[2]).toBeLessThan(utv[2])
+  expect(cars.map(c => c.data.vehicle).sort()).toEqual(['cart', 'jeep'])
+  expect(row(g, held(g, 0)!).data.vehicle).toBe('jeep')
+  expect(row(g, held(g, 1)!).data.vehicle).toBe('cart')
+  for (const car of cars) {
+    // every wheel's bottom, its centre less its radius, on the land
+    car.data.wheels.forEach((id: number, i: number) => {
+      const [x, y, z] = part(g.road, id).pos, r = fleet[car.data.vehicle].axles[i >> 1].wheel.radius
+      expect(Math.abs(y - r - heightAt(g.w, x, z))).toBeLessThan(0.15)
+    })
+    const at = spotAt(car.data.vehicle), pos = chassisOf(g, car.id).pos
+    expect(Math.hypot(pos[0] - at.x, pos[2] - at.z)).toBeLessThan(0.5)
+  }
 })
 
 test('after 300 idle steps every car is still within 0.5 m of where it stood', async () => {
@@ -167,25 +168,43 @@ test('a seat holding its pedal back from a stop puts its car in reverse and back
   expect(row(g, car).data.gear).toBeGreaterThan(0)
 })
 
-test('a car its seat moves off while driving it is braked to a stop, and the seat\'s pedal drives the car it moved to', async () => {
+test('next scraps the car the seat drove, every part of it, makes the truck at its spot, and the seat\'s pedal drives the truck', async () => {
   const g = await road()
   g.step(30)
   getIn(g, 0, 1)
   const jeep = held(g, 0)!
+  const parts = [row(g, jeep).data.chassis, ...row(g, jeep).data.wheels, ...row(g, jeep).data.joints] as number[]
   press(g, 0, 2, 'pedal', 1)
   g.step(90)
   press(g, 0, 3, 'next')
   g.step(5)
   const truck = held(g, 0)!
   expect(row(g, truck).data.vehicle).toBe('truck')
-  expect(row(g, jeep).data.brake).toBe(1)
-  expect(row(g, jeep).data.pedal).toBeNull()
-  const truckAt = [...chassisOf(g, truck).pos]
+  for (const id of [jeep, ...parts]) expect(g.road.rows.some(r => r.id === id)).toBe(false)
+  expect(vehicles(g.road).map(c => c.data.vehicle).sort()).toEqual(['cart', 'truck'])
+  const at = spotAt('truck'), truckAt = [...chassisOf(g, truck).pos]
+  expect(Math.hypot(truckAt[0] - at.x, truckAt[2] - at.z)).toBeLessThan(0.5)
   g.step(240)
-  const was = [...chassisOf(g, jeep).pos]
-  g.step(120)
-  expect(flat(chassisOf(g, jeep).pos, was)).toBeLessThan(0.05)
   expect(flat(chassisOf(g, truck).pos, truckAt)).toBeGreaterThan(5)
+})
+
+test('next skips the spot whose car the other seat holds, and comes round to the jeep', async () => {
+  const g = await road()
+  g.step(30)
+  getIn(g, 0, 1)
+  getIn(g, 1, 1)
+  // the spots in the road's order: cart (seat 1 holds it), jeep, truck, utv
+  press(g, 0, 2, 'next')
+  g.step(3)
+  expect(row(g, held(g, 0)!).data.vehicle).toBe('truck')
+  press(g, 0, 3, 'next')
+  g.step(3)
+  expect(row(g, held(g, 0)!).data.vehicle).toBe('utv')
+  press(g, 0, 4, 'next')
+  g.step(3)
+  expect(row(g, held(g, 0)!).data.vehicle).toBe('jeep')
+  expect(row(g, held(g, 1)!).data.vehicle).toBe('cart')
+  expect(vehicles(g.road)).toHaveLength(2)
 })
 
 test('a seat\'s upright lifts its car on its roof LIFT metres, flat on the heading it pointed, stilled, and it drops onto its wheels', async () => {
@@ -228,7 +247,7 @@ test('a seat\'s upright lifts its car on its roof LIFT metres, flat on the headi
   })
 })
 
-test('a seat that leaves lets go of its car, which its spot keeps braked', async () => {
+test('a seat that leaves lets go of its car, which is scrapped', async () => {
   const g = await road()
   g.step(30)
   getIn(g, 1, 1)
@@ -238,10 +257,10 @@ test('a seat that leaves lets go of its car, which its spot keeps braked', async
   g.step(30)
   expect(row(g, cart).data.pedal).toBe(1)
   g.seats[1].c.close()
-  g.step(2)
+  g.step(3)
   expect(g.road.rows.filter(r => r.kind === 'player')).toHaveLength(1)
-  expect(row(g, cart).data.brake).toBe(1)
-  expect(row(g, cart).data.pedal).toBeNull()
+  expect(g.road.rows.some(r => r.id === cart)).toBe(false)
+  expect(vehicles(g.road).map(c => c.data.vehicle)).toEqual(['jeep'])
 })
 
 // Two seats for 30 seconds, 150 ms each way with 20 ms of jitter, one page on a 60 Hz display and one

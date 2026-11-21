@@ -8,8 +8,9 @@ surface, and every way an instance is drawn, comes from a mod.
 
 ## Why use it
 
-Use lod3d for anything a landscape has thousands of: trees, grass clumps, flowers, rocks, ferns under
-each tree and stones round each fern. A rule on the server asks for the trunks near a point and gets
+Use lod3d for anything a landscape has thousands of: trees, clumps, flowers, rocks, ferns under each
+tree and stones round each fern. Ground cover, a meadow of grass blades, is grass3d's: it is made on the
+GPU, thins out blade by blade with distance and moves in the wind. A rule on the server asks for the trunks near a point and gets
 exactly the trunks a seat sees, so bodies walk round them, shots stop at them, cars hit them and AI
 hides behind them. The whole of it is numbers in the scene, so a designer tunes a forest by its
 spacing, density and rules over the land.
@@ -87,7 +88,9 @@ It hands out `layers()` (each layer's `{ layer, held }`, every held tile's `thin
    other plugins' mods (below), and give `world.lod3d.widest` (the widest `solid`·size circle any
    instance has, metres) and `remember` (how many tiles the server keeps, oldest asked forgotten
    first).
-4. For a prepared place that waits on the trees, `world.terrain3d.mods: { ready: ['lod3d'] }`.
+4. For a prepared place that waits on the trees, `world.terrain3d.mods: { ready: ['lod3d'] }`; with
+   terrain3d's `preload` and `world.loader.mods.ready: ['terrain3d']`, the loading screen waits on them
+   too.
 
 ```json
 "instances3d": { "cutout": 0.45, "coverage": 0.25 },

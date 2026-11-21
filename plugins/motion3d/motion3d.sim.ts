@@ -45,8 +45,23 @@
 //     carry   the carry the body holds its prop by while the move plays (Carries, below)
 //     add     true: an additive layer, laid on top of whatever the body plays (Layers, below)
 //     weight  an additive layer's weight, 0 to 1; 1 when it gives none
-//     warp    `{ reach, turn, accel }`, metres, degrees and m/s²: a one-shot on the triangles bent so its
-//             blow lands on the row's `target` (Warp, below)
+//     mix     `way`: a loop on the triangles whose clips are drawn together, each by how near the way it
+//             goes is to the way the body is walked, kept in step (Mixes, below); none, its one clip
+//             that goes the way the body is walked
+//     gait    the motion of the same activity, a loop on the triangles that names this one back, whose clips
+//             this one's are mixed with by the body's speed (Mixes, below): a walk's run, a run's walk
+//     begin   a time of its one-shot's clip (seconds, "NN%" or a moment) it begins at; none, its start
+//     end     a time of its one-shot's clip it is over at, its `then` or the stack following; none, its end
+//     yields  true: a one-shot with no key that is over once its description stops being true, as a loop
+//             is (a stop the stick pushed again, a start let go); none, it plays through
+//     steer   true: a one-shot on the triangles that turns toward the way the body is walked as it plays,
+//             as a walk turns (a start), its travel turned with it; none, it goes the way its clip carries
+//             it (Facing, below)
+//     warp    a clip bent from where the body is onto where it must be by `until`, a time in its clip
+//             (seconds, "NN%" or a moment, `motion3d.play.ts`'s Moments): on the triangles `{ until,
+//             reach, turn, accel }`, metres, degrees and m/s², its blow at `until` laid on the row's
+//             `target`; on a space's point `{ until }`, begun where the body stands and bent onto the
+//             point (Warp, below)
 //
 // Carries. The motion3d file's `carries`, `{ <name>: { prop, anchor, limbs } }`, each how the body holds a
 // prop of its kind's `props` (`prop`, its loader model) while a move that names it plays:
@@ -160,7 +175,10 @@
 // to say (its `grounded`); its `vel` is the speed `move` moves it along the target at, from rest as it
 // comes onto a space.
 //
-// Easing. A body's clip fades into the one it starts over its kind's `fade`, each
+// Easing. A body whose kind's `blend` is `inertial` (`motion3d.play.ts`, Inertialization) is not eased:
+// the jump of its place as its clip changes is folded into the change inertialized (`inertRoot`), its
+// hips going on from where they were drawn. One whose kind crossfades is eased so. A body's clip fades
+// into the one it starts over its kind's `fade`, each
 // clip drawn about the root, and each clip's bones stand at their own heights over it: a hang's wrists
 // 1.919 m over the root, a shimmy's 2.370 m. So the root is eased as the clips fade: the gap from where
 // the clip fading out stood it (`eased.from`, the body's place when its clip was at full weight) to
@@ -203,30 +221,78 @@
 // scene's solid boxes (the `faces` mod, `world.motion3d.mods.faces`: shapes3d's), so a body run into a
 // plain box vaults it, climbs it or mantles onto it with no space placed by hand. `solid` is `{ over,
 // at, facing, priority?, points }`: a side offers the activity while its box's top stands `over` [low,
-// high] metres over the body's feet, the body stands `at` [near, far] metres out of it, along it short
-// of its ends by a third of a metre, and faces into it within `facing` degrees; and while the box stands
+// high] metres over the body's feet, the body stands `at` [near, far] metres out of it, the way it faces
+// meets it short of its ends by a third of a metre, and faces into it within `facing` degrees; and while the box stands
 // on the ground the body stands on, its foot no more than 0.3 m over the body's feet (a bar hung in the
 // air offers nothing). Its space takes the
 // activity up with no key, and at once, not as the body's clip comes round (`data.motion3d.cut`), at the
 // `priority` (2 when it gives none). Its `points`, each by name, stand where the clips its motions play
 // against measure them from the side, all facing into it:
-//   point  `{ out }`: on the ground at the side's foot where the body stands along it, `out` metres out of
-//          it: where a vault starts the root
+//   point  `{ out }`: on the ground at the side's foot where the way the body faces meets it (where it
+//          stands along it while it faces further from square to it than `facing`), `out` metres out of it,
+//          short of its ends by a third of a metre: where a vault starts the root, on the line the body
+//          runs in on
+// For the space the body is in, its points stand where it met the side as it came into it (the row's
+// `met`), so they stay put under it while it plays.
 //   line   `{ out, down }`: along the side's top edge, `down` metres under it and `out` out of it: a lip
 //          the wrists hang from
 //   plane  `{ out }`: the side itself, `out` metres out of it, its normal out of it: a face to climb
 //
-// Warp. A one-shot on the triangles whose motion gives `warp` and that begins while the row has a
-// `target` (a place [x, y, z] in the world; its rule's: the enemy it fights) is bent so its blow lands on
-// it: where the clip's strike (`motion3d.play.ts`, Moments) puts the limb that strikes, from where the
-// body stands as the clip begins, is laid onto the target across the ground. The body turns toward it,
-// no more than `turn` degrees, and goes as much further as the blow falls short or past, no more than
-// `reach` metres nor than `accel` lets it go eased in and out before the strike (accel · strike² / 6),
-// each eased in and out (3s² − 2s³) as the playhead goes from the clip's start to its strike, the rest
-// of its travel its own; walls stop it as they stop any travel. The row carries it as `warp`,
-// `{ from, to, by, until }` (the facing it began at and the one it turns to, radians; the metres [x, z] it
-// is carried further; the strike, seconds), until the next motion begins; a one-shot begun with no
-// `target` is not bent.
+// Warp. Motion warping: a clip whose motion gives `warp` is bent, as the playhead goes from the clip's
+// start to its `until`, from where the body is onto where it must be, eased in and out (3s² − 2s³), the
+// rest of the clip its own. On the triangles only a one-shot is bent; on a space's point a loop is too,
+// over its first lap up to its `until`, and once the lap comes round the bend is over.
+//
+// On the triangles, a one-shot that begins while the row has a `target` (a place [x, y, z] in the world;
+// its rule's: the enemy it fights) is bent so its blow lands on it: where the clip at `until` puts the
+// limb that strikes (its strike's, `motion3d.play.ts`, Moments), from where the body stands as the clip
+// begins, is laid onto the target across the ground. The body turns toward it, no more than `turn`
+// degrees, and goes as much further as the blow falls short or past, no more than `reach` metres nor
+// than `accel` lets it go eased in and out before `until` (accel · until² / 6); walls stop it as they
+// stop any travel. The row carries it as `warp`, `{ on: 'target', from, to, by, until }` (the facing it
+// began at and the one it turns to, radians; the metres [x, z] it is carried further; `until`, seconds);
+// a one-shot begun with no `target` is not bent.
+//
+// On a space's point, the clip begins where the body stands and facing as it faces, its first frame laid
+// there and carried on from it the way the body faces, and is bent onto the point as it plays: by `until`
+// it stands and faces as the point places it (Held to a point), and from then on is held there. A body
+// run at a vault on a slant runs on into it on its own line, and its hand comes down where the point puts
+// it. The row carries it as `warp`, `{ on: 'point', from, start, until }` (where the body stood and faced
+// as the clip began and where the point placed its first frame, each [x, y, z, yaw]; `until`, seconds).
+// The one on the triangles is kept until the next motion begins; the one onto a point until the playhead
+// passes its `until` or the loop comes round, then null.
+//
+// Mixes. A loop on the triangles whose motion gives `mix: "way"` is drawn from its clips together, as a
+// blend space draws them: each clip goes the way its measured lap carries it (its travel, not its name),
+// and for the way the body is walked, in its own frame, the two clips whose ways stand either side of it,
+// nearest round, are drawn, each by how near it is (by angle), one that goes exactly that way wholly. The
+// heavier is the body's `clip`, the other its `mix` (`motion3d.play.ts`, Mixes), each in step with it by
+// the left foot coming down; as the way turns past the middle, the other becomes the body's clip where it
+// stands in step, with no fade. The body is walked as fast as its clips go, each clip's speed by its
+// share (a blend space's speed axis: half a forward walk and half a strafe as fast as either), and the
+// clips play at the rate it went, the laps' shorter way together going round that much faster. With the
+// stick let go the mix stands as it was.
+//
+// A loop on the triangles whose motion gives `gait`, the motion it pairs with (a walk's run, a run's
+// walk; each names the other), is mixed with that motion by the body's speed: each motion's own clips
+// at their shares for the way (by the way where it mixes, else wholly the one clip that goes that way),
+// each set going as fast as its clips carry it at their own rates, and the body's speed across the
+// ground, between the two, the share of the other's it heads for. The share drawn, the row's `gaitW`, is
+// eased toward that by no more than a step over the kind's `fade`, as a blend space's weights are, so a
+// body sped up hard in one step draws no pose in at once. The body is walked at the speed of its own
+// motion's set, as kinematics3d eases it there (its `move.accel`), so a body that has just begun to run is
+// drawn still mostly walking, the run coming in as it speeds up; the clips play at the rate it goes, and
+// as the heavier clip is handed over, the row's `rate` is scaled from the one clip's lap to the other's so
+// it goes round as often. One motion of the pair followed by the other carries on in step, with no
+// restart or fade, its `gaitW` turned round to the other's.
+//
+// Facing. A one-shot on the triangles faces the way the body faced as it began, turned by its clip's own
+// turn where it keeps it (`motion3d.play.ts`'s `carries`: a turn of the file's `turns` degrees or more, a
+// pivot): nothing else turns it. One begun on a step that turned the body first (a run walked back the
+// way it came turns toward the stick on the step the pivot that cuts it short begins) is laid from the
+// way the body faced as that step began (`turnFrom`), so the clip turns it the whole way. One whose
+// motion gives `steer` turns toward the way the body is walked as kinematics3d's `move` turns a walk (its
+// `toward`), held where the stick is let go, its travel turned with it.
 //
 // Lean. A kind's `lean`, `{ most, ease }` (radians, seconds), leans a body walking on the triangles, a
 // loop playing (a walk, a run; a one-shot turns as its own clip turns it), into its turns, as a runner does: by atan(speed · turn rate / g), g 9.81 m/s², no further than `most`
@@ -269,7 +335,8 @@
 // held to, the name of a point of its space or the triangles beneath it it was handed, or null; `along`, its
 // place on its target, or null; `eased`, `{ from, to }` while its root is eased, each [x, y, z, yaw] and
 // the tilt after it when it had one, `from` where the clip fading out stood it and `to` where the one
-// coming in had it as it began, else null;
+// coming in had it as it began, else null; `met`, [x, y, z, yaw], where it stood and faced as it came
+// into its space (Solids); `warp` (Warp); `gaitW`, the share of its motion's gait it draws, or null (Mixes);
 // `offered`, `lookAround` and `previousLookAround`; `queued` (The buffer); `markers` and `windows` (Markers); `tilt`; `stopped`, the way the stick pushed when its place stopped at an edge, or false;
 // `facing`, the way `move` turned it on a target whose ways span the ground, or null; and `upperMotion`,
 // `upperActivity` and `upperSpace`, the move its upper half plays, its activity and its shape, or null.
@@ -285,11 +352,11 @@
 // shape; its `activities` the ones a body has everywhere, the first the one it starts in (`fill`).
 import type { Row, W } from '#engine/engine.ts'
 import { mod } from '#addons/scenemanager/scenemanager.addon.ts'
-import { Quaternion, Vector3 } from 'three'
-import { animate as animated, blowOf, playKind as animKind, clipOf, ends, fill as fillPlay, lay, layStep, lift, movesOf, numbersOf, open as openIn, over, overStep, plantsOf, play as playClip, posed, readsOf, rigOf, secondsIn, under, type Body, type Layer, type Limb, type Marker, type Time } from './motion3d.play.ts'
+import { Matrix4, Quaternion, Vector3 } from 'three'
+import { animate as animated, blowOf, carries, playKind as animKind, clipOf, ends, fill as fillPlay, inStep, lay, layStep, lift, movesOf, numbersOf, open as openIn, over, overStep, plantsOf, play as playClip, posed, readsOf, rigOf, secondsIn, settle, under, type Body, type Layer, type Limb, type Marker, type Mix, type Time } from './motion3d.play.ts'
 import { json } from '#plugins/loader/loader.sim.ts'
 import { at as atOn, is, joined, nearest as nearestOn, parts, spans, step as moveOn, ways as waysOf, type Place, type Target } from '#plugins/kinematics3d/kinematics3d.sim.ts'
-import { cutShort, fill as fillBody } from './motion3d.kinematics3d.ts'
+import { cutShort, fill as fillBody, toward as steered } from './motion3d.kinematics3d.ts'
 import * as math from '#plugins/math/math.sim.ts'
 import { add, axes, dot, drawnAt as clipDrawnAt, onFloor as clipOnFloor, fromBody, inBody, rootIn as clipRootIn, scaled, segmentOf, spotIn as clipSpotIn, sub, type Held as Spot, type Offsets } from './motion3d.clip.ts'
 
@@ -297,7 +364,9 @@ import { add, axes, dot, drawnAt as clipDrawnAt, onFloor as clipOnFloor, fromBod
 // what it was measured against.
 export type { Offsets }
 export type Stick = 'forward' | 'back' | 'across' | 'none'
-export type Motion = { target?: 'point' | 'line' | 'spline' | 'plane' | 'triangles'; behavior?: 'move' | 'jump'; clips: string[]; press?: string; stick?: Stick; from?: string[]; when?: string[]; then?: string; over?: string; carry?: string; add?: boolean; weight?: number; warp?: { reach: number; turn: number; accel: number } }
+export type Motion = { target?: 'point' | 'line' | 'spline' | 'plane' | 'triangles'; behavior?: 'move' | 'jump'; clips: string[]; press?: string; stick?: Stick; from?: string[]; when?: string[]; then?: string; over?: string; carry?: string; add?: boolean; weight?: number; warp?: Warp; mix?: 'way'; gait?: string; steer?: boolean; begin?: Time; end?: Time; yields?: boolean }
+// A motion's warp (Warp, the header): on the triangles toward the row's `target`, on a space's point onto it.
+export type Warp = { until: Time; reach: number; turn: number; accel: number } | { until: Time }
 // How the body carries a prop (Carries, the header): the prop set by one of its points against a bone,
 // and the limbs that reach points of it.
 export type Carry = {
@@ -370,7 +439,7 @@ function fill(me: Row, w: W) {
   fillBody(me)
   fillPlay(d)
   if (d.activity == null) d.activity = anywhere(me, w)[0]
-  for (const k of ['motion', 'space', 'root', 'along', 'eased', 'tilt', 'upperMotion', 'upperActivity', 'upperSpace', 'warp']) d[k] ??= null
+  for (const k of ['motion', 'space', 'root', 'along', 'eased', 'tilt', 'upperMotion', 'upperActivity', 'upperSpace', 'warp', 'met', 'gaitW']) d[k] ??= null
   d.stopped ??= false
   d.markers ??= []
   d.windows ??= []
@@ -427,20 +496,24 @@ function solidsFrom(me: Row, faces: Faces, offered: [string, Activity][], w: W):
   const far = Math.max(...offered.map(([, a]) => a.solid!.at[1])) + 1
   const out: Space[] = []
   for (const f of faces(w, d.pos, far)) {
-    // The body across the ground from the side's foot: how far out of it, and how far along it.
-    const rel = [d.pos[0] - f.at[0], d.pos[2] - f.at[2]]
-    const out_ = rel[0] * f.normal[0] + rel[1] * f.normal[2]
-    const along = rel[0] * f.along[0] + rel[1] * f.along[2]
+    // How far out of the side's foot the body stands across the ground.
+    const out_ = (d.pos[0] - f.at[0]) * f.normal[0] + (d.pos[2] - f.at[2]) * f.normal[2]
     const into = math.atan2(-f.normal[0], -f.normal[2])
     offered.forEach(([word, a], i) => {
       const s = a.solid!
+      const id = -1 - ((f.id * 4 + f.side) * 64 + i)
       const tall = f.top - d.pos[1]
-      // Along the side short of its ends by a third of a metre, where the body stands.
-      const on = Math.max(-f.half + 0.3, Math.min(f.half - 0.3, along))
+      const faces = Math.abs(wrap(d.yaw - into)) <= s.facing * DEG
+      const meets = meetsOf(f, d.pos, d.yaw, faces)
+      // Its points stand where the body met the side: as it came into the space, for the space it is
+      // in, so they stay put under it as it plays; else where it is now.
+      const met = id === d.space ? meetsOf(f, d.met, d.met[3], Math.abs(wrap(d.met[3] - into)) <= s.facing * DEG) : meets
+      // Short of its ends by a third of a metre.
+      const on = Math.max(-f.half + 0.3, Math.min(f.half - 0.3, met))
       // A box standing on the ground the body stands on, its foot no higher than its kinematics3d step.
       const grounded = f.base <= d.pos[1] + STANDS
-      const holds = grounded && f.half > 0.3 && Math.abs(along) <= f.half - 0.3 && out_ >= s.at[0] && out_ <= s.at[1]
-        && tall >= s.over[0] && tall <= s.over[1] && Math.abs(wrap(d.yaw - into)) <= s.facing * DEG
+      const holds = grounded && f.half > 0.3 && Math.abs(meets) <= f.half - 0.3 && out_ >= s.at[0] && out_ <= s.at[1]
+        && tall >= s.over[0] && tall <= s.over[1] && faces
       const at = (out: number, y: number, by = on) => [f.at[0] + f.normal[0] * out + f.along[0] * by, y, f.at[2] + f.normal[2] * out + f.along[2] * by]
       const points: Record<string, Constraint> = {}
       for (const [name, p] of Object.entries(s.points)) {
@@ -449,7 +522,7 @@ function solidsFrom(me: Row, faces: Faces, offered: [string, Activity][], w: W):
         else points[name] = { plane: { at: at(p.plane.out, (f.base + f.top) / 2, 0), u: f.along, v: UP, size: [2 * f.half, f.top - f.base], yaw: into, normal: f.normal } }
       }
       out.push({
-        id: -1 - ((f.id * 4 + f.side) * 64 + i),
+        id,
         activities: [word],
         priority: s.priority ?? 2,
         data: { motion3d: { autoChange: true, cut: true } },
@@ -460,6 +533,19 @@ function solidsFrom(me: Row, faces: Faces, offered: [string, Activity][], w: W):
     })
   }
   return out
+}
+
+// How far along a side a body standing at `pos` and facing `yaw` meets it (Solids, the header): where
+// the way it faces meets the side, while it `faces` into it within the activity's `facing`; where it
+// stands along it otherwise.
+function meetsOf(f: Face, pos: number[], yaw: number, faces: boolean): number {
+  const rel = [pos[0] - f.at[0], pos[2] - f.at[2]]
+  const out = rel[0] * f.normal[0] + rel[1] * f.normal[2]
+  const along = rel[0] * f.along[0] + rel[1] * f.along[2]
+  // The way it faces across the ground: how fast it goes into the side, and along it.
+  const inward = -(math.sin(yaw) * f.normal[0] + math.cos(yaw) * f.normal[2])
+  const across = math.sin(yaw) * f.along[0] + math.cos(yaw) * f.along[2]
+  return faces && inward > 0 && out > 0 ? along + (out * across) / inward : along
 }
 
 export const holding = (me: Row, w: W): Space[] => spacesOf(me, w).here
@@ -647,9 +733,23 @@ function carriedBy(w: W, me: Row, c: Constraint, clip: string, t0: number, t1: n
 function place(w: W, me: Row, c: Constraint, clip: string, t: number) {
   const d = me.data
   const { pos, turn } = placing(w, me, c, d.along, clip, t)
-  d.pos = pos
-  d.yaw = turn.yaw
   d.tilt = tiltOf(turn.tilt)
+  if (d.warp?.on !== 'point') {
+    d.pos = pos
+    d.yaw = turn.yaw
+    return
+  }
+  // Bent onto its point (Warp, the header): the clip laid where the body stood and turned the way it
+  // faced, carried on from there, and drawn onto where the point places it by as much as the playhead
+  // has come to `until`.
+  const { from, start, until } = d.warp
+  const by = wrap(from[3] - start[3])
+  const k = bentBy(t, until)
+  const rel = sub(pos, start.slice(0, 3))
+  const cos = math.cos(by), sin = math.sin(by)
+  const laid = [from[0] + rel[0] * cos + rel[2] * sin, from[1] + rel[1], from[2] - rel[0] * sin + rel[2] * cos]
+  d.pos = laid.map((v, i) => v + (pos[i] - v) * k)
+  d.yaw = turn.yaw + by * (1 - k)
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -708,6 +808,122 @@ function wayOf(w: W, me: Row, clip: string): number[] {
   return m > 1e-9 ? [way[0] / m, way[1] / m] : [0, 0]
 }
 
+// The share of each clip of a motion that mixes by the way (Mixes, the header) for a body walked `way`,
+// [right, forward] in its own frame: the two clips whose ways stand either side of it, nearest round,
+// each by how near it is by angle; one going exactly that way, wholly. A clip that goes nowhere has no
+// way to mix by, and throws.
+function mixOf(w: W, me: Row, m: Motion, way: number[]): Map<string, number> {
+  const TAU = 2 * Math.PI
+  const round = (a: number) => ((a % TAU) + TAU) % TAU
+  const at = math.atan2(way[0], way[1])
+  const ways = m.clips.map(clip => {
+    const v = wayOf(w, me, clip)
+    if (v[0] === 0 && v[1] === 0) throw new Error(`motion3d mixes ${clip} by the way it goes, and it goes nowhere`)
+    return { clip, a: math.atan2(v[0], v[1]) }
+  }).sort((p, q) => p.a - q.a)
+  if (ways.length === 1) return new Map([[ways[0].clip, 1]])
+  for (let i = 0; i < ways.length; i++) {
+    const p = ways[i], q = ways[(i + 1) % ways.length]
+    const span = i === ways.length - 1 ? round(q.a - p.a) || TAU : q.a - p.a
+    const off = round(at - p.a)
+    if (off > span) continue
+    const s = span > 0 ? off / span : 0
+    return new Map([[p.clip, 1 - s], [q.clip, s]])
+  }
+  throw new Error(`motion3d found no two clips of ${m.clips.join(', ')} either side of the way ${way.join(', ')}`)
+}
+
+// A motion's own shares for the way the body is walked (Mixes, the header): by the way for one that
+// mixes, else wholly its one clip that goes that way.
+function ownShares(w: W, me: Row, m: Motion, way: number[]): Map<string, number> {
+  return m.mix === 'way' ? mixOf(w, me, m, way) : new Map([[toward(w, me, m, way), 1]])
+}
+
+// How fast a set of clips at their shares carries the body across the ground, m/s: each clip's speed (its
+// lap across the ground over its length, at its own rate) by its share, as a blend space's speed axis
+// runs: half a forward walk and half a strafe as fast as either, not the shorter way their two laps make
+// laid together.
+function speedOf(w: W, me: Row, shares: Map<string, number>): number {
+  const rig = rigOf(w, animKind(me))
+  let v = 0
+  for (const [clip, s] of shares) {
+    const c = clipOf(rig, clip)
+    const lap = lapOf(w, me, clip)
+    v += (s * math.hypot(lap[0], lap[2]) * c.rate) / c.dur
+  }
+  return v
+}
+
+// The other motion of a gait (Mixes, the header), checked: one of the same activity, a loop on the
+// triangles, that names this one back.
+function gaitOf(w: W, me: Row, activity: string, name: string, m: Motion): Motion {
+  const g = motionOf(activityOf(w, me, activity), m.gait!)
+  if (!g) throw new Error(`motion3d's ${activity}.${name} mixes by speed with ${m.gait}, which ${activity} has no motion of`)
+  if (g.gait !== name) throw new Error(`motion3d's ${activity}.${name} mixes by speed with ${m.gait}, which does not name it back as its gait`)
+  if (m.target !== 'triangles' || g.target !== 'triangles') throw new Error(`motion3d's ${activity}.${name} and ${m.gait} mix by speed, and only loops on the triangles do`)
+  return g
+}
+
+// A gait's two sets for the way the body is walked (Mixes, the header): the motion's own and its gait's,
+// and where the body's speed stands between their speeds, 0 at its own and 1 at its gait's.
+function gaitSets(w: W, me: Row, activity: string, name: string, m: Motion, way: number[]): { own: Map<string, number>; other: Map<string, number>; at: number } {
+  const own = ownShares(w, me, m, way)
+  const other = ownShares(w, me, gaitOf(w, me, activity, name, m), way)
+  const a = speedOf(w, me, own), b = speedOf(w, me, other)
+  return { own, other, at: a === b ? 0 : Math.max(0, Math.min(1, (me.data.speed - a) / (b - a))) }
+}
+
+// The shares of a gait: its own set's and its gait's, the gait's at `s`.
+function gaitShares(sets: { own: Map<string, number>; other: Map<string, number> }, s: number): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const [clip, x] of sets.own) out.set(clip, (out.get(clip) ?? 0) + x * (1 - s))
+  for (const [clip, x] of sets.other) out.set(clip, (out.get(clip) ?? 0) + x * s)
+  return out
+}
+
+// One step of a gait's share (Mixes, the header): the row's `gaitW`, the share of its motion's gait,
+// eased toward where the body's speed stands between the two by no more than dt over the kind's `fade`;
+// taken where the speed stands when it has none; none in a motion with no gait or with the stick let go.
+function paced(me: Row, w: W, dt: number) {
+  const d = me.data
+  const m = typeof d.activity === 'string' ? motionOf(activityOf(w, me, d.activity), d.motion) : undefined
+  const way = wayWalked(me)
+  if (!m?.gait || (way[0] === 0 && way[1] === 0)) {
+    if (!m?.gait) d.gaitW = null
+    return
+  }
+  const { at } = gaitSets(w, me, d.activity, d.motion, m, way)
+  const { fade } = numbersOf(w, animKind(me))
+  const most = fade > 0 ? dt / fade : Infinity
+  d.gaitW = d.gaitW == null ? at : d.gaitW + Math.max(-most, Math.min(most, at - d.gaitW))
+}
+
+// The speed the body is walked at in a motion that mixes (Mixes, the header): its own set's, for the way
+// it is walked; none for one that mixes nothing, or with the stick let go.
+function paceOf(w: W, me: Row): number | null {
+  const d = me.data
+  const m = typeof d.activity === 'string' ? motionOf(activityOf(w, me, d.activity), d.motion) : undefined
+  const way = wayWalked(me)
+  if ((!m?.gait && !m?.mix) || (way[0] === 0 && way[1] === 0)) return null
+  return speedOf(w, me, ownShares(w, me, m, way))
+}
+
+// The clips mixed with the body's clip, by their shares (Mixes, the header), each set in step with it;
+// with no shares (the stick let go) the mix as it was, set in step.
+function mixIn(me: Row, w: W, shares: Map<string, number> | null) {
+  const d = me.data
+  const by = shares ?? new Map((d.mix as Mix[]).map(m => [m.clip, m.w]))
+  d.mix = [...by].filter(([clip, s]) => clip !== d.clip && s > 0).map(([clip, s]) => ({ clip, t: inStep(w, me, d.clip, d.clipT, clip), w: s }))
+}
+
+// How far a lap of the body's clip carries its spot with the clips mixed with it (Mixes, the header):
+// each one's lap at its share, the laps going round together as they are kept in step.
+function lapMixed(w: W, me: Row, clip: string): number[] {
+  const mix = (clip === me.data.clip ? me.data.mix ?? [] : []) as Mix[]
+  const own = 1 - mix.reduce((s, m) => s + m.w, 0)
+  return mix.reduce((lap, m) => add(lap, scaled(lapOf(w, me, m.clip), m.w)), scaled(lapOf(w, me, clip), own))
+}
+
 // How hard the stick pushes the way a clip goes: 0 to 1.
 const push = (w: W, me: Row, clip: string, stick: number[]) => {
   const way = wayOf(w, me, clip)
@@ -716,7 +932,8 @@ const push = (w: W, me: Row, clip: string, stick: number[]) => {
 
 // A looping clip's place on its target moved on by kinematics3d (the header), by the `move` behavior
 // wrapping it (`motion3d.kinematics3d.ts`). The want, in the world: on a target whose ways span the
-// ground, the stick's way (the row's `want`) at the clip's lap speed; on any other, how far a lap carries
+// ground, the stick's way (the row's `want`) at the clip's lap speed (in a motion that mixes, its own set's
+// speed, Mixes); on any other, how far a lap carries
 // its spot a second at the clip's own rate, as hard as the stick pushes the way the clip goes. `move` lays
 // it along the target's ways and makes no move that stops at an edge or carries a bone of the spot past
 // one. The clip plays at the rate kinematics3d moved the body, its share of the lap's own speed (a clip
@@ -727,7 +944,7 @@ function slide(w: W, me: Row, c: Constraint, clip: string, dt: number, stick: nu
   const r = clipOf(rigOf(w, animKind(me)), clip)
   const all = waysOf(w, c as Target, d.along, me)
   const turn = turnOf(w, me, c, clip)
-  const full = all.length ? scaled(turned(turn, lapOf(w, me, clip)), r.rate / r.dur) : [0, 0, 0]
+  const full = all.length ? scaled(turned(turn, lapMixed(w, me, clip)), r.rate / r.dur) : [0, 0, 0]
   const fast = math.hypot(full[0], full[1], full[2])
   if (!(fast > 1e-9)) {
     // A clip that goes nowhere: the body's step all the same, held where it is, so kinematics3d asks what
@@ -737,7 +954,9 @@ function slide(w: W, me: Row, c: Constraint, clip: string, dt: number, stick: nu
   }
   const across = spans(all)
   const p = across ? Math.min(1, math.hypot(d.want[0], d.want[1])) : push(w, me, clip, stick)
-  const want = across ? [d.want[0] * fast, 0, d.want[1] * fast] : scaled(full, p)
+  // Walked at the clips' lap speed; in a motion that mixes, at its own set's (Mixes).
+  const pace = across ? paceOf(w, me) ?? fast : fast
+  const want = across ? [d.want[0] * pace, 0, d.want[1] * pace] : scaled(full, p)
   const was = parts(d.along)
   d.along = moveOn(w, { move: c }, d.along, want, dt, me)
   // How far the body went along the target this step, and how far the full lap's speed goes along it.
@@ -762,6 +981,26 @@ const share = (d: any): number => (d.from != null ? d.blend : 1)
 function easeFrom(d: any, to: number[] | null) {
   const from = d.eased === null || d.eased === undefined || share(d) >= 1 ? placed(d) : d.eased.from
   d.eased = { from, to }
+}
+
+// A body whose kind inertializes (`motion3d.play.ts`, Inertialization): the place it stood at as its clip
+// changed (`from`, [x, y, z, yaw] and its tilt after) against the place the clip gone to stands it at now,
+// the turn and move from the one to the other in its own frame, folded into the change being inertialized
+// (its `left` and `root`), so its hips go on from where they were drawn and the jump decays with the pose;
+// its place is not eased.
+const kindInertial = (w: W, me: Row) => numbersOf(w, animKind(me)).blend === 'inertial'
+function inertRoot(me: Row, from: number[]) {
+  const d = me.data
+  d.eased = null
+  const last = (d.inert ?? [])[d.inert.length - 1]
+  if (!last || last.to !== d.clip || last.s !== 0) return
+  const frame = (p: number[]) => {
+    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), p[3])
+    if (p.length > 4) q.premultiply(new Quaternion(p[4], p[5], p[6], p[7]))
+    return new Matrix4().compose(new Vector3(p[0], p[1], p[2]), q, new Vector3(1, 1, 1))
+  }
+  const root = frame(placed(d)).invert().multiply(frame(from))
+  d.inert = [...d.inert.slice(0, -1), { ...last, left: from.slice(), root: root.toArray() }]
 }
 
 // The root eased (Easing, the header): the gap between where the clip fading out stood it and where the
@@ -860,7 +1099,21 @@ function begin(me: Row, w: W, activity: string, space: number | null, name: stri
   if (!m.clips.length) return leave(me, w)
   const s = space === null ? undefined : spacesOf(me, w).all.find(s => s.id === space)
   if (space !== null && !s) throw new Error(`motion3d plays ${activity} in the space ${space}, which is gone`)
-  const chosen = clip ?? toward(w, me, m, stick)
+  if (m.mix && m.target !== 'triangles') throw new Error(`motion3d's ${activity}.${name} mixes its clips, and plays on ${m.target ?? 'no target'}; only a loop on the triangles is mixed`)
+  // Mixed (Mixes, the header): the shares for the way the body is walked, by the way and, in a gait, by its
+  // speed, none with the stick let go; its clip the heaviest, or, while none, the one it plays. A motion
+  // carries on from the one before it in step where both are its own or its gait's.
+  const mixes = !!m.mix || m.gait !== undefined
+  const way = mixes ? wayWalked(me) : null
+  const walkedOn = way !== null && (way[0] !== 0 || way[1] !== 0)
+  const carries = mixes && d.state === 'act' && d.clip != null && d.activity === activity && (d.motion === name || d.motion === m.gait)
+  // A gait's share as this motion has it: the row's, turned round when it was its gait's; where the
+  // speed stands when it has none or the motion is come to afresh.
+  const gaitW = carries && typeof d.gaitW === 'number' ? (d.motion === name ? d.gaitW : 1 - d.gaitW) : null
+  const sets = walkedOn && m.gait !== undefined ? gaitSets(w, me, activity, name, m, way!) : null
+  const shares = !walkedOn ? null : sets ? gaitShares(sets, gaitW ?? sets.at) : mixOf(w, me, m, way!)
+  if (m.gait !== undefined) d.gaitW = gaitW ?? sets?.at ?? null
+  const chosen = shares ? [...shares].reduce((a, b) => (b[1] > a[1] ? b : a))[0] : carries ? d.clip : clip ?? toward(w, me, m, stick)
   d.layer = null
   // Handed from a space's point to the triangles: its place is where its feet are, and kinematics3d
   // stands it there or lets it fall.
@@ -869,6 +1122,9 @@ function begin(me: Row, w: W, activity: string, space: number | null, name: stri
   const handed = d.space !== space && root !== null && typeof root !== 'string' && typeof was === 'string' && d.clip != null
   const feet = handed ? underFeet(w, me, d.clip, d.clipT).slice(0, 3) : null
   if (d.activity !== activity || d.space !== space) {
+    // Where it stood and faced as it came into the space: a solid's points stand where it met the side
+    // (Solids, the header).
+    if (d.space !== space) d.met = [d.pos[0], d.pos[1], d.pos[2], d.yaw]
     if (space !== null && d.space !== space) d[readsOf(w, animKind(me)).vel] = [0, 0, 0]
     d.activity = activity
     d.space = space
@@ -881,26 +1137,65 @@ function begin(me: Row, w: W, activity: string, space: number | null, name: stri
   if (typeof root !== 'string' || root !== was) d.facing = null
   d.root = root
   if (root !== null && d.along === null) d.along = feet ?? onto(w, me, pointFor(me, w), chosen, m.target === 'triangles')
+  // Mixed, carried on from itself or its gait: the heaviest clip the body's, where it stands in step with
+  // the one before, with no restart or fade (Mixes, the header).
+  if (carries) {
+    if (d.clip !== chosen) {
+      // Going round as often as it went: the row's rate scaled from the one clip's lap to the other's.
+      const rig = rigOf(w, animKind(me))
+      const a = clipOf(rig, d.clip), b = clipOf(rig, chosen)
+      d.rate = (d.rate * (a.rate / a.dur)) / (b.rate / b.dur)
+      d.clipT = inStep(w, me, d.clip, d.clipT, chosen)
+      d.clip = chosen
+    }
+    d.motion = name
+    mixIn(me, w, shares)
+    return
+  }
   if (d.motion === name && d.clip === chosen && d.state === 'act') return
   d.motion = name
   easeFrom(d, null)
   playClip(me, chosen)
+  // Begun where its motion's `begin` says, else at its start.
+  if (m.begin !== undefined) d.clipT = secondsIn(w, me, chosen, 'begin', m.begin)
+  if (mixes) mixIn(me, w, shares)
+  // The change of clip inertialized from where the clip begins, as its mix has it (`motion3d.play.ts`).
+  settle(me)
+  // Where the body stood and faced as the clip began, before its target placed it.
+  const stood = placed(d)
+  d.warp = null
   if (root !== null) place(w, me, pointFor(me, w), chosen, 0)
-  d.warp = warpOf(me, w, m, chosen)
-  ease(d)
+  d.warp = warpOf(me, w, m, chosen, root, stood)
+  // Bent onto its point: begun where the body stood (Warp, the header).
+  if (d.warp?.on === 'point') place(w, me, pointFor(me, w), chosen, 0)
+  // Its place's jump eased by the crossfade, or folded into the change inertialized.
+  if (kindInertial(w, me)) inertRoot(me, d.eased.from)
+  else ease(d)
 }
 
-// The bend of a one-shot begun toward the row's `target` (Warp, the header), or null for none: the facing
-// it begins at and the one that turns its blow toward the target, within the motion's `turn`, and the
-// metres across the ground that carry the blow the rest of the way, within its `reach`.
+// The bend of a one-shot (Warp, the header), or null for none, its `until` in seconds on the body. On the
+// triangles, toward the row's `target`: the facing it begins at and the one that turns its blow toward
+// the target, within the motion's `turn`, and the metres across the ground that carry the blow the rest
+// of the way, within its `reach`; none when the row has no `target`. On a space's point: where the body
+// stood and faced as the clip began (`stood`), and where the point placed the clip's first frame (the
+// body's place now). A clip whose `until` is its first frame has nothing to bend over: none.
 const BONES: Record<Limb, string> = { handL: 'LeftHand', handR: 'RightHand', footL: 'LeftFoot', footR: 'RightFoot' }
-function warpOf(me: Row, w: W, m: Motion, clip: string): { from: number; to: number; by: number[]; until: number } | null {
+type Bend = { on: 'target'; from: number; to: number; by: number[]; until: number } | { on: 'point'; from: number[]; start: number[]; until: number }
+function warpOf(me: Row, w: W, m: Motion, clip: string, root: string | Constraint | null, stood: number[]): Bend | null {
   const d = me.data
-  if (!m.warp || !Array.isArray(d.target) || !rooted(w, me) || clipOf(rigOf(w, animKind(me)), clip).loop) return null
-  const { t: until, limb } = blowOf(w, me, clip)
-  if (!(until > 0)) return null
+  if (!m.warp) return null
+  const until = secondsIn(w, me, clip, 'warp', m.warp.until)
+  if (!('reach' in m.warp)) {
+    if (typeof root !== 'string') throw new Error(`motion3d's motion ${d.motion} warps ${clip} onto a space's point, and it plays on ${m.target ?? 'no target'}; on the triangles its warp gives reach, turn and accel`)
+    if (!(until > 0)) return null
+    return { on: 'point', from: stood.slice(0, 4), start: placed(d).slice(0, 4), until }
+  }
+  if (clipOf(rigOf(w, animKind(me)), clip).loop) throw new Error(`motion3d's motion ${d.motion} warps ${clip}, a loop, toward the row's target; only a one-shot's blow is bent`)
+  if (!rooted(w, me)) throw new Error(`motion3d's motion ${d.motion} warps ${clip} toward the row's target, and it plays on ${m.target ?? 'no target'}; on a space's point its warp gives only until`)
+  if (!Array.isArray(d.target) || !(until > 0)) return null
+  const { limb } = blowOf(w, me, clip)
   const { rig, body, anim } = measured(w, me)
-  // The blow, in the clip's frame at its start: where its strike puts the limb that strikes.
+  // The blow, in the clip's frame at its start: where the clip at `until` puts the limb that strikes.
   const blow = clipSpotIn(rig, body, anim, clip, [BONES[limb]], until)
   const beginTurn = offsetsOf(w, me, clip).beginTurn * DEG
   const from = d.yaw - beginTurn
@@ -914,7 +1209,7 @@ function warpOf(me: Row, w: W, m: Motion, clip: string): { from: number; to: num
   // No further than its reach, nor than eased in and out over the time to the strike at its `accel`.
   const most = Math.min(m.warp.reach, (m.warp.accel * until * until) / 6)
   const by = far > most ? short.map(v => (v * most) / far) : short
-  return { from, to: from + turnBy, by, until }
+  return { on: 'target', from, to: from + turnBy, by, until }
 }
 
 // The share of a bend made by `t` seconds of the time `until` its strike: eased in and out
@@ -944,6 +1239,9 @@ function advance(me: Row, w: W, dt: number, stick: number[]): { ended: boolean; 
   const t0: number = d.clipT
   const { markers } = animated(me, w, dt)
   const ended = d.state !== 'act'
+  // A bend onto a point is over once the playhead has passed its `until`, or a loop has come round
+  // (Warp, the header): from then on the point places the body alone.
+  if (d.warp?.on === 'point' && (d.clipT >= d.warp.until || d.clipT < t0)) d.warp = null
   if (d.root !== null) {
     const c = pointFor(me, w)
     const m = typeof d.activity === 'string' ? motionOf(activityOf(w, me, d.activity), d.motion) : undefined
@@ -966,13 +1264,20 @@ function advance(me: Row, w: W, dt: number, stick: number[]): { ended: boolean; 
       // A one-shot carried along the target's ways as far as its travel goes this step, and, bent toward
       // the row's target (Warp, the header), its share of the bend's metres.
       const was = parts(d.along)
+      const facing0: number = d.facing ?? dataOf(c).yaw
       const all = waysOf(w, c as Target, d.along, me)
       const by = ended ? all.map(() => 0) : carriedBy(w, me, c, clip, t0, d.clipT)
-      const k = d.warp ? bentBy(d.clipT, d.warp.until) - bentBy(t0, d.warp.until) : 0
+      const toward = d.warp?.on === 'target'
+      const k = toward ? bentBy(d.clipT, d.warp.until) - bentBy(t0, d.warp.until) : 0
       const bent = k > 0 ? by.map((v, i) => v + dot([d.warp.by[0] * k, 0, d.warp.by[1] * k], all[i].dir)) : by
       d.along = moveOn(w, c as Target, d.along, bent.map(v => v / dt), dt, me)
-      // Turned toward it by as much of the bend's turn as the playhead has come to the strike.
-      if (d.warp) d.facing = d.warp.from + (d.warp.to - d.warp.from) * bentBy(d.clipT, d.warp.until)
+      // Turned toward it by as much of the bend's turn as the playhead has come to its `until`; else, one
+      // that steers turned toward the way it is walked (Facing, the header).
+      if (toward) d.facing = d.warp.from + (d.warp.to - d.warp.from) * bentBy(d.clipT, d.warp.until)
+      else if (m?.steer) {
+        const pushed = d.want[0] !== 0 || d.want[1] !== 0
+        d.facing = pushed ? steered(me, w, facing0, math.atan2(d.want[0], d.want[1]), dt) : facing0
+      }
       d.speed = math.hypot(...parts(d.along).map((v, i) => v - was[i])) / dt
     } else {
       const speed = math.hypot(d.vel[0], d.vel[2])
@@ -1043,8 +1348,13 @@ const rankOf = (me: Row, w: W, f: Found): number => shapeOf(me, w, f.space)?.ran
 // Of a move's clips on a shape that takes it up with no key, the one that goes the way the body is
 // walked, in its own frame [right, forward].
 function walked(w: W, me: Row, m: Motion): string {
+  return toward(w, me, m, wayWalked(me))
+}
+
+// The way the body is walked in its own frame, [right, forward]: its `want` across the ground.
+function wayWalked(me: Row): number[] {
   const b = inBody(me.data.yaw, [me.data.want[0], 0, me.data.want[1]])
-  return toward(w, me, m, [-b[0], b[2]])
+  return [-b[0], b[2]]
 }
 
 // The motion a `then` names, played in the shape the one it follows was in: a motion of the same
@@ -1081,9 +1391,11 @@ function select(me: Row, w: W, h: { ended: boolean; clip: string }, stick: numbe
   // A station is held to as long as it stands (`step` hands the body back once it is gone): its point may
   // stand outside its shape, a seat beside its desk.
   const station = d.space !== null && spaceOf(me, w)?.data?.motion3d?.autoChange !== true
+  // A one-shot is over at its clip's end, or at its motion's `end`.
+  const done = h.ended || (!!cur && cur.end !== undefined && d.clipT >= secondsIn(w, me, h.clip, 'end', cur.end))
   if (station) {
     if (!loop) {
-      if (!h.ended) return
+      if (!done) return
       if (cur?.then) {
         const f = then(cur.then)
         begin(me, w, f.word, f.space, f.name, stick)
@@ -1100,8 +1412,10 @@ function select(me: Row, w: W, h: { ended: boolean; clip: string }, stick: numbe
   let next: Found | undefined
   if (!cur) next = search(me, w, 'body', stick) ?? filled(me, w)
   else if (!loop) {
-    if (!h.ended) return
-    next = cur.then ? then(cur.then) : search(me, w, 'body', stick) ?? filled(me, w)
+    // One that yields gives way once its description stops being true, to what the stack finds.
+    if (!done && cur.yields && !cur.press && !describes(w, me, cur, stick)) next = search(me, w, 'body', stick) ?? filled(me, w)
+    else if (!done) return
+    else next = cur.then ? then(cur.then) : search(me, w, 'body', stick) ?? filled(me, w)
   } else {
     // As its clip comes round; at once where a shape holding the body says `cut` (a wall run into).
     const cut = spacesOf(me, w).here.some(s => s.data?.motion3d?.cut === true)
@@ -1122,10 +1436,13 @@ export function drive(me: Row, w: W, dt: number, stick: number[]) {
   buffered(me, w, dt, stick)
   const t0: number = d.clipT
   const yaw0: number = d.yaw
+  const motion0 = d.motion, clip0 = d.clip
   const h = advance(me, w, dt, stick)
   // A jump whose key is let go while it rises is cut short (`motion3d.kinematics3d.ts`).
   cutShort(me, w)
   select(me, w, h, stick, clipOf(rigOf(w, animKind(me)), h.clip).loop && d.clipT < t0)
+  turnFrom(me, w, motion0, clip0, yaw0)
+  paced(me, w, dt)
   leaned(me, w, dt, yaw0)
   const above = upper(me, w, dt, stick)
   const laid = layers(me, w, dt, stick)
@@ -1135,6 +1452,30 @@ export function drive(me: Row, w: W, dt: number, stick: number[]) {
     ...(d.state === 'act' && d.clip != null ? openIn(w, me, d.clip, d.clipT) : []),
     ...(typeof d.upper === 'string' ? openIn(w, me, d.upper, d.upperT) : []),
   ]
+}
+
+// A one-shot on the triangles whose clip keeps its turn, begun this step (Facing, the header), laid from
+// the way the body faced as the step began, `yaw0`: what cut it short (a run walked back the way it
+// came) may have turned the body toward the stick on this step before it began, and the clip turns it
+// the whole way itself.
+function turnFrom(me: Row, w: W, motion0: string | null, clip0: string | null, yaw0: number) {
+  const d = me.data
+  if ((d.motion === motion0 && d.clip === clip0) || d.state !== 'act' || !rooted(w, me)) return
+  const r = clipOf(rigOf(w, animKind(me)), d.clip)
+  if (r.loop || !carries(r, movesOf(w, animKind(me))).turns) return
+  const root = d.root as { triangles: { yaw: number; normal: number[] } }
+  d.root = { triangles: { ...root.triangles, yaw: yaw0 - offsetsOf(w, me, d.clip).beginTurn * DEG } }
+  d.facing = null
+  if (kindInertial(w, me)) {
+    // Its place's jump folded into the change inertialized anew, from where it stood as it changed.
+    const left = (d.inert ?? [])[d.inert.length - 1]?.left
+    place(w, me, pointFor(me, w), d.clip, d.clipT)
+    if (left) inertRoot(me, left)
+    return
+  }
+  if (d.eased) d.eased.to = null
+  place(w, me, pointFor(me, w), d.clip, d.clipT)
+  ease(d)
 }
 
 // The motion `name` of the activity `word` of the shape `space` played on the upper half (Over, the

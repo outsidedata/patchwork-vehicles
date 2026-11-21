@@ -96,7 +96,7 @@ async function ticked<T>(me: ReturnType<typeof loader>, w: unknown, it: Promise<
 const assets = {
   coin: { type: 'texture', url: '/coin.png', preload: true },
   'coin-icon': { type: 'texture', url: '/coin.png', preload: true, for: 'ui' },
-  odd: { type: 'texture', url: '/odd.png', for: 'hud' },
+  odd: { type: 'texture', url: '/odd.png', for: 'hud', preload: false },
 }
 const wire = wireOf(assets)
 
@@ -219,14 +219,22 @@ test('a name asked for before the first tick waits for it, and is not failed', a
   expect(errors).toEqual([])
 })
 
+test('every entry starts on the first tick unasked unless it says preload: false', async () => {
+  const me = loader()
+  run(me, { wire: wireOf({ unsaid: { type: 'json', url: file('unsaid.json', '{"a":1}') }, held: { type: 'json', url: file('held.json', '{"b":2}'), preload: false } }) } as any)
+  await vi.waitFor(() => expect(me.ready('unsaid')).toBe(true))
+  for (let f = 0; f < 5; f++) await frame()
+  expect([me.preloads(), me.ready('held'), me.progress().started]).toEqual([{ done: 1, of: 1 }, false, 1])
+})
+
 test('every failure\'s message starts with loader, its name and a colon', async () => {
   const me = loader()
   me.tick({ wire: wireOf({
-    a: { type: 'blob', url: '/a' },
-    b: { type: 'model', url: '/b.gltf' },
-    c: { type: 'json', url: '/plugins/loader/no-such-file.json' },
-    d: { type: 'sound', url: '/d.wav' },
-    e: { type: 'sheet', url: '/e.json' },
+    a: { type: 'blob', url: '/a', preload: false },
+    b: { type: 'model', url: '/b.gltf', preload: false },
+    c: { type: 'json', url: '/plugins/loader/no-such-file.json', preload: false },
+    d: { type: 'sound', url: '/d.wav', preload: false },
+    e: { type: 'sheet', url: '/e.json', preload: false },
   }) } as any)
   for (const name of ['a', 'b', 'c', 'd', 'e', 'f']) await me.load(name).catch(() => {})
   const said = errors.map(e => (e as Error).message)
@@ -529,7 +537,7 @@ test('a model\'s .glb is matched in any case', async () => {
 
 test('a model that is not one .glb fails once, even preloaded and ticked every frame, and model() of a name not landed throws', async () => {
   const me = loader()
-  const w = { wire: wireOf({ split: { type: 'model', url: '/a/b.gltf', preload: true }, bone: { type: 'model', url: '/a/b.glb' } }), render3d } as any
+  const w = { wire: wireOf({ split: { type: 'model', url: '/a/b.gltf', preload: true }, bone: { type: 'model', url: '/a/b.glb', preload: false } }), render3d } as any
   for (let f = 0; f < 5; f++) { expect(() => me.tick(w)).not.toThrow(); await frame() }
   await expect(me.load('split')).rejects.toThrow('loader split: a model is one .glb')
   expect(errors.map(e => (e as Error).message)).toEqual(['loader split: a model is one .glb'])
@@ -588,8 +596,9 @@ test('no more than four models fetch and decode at once, and the rest start in t
   expect(urls.every((_, i) => me.ready(`q${i}`))).toBe(true)
 })
 
-test('no model starts until every font and every preloaded entry for the ui has landed, so the ui and its loading screen draw first', async () => {
+test('nothing starts, a model, a binary, a json or a texture, until every font and every preloaded entry for the ui has landed, so the ui and its loading screen draw first', async () => {
   const font = file('first.ttf', new Uint8Array([1, 2, 3]))
+  const rest = ['kit', 'data', 'ground']
   const urls = [0, 1, 2].map(i => file(`after ${i}.glb`, new Uint8Array(4)))
   // What had landed when each model began to decode.
   const seen: [boolean, boolean][] = []
@@ -608,18 +617,22 @@ test('no model starts until every font and every preloaded entry for the ui has 
     ...Object.fromEntries(urls.map((url, i) => [`m${i}`, { type: 'model', url, preload: true }])),
     Face: { type: 'font', url: font },
     splash: { type: 'texture', url: '/splash.png', for: 'ui', preload: true },
+    kit: { type: 'binary', url: file('after.kit.glb', new Uint8Array(8)), preload: true },
+    data: { type: 'json', url: file('after.json', '{"a":1}'), preload: true },
+    ground: { type: 'texture', url: file('after.png', new Uint8Array(4)), preload: true },
   }
   me = loader()
   run(me, { wire: wireOf(entries), render3d: { ...render3d, GLTFLoader: Watched }, ui } as any)
   for (let f = 0; f < 5; f++) await frame()
-  // The picture for the ui is still coming: no model has started.
+  // The picture for the ui is still coming: no model has started, and nothing else has landed.
   expect(seen).toEqual([])
+  expect(rest.map(name => me.ready(name))).toEqual([false, false, false])
   release()
-  await vi.waitFor(() => expect(urls.every((_, i) => me.ready(`m${i}`))).toBe(true))
+  await vi.waitFor(() => expect([...urls.map((_, i) => me.ready(`m${i}`)), ...rest.map(name => me.ready(name))].every(Boolean)).toBe(true))
   expect(seen).toEqual([[true, true], [true, true], [true, true]])
 })
 
-test('what the ui draws first lands ahead of everything already waiting to land', async () => {
+test('what the ui draws first lands before everything else, which starts only once it has', async () => {
   const json = file('ahead.json', '{"a":1}')
   let release!: () => void
   const held = new Promise<void>(ok => { release = ok })
@@ -629,15 +642,11 @@ test('what the ui draws first lands ahead of everything already waiting to land'
   me.tick(w)
   const landed: string[] = []
   for (const name of ['data', 'splash']) me.on(name, () => landed.push(name))
-  // The data decodes and waits to land; only then does the picture for the ui decode. Neither is
-  // handed over until the next tick, and the picture goes first.
-  await me.file('data')
-  for (let f = 0; f < 5; f++) await frame()
-  release()
-  for (let f = 0; f < 5; f++) await frame()
+  // The picture for the ui is held: the data does not start, so nothing lands however many ticks go.
+  for (let f = 0; f < 5; f++) { await frame(); me.tick(w) }
   expect(landed).toEqual([])
-  me.tick(w)
-  expect(landed).toEqual(['splash', 'data'])
+  release()
+  await vi.waitFor(() => { me.tick(w); expect(landed).toEqual(['splash', 'data']) })
 })
 
 test('in a page, what decodes lands on a tick, its pictures sent to the GPU first, no more each tick than four milliseconds allow past the first picture', () => asPage(async () => {
@@ -717,7 +726,7 @@ test('in node a font starts on the first tick unasked, is its name once its file
   const url = file('face.ttf', new Uint8Array([1, 2, 3]))
   const me = loader()
   expect(me.fonts()).toBe(false)
-  run(me, { wire: wireOf({ face: { type: 'font', url }, gone: { type: 'font', url: '/no/gone.ttf' }, data: { type: 'json', url: '/no/data.json' } }) } as any)
+  run(me, { wire: wireOf({ face: { type: 'font', url }, gone: { type: 'font', url: '/no/gone.ttf' }, data: { type: 'json', url: '/no/data.json', preload: false } }) } as any)
   expect(me.fonts()).toBe(false)
   await vi.waitFor(() => expect(me.ready('face')).toBe(true))
   expect(me.get('face')).toEqual({ family: 'face' })
@@ -725,7 +734,7 @@ test('in node a font starts on the first tick unasked, is its name once its file
   expect(me.ready('gone')).toBe(false)
   expect(errors.map(e => (e as Error).message)).toEqual([expect.stringMatching(/^loader gone: loader could not read \/no\/gone\.ttf/)])
   const bare = loader()
-  run(bare, { wire: wireOf({ data: { type: 'json', url: '/no/data.json' } }) } as any)
+  run(bare, { wire: wireOf({ data: { type: 'json', url: '/no/data.json', preload: false } }) } as any)
   expect(bare.fonts()).toBe(true)
 })
 

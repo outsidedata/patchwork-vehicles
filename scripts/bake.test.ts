@@ -74,6 +74,19 @@ describe('tools', () => {
     expect(fs.existsSync(out)).toBe(true)
   })
 
+  it('writes a KTX2 linear and mipmapped in linear, and one of colours sRGB and mipmapped in linear light', async () => {
+    const t = tools(root, fakes(), root)
+    const lib = `PATCHWORK_LIBRARY=${path.join(root, 'library')}`
+    const numbers = path.join(root, 'built', 'rock-normal.ktx2')
+    await t.ktx2(['/lib/Rock_NormalGL.jpg'], numbers, 1024)
+    expect(calls()).toContain(`basisu -etc1s -linear -mipmap -mip_linear -tex_type 2d -ktx2 -output_file ${numbers} ${path.join(root, 'rock-normal.ktx2.0.png')} ${lib}`)
+    const colours = path.join(root, 'built', 'rock-color.ktx2')
+    await t.ktx2(['/lib/Rock_Color.jpg'], colours, 512, 'srgb')
+    expect(calls()).toContain(`magick /lib/Rock_Color.jpg -resize 512x512! PNG32:${path.join(root, 'rock-color.ktx2.0.png')} ${lib}`)
+    expect(calls()).toContain(`basisu -etc1s -srgb -mipmap -mip_srgb -tex_type 2d -ktx2 -output_file ${colours} ${path.join(root, 'rock-color.ktx2.0.png')} ${lib}`)
+    expect(fs.readFileSync(colours, 'latin1').slice(1, 7)).toBe('KTX 20')
+  })
+
   it('runs Blender in the background, the library in its environment, ~ as the home folder', async () => {
     const t = tools(root, { ...fakes(), PATCHWORK_LIBRARY: '~/lib' }, root)
     expect(t.library).toBe(path.join(os.homedir(), 'lib'))

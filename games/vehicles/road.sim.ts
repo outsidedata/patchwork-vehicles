@@ -5,12 +5,13 @@
 // chunk by chunk (`world.box3d.mods`), which vehicles's `ground` plugin streams ahead of each car, and to
 // box3dvehicle, whose cars throw dust from it and stand in box3d's gravity (`world.box3dvehicle.mods`). Every
 // number of vehicles's own kinds that never changes is its definition in `assets/vehicles.json`, which
-// the scene's `world.defs` names. The fleet's three cars, the golf cart, the jeep and the monster
-// truck, stand side by side, each made by its `spot` actor, and each seat starts in the car of the spot
-// its slot's `start` names and moves to the next free one on `next`. A ball, a box3d body of the
+// the scene's `world.defs` names. The fleet's four cars, the golf cart, the jeep, the monster truck
+// and the UTV, each have a `spot` side by side, and the road opens with none of them made: each seat
+// starts in the car of the spot its slot's `start` names, made there as it gets in, and on `next` its
+// car is scrapped and the next free spot's car made at that spot for it. A ball, a box3d body of the
 // `ball` kind, drops in front of them to be knocked about. The sky is skydome3d's row, with no
-// weather, and the firs, grass and boulders are lod3d's, which has no row, on
-// terrain3d's ground and never on the road, whose painted surface covers nothing. What the road shares
+// weather, the firs and boulders are lod3d's and the grass is grass3d's (`assets/grasses.json`),
+// none with a row, on terrain3d's ground and never on the road, whose painted surface covers nothing. What the road shares
 // with the other places is the manager's, `vehicles.scene.json`; its land, its sky's look
 // and how it is drawn it shares with the title (`title.sim.ts`), in `plains.partial_scene.json`, which
 // it extends.

@@ -296,6 +296,11 @@ out their lives. Every driver a source hands is a driver of the effects file.
 - **lod3d**: `particle3d.lod3d.ts` (`world.lod3d.mods: { behaviors: [..., 'particle3d'] }`) delivers the
   `emitter` word, so a lod3d layer runs an effect on each instance it holds near the camera: fireflies
   round demo_lod3d's firs.
+- **ui3d**: `particle3d.ui3d.ts` (`world.ui3d.mods: { behaviors: [..., 'particle3d'] }`) delivers the
+  `particles` word, `[{ effect, at, drivers? }]`: each effect kept running at `at` in a ui3d thing's frame
+  for as long as it is shown, ended the frame it is taken out, and each of its `drivers` held at the
+  thing's `selected`, `chosen` or `age`, so a title's embers flare as the pointer comes onto it. ui3d is
+  listed before particle3d. The particles are drawn in the world, under ui3d's overlay.
 - **particle2d** is the 2D counterpart: the same fields, force generators, drivers, carried effects,
   lamps, words and attachments on render2d's stage, its shapes this plugin's `shapes.ts`, its noise
   `noise.ts`'s and its expressions `drivers.ts`'s.

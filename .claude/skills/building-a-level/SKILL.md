@@ -95,7 +95,10 @@ Each one's header says what it reads and from where; read it before using the pl
   program, colour bands and painted layers. It has no row. Other plugins stand on it through its mods, `terrain3d.<p>.ts` beside it (walker,
   box3d, lod3d, solids, hitscan3d, ocean3d among them), named in `world.<p>.mods`. The whole of
   it is `using-terrain3d`.
-- `lod3d`, trees, grass and boulders, each where a hash of its cell puts it, from the layers of
+- `grass3d`, a meadow of grass blades on terrain3d's land wherever each grass's rules and the paint's
+  `cover` let it grow (a painted road's 0 keeps it off the road); nothing walks round it or is stopped by
+  it. No row. The whole of it is `using-grass3d`.
+- `lod3d`, trees, clumps and boulders, each where a hash of its cell puts it, from the layers of
   `world.lod3d`, on the surfaces its mods name (terrain3d's `land`, shapes3d's shapes) or round
   another layer's instances, drawn by instances3d (each layer's `mesh`); the instances of a row that
   gives `solid` are walked round (`lod3d.walker.ts`). No row.
@@ -106,7 +109,8 @@ Each one's header says what it reads and from where; read it before using the pl
   cylinder, a box, a plane (flat, or tilted into a ramp) or another of its words, at the row's
   `pos` and `yaw`, over the ground its `world.shapes3d.mods.height` names (terrain3d's, or flat at
   0). It has no row of its own and draws nothing; solids draws a kind that gives a `look`, and
-  walker, box3d and the rest stand on it through its mods (`plugins/shapes3d/shapes3d.sim.ts`).
+  walker, box3d and the rest stand on it through its mods (`plugins/shapes3d/shapes3d.sim.ts`; the
+  `using-shapes3d` skill).
 - `walker`, kinematic bodies on any ground, through `world.walker.mods` (`height`, `depth`, `cell`,
   `solids`, `fixed`, `behaviors`).
 - `nav3d`, the way from place to place in 3D over a graph of shapes3d points, lines and splines, a

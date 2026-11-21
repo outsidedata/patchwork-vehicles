@@ -173,6 +173,17 @@ test('the renderer is made once, when there is a canvas and a prefab, whichever 
   expect(first.size).toEqual([W, H])
 })
 
+test('a transparent scene is drawn by a renderer with alpha, cleared to nothing; one with a background too throws', () => {
+  const { me } = page({ camera, transparent: true })
+  const r = gpu.made.at(-1)
+  expect(r.params.alpha).toBe(true)
+  expect(r.clearAlpha).toBe(0)
+  expect(me.scene.background).toBeNull()
+  page({ camera })
+  expect(gpu.made.at(-1).params.alpha).toBe(false)
+  expect(() => page({ camera, transparent: true, background: '#ffffff' })).toThrow('render3d: a transparent scene is cleared to nothing, and this one gives a background too')
+})
+
 test('the look comes from the prefab, and a field left out leaves three\'s own setting', () => {
   const plain = page()
   const r = gpu.made[0]

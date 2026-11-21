@@ -118,6 +118,12 @@ In horde, the farmers' rules went from 0.182 ms a step for 12 to 0.048 ms, and 1
 
 ## Plugins it works with
 
+- **gpgpu3d**: the mod `walker.gpgpu3d.ts` (`world.gpgpu3d.mods: { things: ['walker'], behaviors:
+  ['shapes3d'] }`) hands gpgpu3d every walking body as an upright `cylinder` (shapes3d's word) of its
+  kind's `radius` and `height` on its `pos`, so what is moved on the GPU meets it.
+- **grass3d**: the mod `walker.grass3d.ts` (`world.grass3d.mods: { pressed: 'gpgpu3d', behaviors:
+  ['walker'] }`) says how such a cylinder presses the grass: the grass bends away from it and is trampled
+  under it while it stands on the ground.
 - **terrain3d**: the mod `terrain3d.walker.ts` (`world.walker.mods: { height, depth, cell:
   'terrain3d' }`) stands bodies on the land, wading on the seabed.
 - **lod3d**: the mod `lod3d.walker.ts` (`mods: { fixed: 'lod3d' }`, or `solids`) makes the instances

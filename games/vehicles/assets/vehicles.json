@@ -70,11 +70,8 @@
   },
   "curtain": { "wait": 10 },
   "marquee": {
-    "panel": "marquee",
-    "button": "word",
     "camera": { "orbit": 0.08 },
     "model": "title",
-    "overlay": [0.1, 200],
     "env": { "sky": "#3d6fa8", "horizon": "#f4e2c8", "ground": "#1c1810", "band": "#ffffff", "width": 0.12, "size": 50 },
     "key": { "colour": "#fff1d8", "power": 70, "at": [-5, 7, -6], "distance": 34 },
     "sweep": { "colour": "#ffffff", "power": 140, "from": [-8, 4.5, -10], "to": [8, 4.5, -10], "at": 1.2, "seconds": 1.6, "every": 5, "distance": 12 },
@@ -83,7 +80,7 @@
       "text": "VEHICLES",
       "at": [0, 2.6, -12],
       "scale": 2,
-      "reveal": { "seconds": 1.4, "from": [0, 2.6, -46], "turn": 0.7 },
+      "reveal": { "seconds": 1.4, "from": [0, 0, -34], "turn": 0.7 },
       "face": { "colour": "#eef2f6", "metalness": 1, "roughness": 0.1, "env": 1.2 },
       "side": { "colour": "#e8401c", "metalness": 0.6, "roughness": 0.3, "env": 0.8, "clearcoat": 1 }
     },

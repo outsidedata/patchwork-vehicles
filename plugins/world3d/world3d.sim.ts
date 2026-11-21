@@ -29,8 +29,9 @@
 //            (`world3d.nav3d.ts`).
 //   hollows  `json`: `[{ at, half }]`, a box round each building standing at elevation 0, handed to lod3d by the
 //            `hollows` mod (`world3d.lod3d.ts`), so no grass, tree or stone is drawn inside one.
-//   effects  `json`: `{ spawns: [{ effect, at, dir }] }`, particle3d effects that burn for as long as the place is
-//            drawn, each emitted by the browser half once particle3d holds every effect they name.
+//   effects  `json`: `{ spawns: [{ effect, at, dir, node? }] }`, particle3d effects that burn for as long as the place
+//            is drawn, each emitted by the browser half once particle3d holds every effect they name; one with a
+//            `node` (a joint of the glb's skin) goes with that joint as the clips and poses move it.
 //   crowd    `json`: the people the place's solvers made (stronghold's NAV.md, written by pro-ng's `town_nav.py`):
 //            `verbs`, `[{ id, clips, type }]`, each verb's clips by the names the game's bodies play them by and its
 //            type, `loiter`, done parked at a landmark, or `transfer`, done on a course between landmarks;
@@ -40,6 +41,10 @@
 //            model a game draws by that name, its chains, each a list of landmarks by their whole names, and the
 //            verbs it does in place of an activity's own, by the activity's id. The `world3d` row spawns them
 //            (People, below).
+//   hairs    `json`: the hair its kit things grow, `{ hairs, grows: [{ hair, thing, row, part, number }] }` (pro-ng's
+//            `<place>.hairs.json`): each part that grows hair by its thing's row among the kit things and its number
+//            in it, which the glb's kit vertices carry (their `lookInfo`'s second and third). Read only by a scene
+//            listing hair3d, which grows it on world3d's wearers through world3d's `skins` mod (`world3d.hair3d.ts`).
 // An entry the scene's catalogue has not throws where it is read, naming it.
 //
 // People. A scene whose place has people gives `world.world3d.people`, the kind each person is a row of, and one
@@ -64,7 +69,7 @@
 import type { Kind, W } from '#engine/engine.ts'
 import { json } from '#plugins/loader/loader.sim.ts'
 
-export const PARTS = ['glb', 'looks', 'clips', 'shapes3d', 'nav', 'hollows', 'effects', 'crowd'] as const
+export const PARTS = ['glb', 'looks', 'clips', 'shapes3d', 'nav', 'hollows', 'effects', 'crowd', 'hairs'] as const
 export type Part = (typeof PARTS)[number]
 
 // The crowd file (People, above).

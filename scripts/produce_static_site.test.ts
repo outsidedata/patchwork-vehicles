@@ -79,3 +79,23 @@ test('a game that is not there, a base that is not a path, an out that is the re
   await expect(produceStaticSite({ root, game: 'fresh', out: 'x', base: '/' })).rejects.toThrow('games/fresh/bundle is there, and the site keeps its bundle in bundle/')
   rmSync(path.join(root, 'games/fresh/bundle'), { recursive: true })
 })
+
+test('a game whose entry scene shows a loading screen has it as the page\'s cover in place of the site\'s, its files at their paths on the host', async () => {
+  await newGame('shown', root)
+  const file = path.join(root, 'games/shown/main.scene.json')
+  const scene = JSON.parse(readFileSync(file, 'utf8'))
+  scene.plugins.push('ui')
+  scene.world.loader.assets.splash = { type: 'texture', url: '/games/shown/assets/splash.png', for: 'ui', preload: true }
+  scene.world.ui = { mods: { behaviors: ['loader'] }, panels: { loading: { anchor: 'center', size: [320, 180], layer: 9, modal: true, loading: { pictures: [{ picture: 'splash', at: [0, 0], size: [320, 180] }], fade: 0.5 } } } }
+  writeFileSync(file, JSON.stringify(scene))
+  writeFileSync(path.join(root, 'games/shown/assets/splash.png'), new Uint8Array([1]))
+  const { files } = await produceStaticSite({ root, game: 'shown', out: 'shown-site', base: '/shown/' })
+  const page = readFileSync(at('shown-site', 'index.html'), 'utf8')
+  const open = page.match(/<body\b[^>]*>/)!
+  expect(page.slice(open.index! + open[0].length).trimStart().startsWith('<div id="loader-cover"></div>')).toBe(true)
+  expect(page).not.toContain('patchwork-loading')
+  const numbers = JSON.parse(/const cover = ([\s\S]*?);\n/.exec(page)![1])
+  expect([numbers.pictures, numbers.urls]).toEqual([[{ url: '/shown/assets/splash.png', at: [0, 0], size: [320, 180] }], ['/shown/assets/shown.json', '/shown/assets/splash.png']])
+  expect(files).toContain('assets/splash.png')
+  rmSync(path.join(root, 'games/shown'), { recursive: true })
+})

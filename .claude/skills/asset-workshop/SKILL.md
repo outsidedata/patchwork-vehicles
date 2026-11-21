@@ -286,6 +286,18 @@ still loading is waited for. Every Mixamo skeleton copy gets the solved turns.
   with its `<name>.poses.json` beside it.
 - `/ui`, the UI workshop (`building-the-hud`), and `/particles`, the particle workshop
   (`tuning-particles`).
+- `/hair3d`, the hair workshop (`yarn workshop hair3d <game>`): each hair of a game's hairs file grown
+  by hair3d on a test subject that is moved, turned and run forward, every number tuned live and saved
+  (`tools/workshop/README.md`, The hair workshop; `using-hair3d`).
+- `/grass3d`, the grass workshop (`yarn workshop grass3d <game>`): each grass of a game's grasses file
+  grown by grass3d on a test ground, trodden by a body or a car going round it, every number tuned live
+  and saved (`tools/workshop/README.md`, The grass workshop). Its ground and treader are the workshop's
+  own plugin `tools/workshop/plugins/grounds/`; its routes are `GET|POST /api/grass3d/<game>`
+  (`using-grass3d`).
+- `/puppet3d`, the puppet3d workshop (`yarn workshop puppet3d <game>`): a kind of the game moved over
+  flat ground by puppet3d's own code, its motions picked, weighed and laid on from the library's cue
+  sheets, a part turned by hand, and all of it saved (`tools/workshop/README.md`, The puppet3d
+  workshop; `using-puppet3d`).
 
 ## The API, for Claude driving it without the page
 

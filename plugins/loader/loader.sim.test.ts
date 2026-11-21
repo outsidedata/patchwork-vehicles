@@ -181,7 +181,7 @@ test('a rule that asks load for a file on every step fetches it and reports its 
   const url = '/' + relative(process.cwd(), join(folder, 'asked.json'))
   const errors: unknown[] = []
   const quiet = vi.spyOn(console, 'error').mockImplementation((e: unknown) => { errors.push(e) })
-  const asking: Scene = { world: { loader: { assets: { asked: { type: 'json', url } } } }, prefabs: { loader: {}, asker: { got: null } }, actors: [{ is: 'loader' }, { is: 'asker' }] }
+  const asking: Scene = { world: { loader: { assets: { asked: { type: 'json', url, preload: false } } } }, prefabs: { loader: {}, asker: { got: null } }, actors: [{ is: 'loader' }, { is: 'asker' }] }
   const asker = {
     tick(me: any, _dt: number, w: any) {
       if (ready(w, 'asked')) me.data.got = json(w, 'asked')
@@ -1170,6 +1170,33 @@ test('a wad that cannot be read or opened fails prepare saying which and why, re
   writeFileSync(join(folder, 'broken', 'gone.wad'), await seal({ 'found.json': bytesOf('{"found":1}') }))
   await loader.prepare(truth.rows[0], truth.world)
   expect(await jsonAt('found', `${at}/found.json`)).toEqual({ found: 1 })
+})
+
+// ---------------------------------------------------------------- the page's cover
+
+test('in a tab a file the page\'s cover fetched is read from its bytes and never fetched again, by a rule and as a picture; one it failed, or one written since, is fetched', async () => {
+  const at = '/games/covered game/assets'
+  const asked: string[] = []
+  const held = new Map<string, Promise<ArrayBuffer | undefined>>([
+    [`${at}/level.json`, Promise.resolve(bytesOf('{"from":"the cover"}').buffer as ArrayBuffer)],
+    [`${at}/splash.png`, Promise.resolve(new Uint8Array([7, 7, 7]).buffer)],
+    [`${at}/lost.json`, Promise.resolve(undefined)],
+    [`${at}/edited.json`, Promise.resolve(bytesOf('{"edited":false}').buffer as ArrayBuffer)],
+  ])
+  vi.stubGlobal('location', { href: 'http://page/' })
+  vi.stubGlobal('fetch', async (u: string) => { asked.push(u); return new Response('{"fetched":true}') })
+  vi.stubGlobal(Symbol.for('loader: cover') as unknown as string, held)
+  try {
+    const { jsonAt } = await import('./loader.sim.ts')
+    expect(await jsonAt('level', `${at}/level.json`)).toEqual({ from: 'the cover' })
+    expect([...new Uint8Array((await sealed(`${at}/splash.png`))!)]).toEqual([7, 7, 7])
+    expect(await jsonAt('lost', `${at}/lost.json`)).toEqual({ fetched: true })
+    rewritten(`${at}/edited.json`)
+    expect(await jsonAt('edited', `${at}/edited.json`)).toEqual({ fetched: true })
+    expect(asked).toEqual([encodeURI(`${at}/lost.json`), encodeURI(`${at}/edited.json`)])
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 test('in a tab a wad is fetched once, encoded once, and a path it holds is never fetched', async () => {

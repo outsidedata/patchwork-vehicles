@@ -1,6 +1,6 @@
 ---
 name: writing-the-look
-description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), trees and rocks on the land (`lod3d`, drawn by `instances3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO, exposure, screen-space reflections and mirrors that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under the trees) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
+description: Use in core, or any clone of it, when working on how a game looks. That covers choosing render2d or render3d, switching a scene to 3D, drawing a kind in its `<kind>.client.ts` (a mesh, a box, a PIXI graphic), turning, spinning or rotating a mesh, and the sky, sun, lights, shadows, fog, weather and rain (`skydome3d`, `environment3d`). It covers the ground's colours and detail (`terrain3d`'s field), the sea (`ocean3d`), grass on the land (`grass3d`), hair and fur on a body (`hair3d`), cloth (`fabric3d`), what the GPU's particles, cloth, hair and grass meet (`gpgpu3d`), trees and rocks on the land (`lod3d`, drawn by `instances3d`), particles (`particle3d`, `particle2d`), and darkness and torches in 2D (`light2d`). It covers the camera, background, shadows, bloom, AO, exposure, screen-space reflections and mirrors that render3d takes from the scene, and a look setting only the page keeps, such as brightness (the store). Also use it when one look plugin needs another's knowledge (the sky's light on the sea, the land under the rain or under the trees) through `world.<p>.mods`. And use it when a thing judders, flips or spins the long way, the sky draws black, nothing draws, a thing casts no shadow or stays dry in the rain, or a plugin throws that it is listed in the wrong order.
 ---
 
 # Writing the look
@@ -32,8 +32,8 @@ Something else applies instead to:
 ## Where the look's numbers go
 
 - A plugin's fixed numbers belong in `world.<plugin>`, and a plugin with no row has no prefab (the
-  prime directive). render2d, light2d, skydome3d, terrain3d, ocean3d, lod3d, instances3d,
-  sprite2d, sprite3d, particle3d and particle2d read `world.<p>`. render3d and environment3d are old code that
+  prime directive). render2d, light2d, skydome3d, terrain3d, ocean3d, grass3d, hair3d, fabric3d,
+  gpgpu3d, lod3d, instances3d, sprite2d, sprite3d, particle3d and particle2d read `world.<p>`. render3d and environment3d are old code that
   breaks this: render3d reads
   `plugins.wire.scene.prefabs.render3d` once, on its first tick (`plugins/render3d/render3d.plugin.ts`),
   environment3d reads `prefabs.environment3d` (`plugins/environment3d/environment3d.plugin.ts`), and
@@ -235,7 +235,32 @@ each:
   `#plugins/ocean3d/ocean3d.sim.ts`, and the rest is `world.ocean3d`. It is lit by a `light` mod or
   else by the fixed `world.ocean3d.light`, and throws with neither. Its waves cast a shadow, so a
   crest shades a hull.
-- `lod3d` (`plugins/lod3d/lod3d.plugin.ts`): trees, grass and boulders around the camera, in tiles,
+- `grass3d` (`plugins/grass3d/grass3d.plugin.ts`): ground cover, a meadow of grass made blade by blade
+  on the GPU each frame round the camera, standing on terrain3d's land where its grasses' rules and the
+  paint's `cover` let it grow, thinning out blade by blade past each grass's `full` metres to its `reach`,
+  swaying in the wind (weather3d's, or its own `wind`), bending away from cars and bodies and lying down
+  where they pass. No row. Its numbers are a grasses file, a `json` entry of the catalogue that
+  `world.grass3d.grasses` names; its README holds every one. The whole of it is `using-grass3d`.
+- `hair3d` (`plugins/hair3d/hair3d.plugin.ts`): hair, fur and manes grown on the skin of a body its
+  bones pose, each lock simulated on the GPU so it hangs, swings and blows, drawn strand by strand. No
+  row. Its numbers are a hairs file, a `json` entry of the catalogue that `world.hair3d.hairs` names;
+  `world.hair3d.mods` names who hands it bodies (`skins`: anim, motion3d, puppet3d, crowd3d) and whose
+  word each skin is (`behaviors`: render3d's `skinned`, crowd3d's `posed`), and `solids: 'gpgpu3d'` keeps
+  every lock out of what gpgpu3d holds, the wearer's own head and neck among it: the capsules and balls
+  of its kind (`world.anim.kinds.<kind>.capsules`, `world.puppet3d.capsules.<kind>`). Its README holds
+  every number. The whole of it is `using-hair3d`.
+- `fabric3d` (`plugins/fabric3d/fabric3d.plugin.ts`): cloth moved on the GPU, a flag on a mast, a cape
+  on a body, a ribbon on a stick, a banner behind a vehicle, a cloth dropped over a table. No row, and
+  every page moves its own, so nothing a rule needs to know about is a fabric. Its fabrics are a
+  fabrics file, a `json` entry of the catalogue that `world.fabric3d.fabrics` names;
+  `world.fabric3d.attach` puts each on every thing of a kind, held by its pins, or lays it at a place;
+  `world.fabric3d.mods` names who cuts and draws it (`behaviors`: shapes3d's `plane`, solids' `paint`),
+  what it is pinned to (`sources`: shapes3d, anim, motion3d, a game's own), what it drapes on (`solids:
+  'gpgpu3d'`) and its wind (`wind: 'weather3d'`). The whole of it is `using-fabric3d`.
+- `gpgpu3d` (`plugins/gpgpu3d/`): draws nothing. It holds the land, the shapes, the bodies' capsules
+  and the cars round the camera on the GPU, for gpuparticle3d's particles, fabric3d's fabrics,
+  hair3d's locks and grass3d's blades to meet. The whole of it is `using-gpgpu3d`.
+- `lod3d` (`plugins/lod3d/lod3d.plugin.ts`): trees, clumps and boulders around the camera, in tiles,
   each tile in the shell its distance puts it in, out to `world.lod3d.rings`. `world.lod3d.layers`
   places them: each layer stands `on` surfaces (`["land"]`, terrain3d's) a try every `spacing`
   metres, or round another layer's instances, kept by `density` and `rules`, its `rows` picked by
@@ -252,7 +277,10 @@ each:
   lamps, words and attachments, each in its own space (metres with y up; the stage's pixels with y
   down). particle3d's lamps are lit by lights3d; particle2d's by light2d, through
   `world.light2d.mods: { lights: ['particle2d'] }`. What a particle bounces off is a `solids` mod:
-  shapes3d's for particle3d, tilemap's walls for particle2d.
+  shapes3d's for particle3d, tilemap's walls for particle2d, and for gpuparticle3d, whose particles are
+  on the GPU, gpgpu3d's (`world.gpuparticle3d.mods: { solids: 'gpgpu3d' }`, gpgpu3d listed before it):
+  the land and the shapes it holds on the GPU round the camera, `world.gpgpu3d: { reach, mods: { things:
+  ['shapes3d', 'terrain3d'], behaviors: ['shapes3d', 'terrain3d'] } }` (`using-gpgpu3d`).
 - render3d's own look: `shadows`, `background`, `ao`, `bloom`, `pixelRatio`, `tone` and
   `exposure`, and `ssr`, screen-space reflections on every shiny standard or physical surface, falling
   back to the reflection it had where a ray leaves the screen. A flat mesh with `userData.mirror =
@@ -294,7 +322,10 @@ reads another's work of the same frame is listed after that one.
 
 - These throw when listed after their renderer: particle3d, sprite3d and anim after render3d;
   particle2d and light2d after render2d. lod3d throws when listed before a plugin its `seen` mods
-  name (terrain3d), whose surfaces it reads that frame. A camera plugin throws when listed before its renderer
+  name (terrain3d), whose surfaces it reads that frame. grass3d throws when listed before the plugin
+  its `land`, `wind` or `pressed` mod names (terrain3d, weather3d, gpgpu3d), or after render3d.
+  fabric3d and hair3d throw when listed after render3d, and gpuparticle3d when listed after render3d or
+  before the plugin its `solids` mod names (gpgpu3d). A camera plugin throws when listed before its renderer
   (chasecamera3d, cutscene, pancamera).
 - These say in their headers that they come before their renderer and do not check it. Before
   render3d: skydome3d, terrain3d, ocean3d, instances3d, lod3d, environment3d, solids, flight3d and
@@ -331,6 +362,29 @@ it throws when the file does not export the function. The mods of the look:
   (`plugins/terrain3d/terrain3d.lod3d.ts`, `plugins/instances3d/instances3d.lod3d.ts`) stand what
   lod3d places, and what a rule asks about, on the same land, and draw it as instanced meshes;
   `hollows: ['box3dvehicle']`, with `world.lod3d.hollows`, keeps grass from drawing inside a car.
+- `world.grass3d.mods`: `land: 'terrain3d'` (`plugins/terrain3d/terrain3d.grass3d.ts`), the ground the
+  grass stands on, which it throws without; `wind: 'weather3d'` (`plugins/weather3d/weather3d.grass3d.ts`),
+  the wind and gusts it sways in; `pressed: 'gpgpu3d'` and `behaviors: ['box3dvehicle', 'walker']`, the
+  cars and bodies gpgpu3d holds, which it bends away from and is trampled under, each as its word says
+  (`world.gpgpu3d.mods: { things: ['box3dvehicle', 'walker'], behaviors: ['box3dvehicle', 'shapes3d'] }`,
+  gpgpu3d listed before grass3d). `world.terrain3d.mods.ready: ['grass3d']` makes a prepared place wait
+  for the grass there.
+- `world.hair3d.mods`: `skins`, a list of who draws the bodies (`plugins/anim/anim.hair3d.ts`,
+  `plugins/motion3d/motion3d.hair3d.ts`, `plugins/puppet3d/puppet3d.hair3d.ts`,
+  `plugins/crowd3d/crowd3d.hair3d.ts`), which it throws without; `behaviors`, who delivers each skin's
+  word (`plugins/render3d/render3d.hair3d.ts`'s `skinned` for anim's, motion3d's and puppet3d's bodies,
+  `crowd3d.hair3d.ts`'s `posed` for crowd3d's); `wind: 'weather3d'`
+  (`plugins/weather3d/weather3d.hair3d.ts`); `solids: 'gpgpu3d'`, what every lock is kept out of.
+- `world.fabric3d.mods`: `behaviors: ['shapes3d', 'solids']` (`plugins/shapes3d/shapes3d.fabric3d.ts`'s
+  cut `plane`, `plugins/solids/solids.fabric3d.ts`'s drawing `paint`); `sources`, a list of who hands
+  the things a fabric is pinned to (`shapes3d.fabric3d.ts`, `plugins/anim/anim.fabric3d.ts`,
+  `plugins/motion3d/motion3d.fabric3d.ts`, a game's own); `solids: 'gpgpu3d'`, what it drapes on;
+  `wind: 'weather3d'` (`plugins/weather3d/weather3d.fabric3d.ts`).
+- `world.gpgpu3d` (`using-gpgpu3d`): the things of the scene held on the GPU for what is
+  moved there. `mods.things` names who hands them (shapes3d, terrain3d, anim, motion3d, puppet3d,
+  box3dvehicle, walker), `mods.behaviors` who delivers their words, and `meets` which of them each reader meets. The
+  readers name it: `world.gpuparticle3d.mods.solids`, `world.fabric3d.mods.solids`,
+  `world.hair3d.mods.solids` and `world.grass3d.mods.pressed`, each `'gpgpu3d'`.
 
 The scene's side is all of it. Name each mod in `world.<p>.mods`, list the plugin it names, and
 list that plugin before `p` where `p`'s header says it reads the mod in the same phase. Swapping one

@@ -19,18 +19,24 @@
 | dismember3d | Limbs shot off Mixamo bodies, falling as physics pieces, with crawling and gore. |
 | dither3d | A PlayStation look: low resolution, too few colours, ordered dither. |
 | environment3d | The sun, sky light, ambient light and flat floor of a simple 3D scene. |
+| fabric3d | Fabric moved on the GPU: flags, capes, ribbons, banners, cloths and the garment shop's garments baked on a game's bodies, pinned to bones, props and shapes, draped on shapes and bodies, blown by the wind. |
 | flight3d | Fixed-wing flight: forces, stalls, engines, control surfaces, landing gear and crashes. |
+| gpgpu3d | The things of a scene held on the GPU, the land, the shapes, the bodies and the cars, with the GLSL that tells any shader where a line meets one and how far a point is to move clear of one: what particles bounce off, fabric drapes on, hair lies on and grass is pressed by; and the ops a sheet lists, noise, folds, remaps and the clock, compiled to GLSL for any plugin's shader. |
+| gpuparticle3d | particle3d with every particle on the GPU: the same effects files, moved, sorted and drawn there. |
+| grass3d | A meadow made blade by blade on the GPU round the camera: thins out with distance, sways in the wind, bends from cars and bodies and lies down in their tracks; a program of ops sets where it grows tall, short or dry. |
 | grid | A changing 2D map of cell layers in chunks, drawn on render2d, with picking and save as PNG. |
+| hair3d | Hair, fur and manes grown on a body's skin: locks rooted where the scene says, simulated on the GPU so they hang, swing and blow as the body moves, drawn strand by strand; tied into ponytails, pigtails and braids. |
 | hitscan3d | Instant shots in 3D with lag compensation, line of sight and hurt. |
 | ik3d | Two-bone IK on the page: hands and feet put on grips, wheels, pedals and rungs. |
 | instances3d | Draws many copies of a look as instanced meshes, handed to it by other plugins. |
 | interact | A body doing a scripted thing with a machine: getting in a car, mounting a seat. |
+| item3d | Kit items pro-ng baked, drawn in supershader3d's looks: lying loose as rows, or held by the bodies anim, motion3d and crowd3d draw. |
 | kinematics3d | Where a moving body goes along its target's ways, and gravity. |
 | light2d | Darkness over a render2d world and the lights that cut through it. |
 | lights3d | Clustered (Forward+) point and spot lights, as many as a scene likes, every shadow from a still atlas drawn once and a moving atlas drawn each frame, lit fog and reflection probes. |
 | loader | Every file a game uses: the asset catalogue, fetched and decoded once, preloaded, reloaded live. |
 | local | Actors that live only on this page, with no row and nothing on the wire. |
-| lod3d | Forests, grass and stones placed round the camera by level of detail, the same everywhere. |
+| lod3d | Forests, clumps and stones placed round the camera by level of detail, the same everywhere. |
 | mapgen | Procedural levels from a recipe and a seed: rooms, caves, stairs, actors and autotiled walls. |
 | math | Deterministic sin, cos, exp, pow and the rest, the same double on every machine. |
 | melee3d | Swords swung by animation clips, and what each swing meets. |
@@ -65,6 +71,7 @@
 | terrain3d | Endless deterministic terrain from one field file: noise, sea, painted layers, textures and rings. |
 | tilemap | Tiled maps as levels: drawn, changed and asked for collision. |
 | ui | The HUD and menus: panels, buttons, bars, nameplates, modals and focus. |
+| ui3d | Things in 3D over the game in render3d's overlay, placed in the camera's frame, selected and pressed by the pointer and keys. |
 | vision | Fog of war over a render2d map, the page's half of team vision. |
 | volley2d | Bullet patterns computed from their volley, for hundreds of bullets at no cost. |
 | volley3d | Rockets, shells, grenades and missiles that fly, hit, splash and can be shot down. |

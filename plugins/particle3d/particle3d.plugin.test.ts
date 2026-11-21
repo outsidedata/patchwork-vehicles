@@ -266,6 +266,17 @@ test('an effect a page emits is drawn the frame it is asked for, at its point, a
   expect(q.centre[0]).toBeCloseTo(1, 6)
 })
 
+test('advance runs every effect on that many seconds at once, as that many frames would: the same particles where the frames put them', () => {
+  const a = page(), b = page()
+  a.me.emit('rise', [1, 2, 3], { seed: 7 })
+  b.me.emit('rise', [1, 2, 3], { seed: 7 })
+  for (let f = 0; f < 10; f++) a.frame()
+  b.me.advance(b.plugins, 9 * DT)
+  b.frame()
+  expect(quads(b.plugins).map((q: any) => q.centre)).toEqual(quads(a.plugins).map((q: any) => q.centre))
+  expect(() => b.me.advance(b.plugins, -1)).toThrow('particle3d: advance is a number of seconds, 0 or more, not -1')
+})
+
 test('the ledger keeps an effect until its life is over and its last particle is gone', () => {
   const { plugins, me, frame } = page()
   const hose = me.emit('hose', [0, 0, 0], { life: 0.2 })
@@ -1630,4 +1641,22 @@ test('an attach that is no list of attachments, names an effect the file has non
   const p = await attached([{ on: 'wheel', effect: 'dust' }])
   beacons([{ key: 'a', on: 'wheel', at: [0, 0, 0], drivers: { grip: 1 } }])
   expect(() => p.frame()).toThrow('particle3d\'s wheel source a is driven by grip, which its effects file has no driver of: its drivers are load, tint, wet, height')
+})
+
+test('a source that names its own effect throws it with no attachment written, kept on it and stopped when it is gone; an effect the file has not throws, naming the source', async () => {
+  const p = await attached(undefined)
+  beacons([{ key: 'a', on: 'item', effect: 'mud', at: [1, 2, 3], dir: [0, 1, 0], drivers: {} }, { key: 'b', on: 'item', at: [0, 0, 0], drivers: {} }])
+  p.frame()
+  const [mud] = running(p, 'mud')
+  expect(running(p, 'mud')).toHaveLength(1)
+  expect([mud.at, mud.dir]).toEqual([[1, 2, 3], [0, 1, 0]])
+  beacons([{ key: 'a', on: 'item', effect: 'mud', at: [4, 2, 3], drivers: {} }])
+  p.frame()
+  expect(running(p, 'mud')).toEqual([mud])
+  expect(mud.at).toEqual([4, 2, 3])
+  beacons([])
+  p.frame()
+  expect(running(p, 'mud')).toHaveLength(0)
+  beacons([{ key: 'a', on: 'item', effect: 'smoke', at: [0, 0, 0], drivers: {} }])
+  expect(() => p.frame()).toThrow('particle3d\'s item source a throws the effect smoke, which the effects file has not')
 })

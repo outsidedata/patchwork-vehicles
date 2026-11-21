@@ -31,7 +31,10 @@ are where to read more.
   `pro-ng/build.mjs <scene> <out>` cuts a scene into every file a game boots from: `<name>.glb` (every mesh, each
   vertex its material's number and slots, packed by `pack.mjs`, which keeps the attributes gltfpack drops),
   `<name>.looks.json` and its pictures in `looks/`, `.clips.json`, `.shapes3d.json`, `.terrain3d_layers.json`,
-  `.hollows.json`, `.effects.json`, `.nav.json` and `.crowd.json`. The library's `stronghold/build.mjs` compiles a
+  `.hollows.json`, `.effects.json`, `.hairs.json` (the hair each kit thing grows and the part it grows on),
+  `.fabrics.json` (the cloth each hangs and its pins), `.nav.json` and `.crowd.json`. For a kit item, the bake's
+  `items` tool reads its effects, hairs and fabrics files and item3d burns, grows and hangs them on every copy of
+  the item (`plugins/item3d/README.md`). The library's `stronghold/build.mjs` compiles a
   solver's run into a pro-ng scene and then runs the same steps (demo_world3d's village, tavern and hills).
 
 A game never loads the library. Its bake reads the library and writes files into the game's `assets/`, and the game

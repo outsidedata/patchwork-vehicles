@@ -12,7 +12,7 @@ yarn health                           # does this machine have what core needs: 
 yarn new-game <name>                  # games/<name>/: a game of one scene and a seat
 yarn dev                              # serves the repo: localhost:5173/games/<game>/index.html, dev.html or client.html; localhost:5173 lists every game and its pages
 yarn serve <game>                     # yarn dev, and games/<game>/<game>.server.ts on node, which client.html dials; started again on every change to a file it runs
-yarn workshop [ui|particles|poses] [<game>]   # starts the workshop's server and opens that workshop's page; particles also takes --effects <path>, --sheet <key>=<path>, --effect <name>, --file <repo path>
+yarn workshop [ui|particles|poses|puppet3d|hair3d|grass3d|item3d] [<game>]   # starts the workshop's server and opens that workshop's page; particles also takes --effects <path>, --sheet <key>=<path>, --effect <name>, --file <repo path>
 yarn particle-views <views.json> <out>   # pictures of particle effects, each view a file, an effect, a camera, a target, a preroll and the layers off, in a headless Chrome
 yarn test                             # vitest run, but the game tests (`.game.test.ts`, `.predict.test.ts`)
 yarn test:game                        # the game tests only

@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-11-21-d5fb580
+
+- terrain3d — grass grows on the land in a game published as a static site.
+
+## 2026-11-21-d0d9c3e
+
+- hair3d — hair can be tied up into ponytails, pigtails and braids.
+
+## 2026-11-20-97847d2
+
+- ui3d — a new plugin: shows things in 3D over the game, such as a logo title, that move, glow and answer the pointer and keys.
+- grass3d — a new plugin: a meadow over the land round the camera that sways in the wind and is trampled by what walks or drives through it.
+- hair3d — a new plugin: hair, fur and manes on bodies that move with them.
+- fabric3d — a new plugin: flags, capes, ribbons, banners and cloth that blow in the wind and drape on what they touch.
+- gpgpu3d — a new plugin: tells shaders where the shapes and the land are, so cloth, grass and particles react to them.
+- item3d — a new plugin: items that lie loose or are held and worn by bodies, with their own hair and cloth.
+- puppet3d — a new plugin: bodies, animals included, move from layers of tuned cues instead of recorded clips.
+- motion3d — characters blend a walk into a run by speed and start, stop and turn smoothly.
+- loader — the loading screen shows at once and stays up until the land is whole.
+- particle3d — particles on a ui3d thing follow whether it is selected or chosen.
+- world3d — a lamp or effect can ride on a moving part of a model.
+- crowd3d — people in a crowd hold items and wear hair.
+- anim — bodies hold items and wear hair and cloth.
+- yarn dev, yarn serve — run a game from any folder, inside the repo or not.
+- yarn workshop — new workshops for grass, hair, items and puppet bodies.
+- yarn bake — compressed pictures can be set to colour or linear.
+
 ## 2026-11-17-3866e37
 
 - gpuparticle3d — a new plugin: plays particle3d's effects on the GPU, so an effect can throw far more particles.

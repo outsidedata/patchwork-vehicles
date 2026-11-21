@@ -7,9 +7,9 @@
 // of grass (0.7, 0.08), mud (0.4, 0.25) and ice (0.1, 0.01), and lanes of gravel (0.6, 0.05) and dirt
 // (0.65, 0.04), on concrete (1, 0, the car's own dust);
 // and along the far side, a 380 m asphalt drag strip at z 172 and an ice braking lane beside it at
-// z 188, both from x -190 to 190. Its spots park the golf cart and the jeep side by side and the
-// monster truck facing the kicker at z -30; slot 0 starts in the jeep and slot 1 in the truck, and a
-// seat's `next` moves it to the next free car.
+// z 188, both from x -190 to 190. Its spots stand the golf cart and the jeep side by side and the
+// monster truck facing the kicker at z -30, each made only when a seat gets in; slot 0 starts in the
+// jeep and slot 1 in the truck, and a seat's `next` scraps its car and makes the next free spot's.
 // It is drawn by terrain3d's static rings, the finest covering all 400 m at a metre a cell, built
 // once and never rebuilt as the car moves. Its `world.box3d` is the manager's with the
 // ground's chunks a metre a cell, 32 m a side, so the physics feels the washboard's ridges two metres apart, and the `ramp` and

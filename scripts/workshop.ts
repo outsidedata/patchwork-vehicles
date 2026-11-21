@@ -7,6 +7,10 @@
 //   yarn workshop particles --effects <path>     the particle workshop on one effects file anywhere on
 //                [--sheet <key>=<path>]…         disk, with each sheet it draws from that no game catalogues
 //   yarn workshop poses                          the pose lab, /poses
+//   yarn workshop puppet3d <game>                the puppet3d workshop, /puppet3d?game=<game>
+//   yarn workshop hair3d <game>                  the hair workshop, /hair3d?game=<game>
+//   yarn workshop grass3d <game>                 the grass workshop, /grass3d?game=<game>
+//   yarn workshop item3d <game>                  the item3d workshop, /item3d?game=<game>
 //   yarn workshop                                the asset workshop with no game picked
 //
 // The particle workshop also takes `--effect <name>`, the effect it opens on, and `--file <repo path>`,
@@ -18,7 +22,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { start } from '../tools/workshop/workshop.server.ts'
 
-const pages = ['ui', 'particles', 'poses'] as const
+const pages = ['ui', 'particles', 'poses', 'puppet3d', 'hair3d', 'grass3d', 'item3d'] as const
 type Page = typeof pages[number]
 const isPage = (word: string | undefined): word is Page => pages.includes(word as Page)
 
@@ -54,6 +58,10 @@ export function asked(port: number, args: string[]): Asked {
     throw new Error('--effects, --sheet, --effect and --file are the particle workshop\'s: yarn workshop particles …')
   if (page === 'poses' && game) throw new Error('the pose lab takes no game: yarn workshop poses')
   if (page === 'ui' && !game) throw new Error('the ui workshop needs a game: yarn workshop ui <game>')
+  if (page === 'puppet3d' && !game) throw new Error('the puppet3d workshop needs a game: yarn workshop puppet3d <game>')
+  if (page === 'hair3d' && !game) throw new Error('the hair workshop needs a game: yarn workshop hair3d <game>')
+  if (page === 'grass3d' && !game) throw new Error('the grass workshop needs a game: yarn workshop grass3d <game>')
+  if (page === 'item3d' && !game) throw new Error('the item3d workshop needs a game: yarn workshop item3d <game>')
   if (particles && game && flags.effects) throw new Error('the particle workshop opens a game or an effects file, not both')
   if (particles && !game && !flags.effects)
     throw new Error('the particle workshop needs a game or an effects file: yarn workshop particles <game>, or yarn workshop particles --effects <path>')

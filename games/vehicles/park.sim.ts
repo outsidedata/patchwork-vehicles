@@ -5,9 +5,9 @@
 // holes it lists, lay the course on it: a concrete cart path cut level across the slope (`bench`) in a
 // loop past every hole, fairways painted in mown grass, flattened greens and tees painted green, and
 // sand traps sunk into the ground and drawn in sand, each gripping by its `grip`, dragging by its
-// `drag` and throwing up its `spray`. On the rough stand the road's firs, grass clumps and boulders
-// (the manager's `world.lod3d`); every painted surface has a `cover` of 0, so none stand on the
-// course. Its `world.box3d` stands the cars on the ground a metre a cell and against lod3d's solid
+// `drag` and throwing up its `spray`. On the rough stand the road's firs and boulders
+// (the manager's `world.lod3d`) and grass3d's meadow (`assets/park.grasses.json`); every painted
+// surface has a `cover` of 0, so none stand on the course. Its `world.box3d` stands the cars on the ground a metre a cell and against lod3d's solid
 // trunks and boulders (`props`), with no kinds of its own. The cars, the starts, the HUD and the sky are as on
 // the gym (`gym.sim.ts`); slot 0 starts in the jeep and slot 1 in the truck.
 import type { Kind, Scene, Sim } from '#engine/engine.ts'

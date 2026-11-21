@@ -50,15 +50,15 @@ const letGo = async (L: ReturnType<typeof loader>, frame: (t: number) => void) =
 const splash = new PIXI.Texture({ source: new PIXI.TextureSource({ width: 4, height: 4 }) })
 const W = 400, H = 300
 
-function scene(look: Record<string, unknown>, order = ['loader', 'ui'], shaders = false) {
+function scene(look: Record<string, unknown>, order = ['loader', 'ui'], shaders = false, ready = false) {
   const assets = {
     splash: { type: 'texture', url: file('splash.png', new Uint8Array([1])), for: 'ui', preload: true },
     level: { type: 'json', url: file('level.json', '{"rooms":3}'), preload: true },
     giant: { type: 'model', url: file('giant.glb', new Uint8Array(4)), preload: true },
-    later: { type: 'json', url: file('later.json', '{}') },
+    later: { type: 'json', url: file('later.json', '{}'), preload: false },
   }
   const world = {
-    loader: { assets, ...(shaders && { mods: { shaders: 'render3d' } }) },
+    loader: { assets, mods: { ...(shaders && { shaders: 'render3d' }), ...(ready && { ready: ['terrain3d'] }) } },
     ui: {
       mods: { behaviors: ['loader'] },
       panels: { loading: { anchor: 'center', size: [200, 100], scale: 2, layer: 9, modal: true, loading: look } },
@@ -87,7 +87,9 @@ async function page(s = scene(look)) {
   const wire = { scene: s, rows: [] }
   // render3d's count of what it is compiling, which the test sets
   const gpu = { compiling: 0 }
-  const forLoader = { wire, render3d: { THREE, GLTFLoader: Held, SkeletonUtils, compiling: () => gpu.compiling }, ui: { PIXI: { Assets: { load: async () => splash } } } } as any
+  // whether terrain3d's land is on the scene, which the test sets
+  const land = { shown: false }
+  const forLoader = { wire, render3d: { THREE, GLTFLoader: Held, SkeletonUtils, compiling: () => gpu.compiling }, terrain3d: { shown: () => land.shown }, ui: { PIXI: { Assets: { load: async () => splash } } } } as any
   const forUi = { wire, loader: L, ui: U } as any
   const frame = (t: number) => {
     clock = t
@@ -95,7 +97,7 @@ async function page(s = scene(look)) {
     U.tick(forUi)
     U.afterTick()
   }
-  return { L, U, frame, gpu }
+  return { L, U, frame, gpu, land }
 }
 
 // What the loading panel shows, by key.
@@ -204,6 +206,40 @@ test('a scene that names no shaders mod has none to wait on, and one that names 
   unlisted.U.close()
 })
 
+test('once every file is in and no shader is compiling, the screen stays up while terrain3d\'s land is not on the scene, and fades the frame it is', async () => {
+  const { U, L, frame, land } = await page(scene(look, ['loader', 'terrain3d', 'ui'], false, true))
+  frame(0)
+  await landed(L, frame, 2)
+  await letGo(L, frame)
+  frame(5)
+  // Every file in: the bar full, the tips going round, the screen whole.
+  expect(L.settled()).toBe(false)
+  expect(filled(on(U).get('bar')!)).toBe(160)
+  expect(on(U).has('line')).toBe(true)
+  frame(30)
+  for (const c of on(U).values()) expect(c.alpha).toBe(1)
+  expect(U.modal()).toBe('loading')
+  land.shown = true
+  frame(31)
+  expect(L.settled()).toBe(true)
+  frame(31.5)
+  for (const c of on(U).values()) expect(c.alpha).toBeCloseTo(0.5, 9)
+  frame(32)
+  expect(on(U).size).toBe(0)
+  expect(U.modal()).toBeUndefined()
+  U.close()
+})
+
+test('a scene that names no ready mod is settled, and one that names a plugin it does not list is refused', async () => {
+  const { L, U, frame } = await page()
+  frame(0)
+  expect(L.settled()).toBe(true)
+  U.close()
+  const unlisted = await page(scene(look, ['loader', 'ui'], false, true))
+  expect(() => unlisted.frame(0)).toThrow('loader\'s ready is terrain3d\'s, which this scene does not list')
+  unlisted.U.close()
+})
+
 test('a fade of 0 takes the screen away the frame everything is in', async () => {
   const { U, L, frame } = await page(scene({ ...look, fade: 0 }))
   frame(0)
@@ -212,6 +248,34 @@ test('a fade of 0 takes the screen away the frame everything is in', async () =>
   frame(1)
   expect(on(U).size).toBe(0)
   U.close()
+})
+
+test('on a page with a loading cover, the bar never shows less than the cover had, and the cover comes off the frame after the screen drew every picture', async () => {
+  const removed: number[] = []
+  const element = { remove: () => removed.push(clock) }
+  vi.stubGlobal('document', { getElementById: (id: string) => (id === 'loader-cover' ? element : null) })
+  vi.stubGlobal(Symbol.for('loader: cover') as unknown as string, Object.assign(new Map(), { progress: () => 0.9 }))
+  try {
+    const { U, L, frame } = await page()
+    frame(0)
+    // Nothing has landed in the loader; the cover had nine tenths in, and the bar shows that much.
+    expect(filled(on(U).get('bar')!)).toBe(144)
+    expect(removed).toEqual([])
+    // The picture lands: the frame that draws it keeps the cover, the one after takes it off.
+    await vi.waitFor(() => { frame(clock); expect(L.get('splash')).toBe(splash) })
+    const drew = clock
+    expect(removed).toEqual([])
+    frame(drew + 0.1)
+    expect(removed).toEqual([drew + 0.1])
+    // Past the cover's nine tenths, the bar is the loader's own.
+    await landed(L, frame, 2)
+    await letGo(L, frame)
+    frame(clock)
+    expect(filled(on(U).get('bar')!)).toBe(160)
+    U.close()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 test('numbers of the wrong shape throw the first frame, naming the panel', async () => {

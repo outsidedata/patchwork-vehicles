@@ -73,6 +73,8 @@ export function made({ courses = COURSE_ROWS, skinned = true, extras }: { course
     POSITION: f(rx + 0.5, ry, rz, rx, ry, rz + 0.5, rx - 0.5, ry, rz, rx, ry, rz - 0.5),
     NORMAL: f(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0),
     _LOOK: scalars(1, 1, 1, 1),
+    // its material's number in the kit's own count, its thing's row and its part's number in its thing
+    _KIT: f(1, 0, 3, 1, 0, 3, 1, 0, 3, 1, 0, 3),
   }
   if (skinned) {
     kitAttributes.JOINTS_0 = add(new Uint8Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]), 'VEC4', 5121)
@@ -91,8 +93,8 @@ export function made({ courses = COURSE_ROWS, skinned = true, extras }: { course
   }
   const vertex = {
     meshes: ['solid', 'kit', 'sign'],
-    attributes: { position: [['POSITION', 0], ['POSITION', 1], ['POSITION', 2]], normal: [['NORMAL', 0], ['NORMAL', 1], ['NORMAL', 2]], lookId: [['_LOOK', 0]] },
-    defaults: { lookId: 0 },
+    attributes: { position: [['POSITION', 0], ['POSITION', 1], ['POSITION', 2]], normal: [['NORMAL', 0], ['NORMAL', 1], ['NORMAL', 2]], lookId: [['_LOOK', 0]], lookInfo: [['_KIT', 0], ['_KIT', 1], ['_KIT', 2]] },
+    defaults: { lookId: 0, lookInfo: -1 },
   }
   const nodes: any[] = [
     { name: 'pro-ng', extras: extras ?? { vertex, courses } },

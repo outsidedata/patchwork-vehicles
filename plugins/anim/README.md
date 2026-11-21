@@ -66,7 +66,10 @@ each action's time and weight are written from the row's fields and `mixer.updat
 them. The hips are pinned so the travel the row already carries is not drawn twice. Mirrored clips
 (a left strafe made into a right one) are built on the page from their source. A rig's `meshes` and
 `show` hide and show meshes by stance (a helmet, a holstered gun). A kind's `aim` turns listed bones
-by shares of the row's aim pitch, and `props` hangs loader models on bones (a rifle in the hand).
+by shares of the row's aim pitch, and `props` hangs loader models on bones (a rifle in the hand). `capsules` `[{ from, to, radius }]` is
+the body as gpgpu3d holds it on the GPU, a capsule between two bones each (`anim.gpgpu3d.ts`,
+`world.gpgpu3d.mods: { things: ['anim'], behaviors: ['anim'] }`): what a cape drapes on, hair lies on
+and a particle bounces off.
 
 A row whose `limp` field is true is not drawn by anim: whatever made it limp (ragdoll3d) owns the
 model.
@@ -142,6 +145,10 @@ model.
 ## Plugins it works with
 
 - **loader**: reads the rig file (`json`) and the models (`model`).
+- **gpgpu3d**: the mod `anim.gpgpu3d.ts` hands gpgpu3d each body's `capsules` and delivers the word
+  `capsule`.
+- **fabric3d**, **hair3d**: the mods `anim.fabric3d.ts` (`sources`) and `anim.hair3d.ts` (`skins`) hand
+  every body anim draws, to hold a fabric to and to grow hair on.
 - **render3d**: anim draws into its scene and dresses every material through `render3d.dress`.
 - **lights3d**: every mesh anim draws, a body and the props it holds, is marked moving
   (`userData.moving`), so lights3d draws its shadow each frame into its moving atlas, while the still
