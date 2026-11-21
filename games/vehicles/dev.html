@@ -180,8 +180,8 @@
       const MANAGER = 'games/vehicles/vehicles.scene.json'
       // The scene file that gives each scene's sky look and shadow, and the one whose skydome3d prefab
       // starts each scene's clock.
-      const SKY_HOME = { road: 'games/vehicles/plains.partial_scene.json', title: 'games/vehicles/plains.partial_scene.json', desert: 'games/vehicles/desert.scene.json', moon: 'games/vehicles/moon.scene.json', gym: 'games/vehicles/gym.scene.json', park: 'games/vehicles/park.scene.json' }
-      const CLOCK_HOME = { road: MANAGER, title: MANAGER, gym: MANAGER, park: MANAGER, desert: 'games/vehicles/desert.scene.json', moon: 'games/vehicles/moon.scene.json' }
+      const SKY_HOME = { road: 'games/vehicles/plains.partial_scene.json', title: 'games/vehicles/desert.partial_scene.json', desert: 'games/vehicles/desert.partial_scene.json', moon: 'games/vehicles/moon.scene.json', gym: 'games/vehicles/gym.scene.json', park: 'games/vehicles/park.scene.json' }
+      const CLOCK_HOME = { road: MANAGER, gym: MANAGER, park: MANAGER, title: 'games/vehicles/desert.partial_scene.json', desert: 'games/vehicles/desert.partial_scene.json', moon: 'games/vehicles/moon.scene.json' }
       // The file of a loader catalogue entry of the scene.
       const assetFile = name => client.plugins.wire.scene.world.loader.assets[name].url.replace(/^\//, '')
       const homes = []

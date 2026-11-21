@@ -62,15 +62,13 @@
     "steer": 1.6,
     "gain": 0.4,
     "corner": 0.6,
-    "speeds": { "jeep": 14, "cart": 8, "truck": 11 },
+    "speeds": { "jeep": 14 },
     "routes": {
-      "oval": [[-110, -12], [110, -12], [128, 0], [110, 12], [-110, 12], [-128, 0]],
-      "road": [[-120, 0], [120, 0], [132, 20], [0, 24], [-132, 20]]
+      "dunes": [[-70, -30], [70, -30], [85, 0], [70, 30], [-70, 30], [-85, 0]]
     }
   },
-  "curtain": { "wait": 10 },
   "marquee": {
-    "camera": { "orbit": 0.08 },
+    "camera": { "orbit": 0.08, "follows": "jeep", "pos": [22, 16, 22], "look": "jeep", "head": 1.2, "fov": 50 },
     "model": "title",
     "env": { "sky": "#3d6fa8", "horizon": "#f4e2c8", "ground": "#1c1810", "band": "#ffffff", "width": 0.12, "size": 50 },
     "key": { "colour": "#fff1d8", "power": 70, "at": [-5, 7, -6], "distance": 34 },

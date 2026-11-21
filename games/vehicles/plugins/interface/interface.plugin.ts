@@ -1,4 +1,4 @@
-// The interface: the title's words drawn in 3D over the plains for ui3d to show (`plugins/ui3d`), and the
+// The interface: the title's words drawn in 3D over the desert for ui3d to show (`plugins/ui3d`), and the
 // words that move them (`interface.ui3d.ts`). Loaded by `shipped`, it hands out:
 //
 // `word(root, node, faceFinish, sideFinish, env?)`: the node `node` of a model's `root` (the loader's

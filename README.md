@@ -11,7 +11,7 @@ Play it: https://outsidedata.github.io/patchwork-vehicles/
   sixth of Earth's gravity, and a test track with whoops, a washboard,
   ditches, a bowl, a bank, ramps, a drag strip and patches of grass, mud, gravel and ice
 - A ball to knock about
-- An intro cutscene and a title in 3D
+- A title in 3D, over a jeep driving the desert
 - Two players together on a server
 - Gamepad rumble on landings and crashes
 

@@ -38,8 +38,9 @@
 // is placed once a step, as the car is, and render3d draws both between the last two steps: a camera
 // placed on the page's clock on a frame of no step would be drawn where it was set, a step ahead of
 // the car drawn behind it, and judder whenever the frames and steps fell unevenly. The camera jumps
-// to the car the frame it first follows a chassis, and when the steps go back. While something else holds render3d's camera (`claimed()`: a cutscene,
-// the marquee) it is left alone, and the springs jump to the car when it is given back.
+// to the car the frame it first follows a chassis, and when the steps go back. While something else
+// holds render3d's camera (`claimed()`: the marquee) it is left alone, and the springs jump to the car
+// when it is given back.
 //
 // `eye()` is `{ pos, dir, target }`: where the camera stands, the way it looks (its world −z), and
 // the pivot the springs are following, the chassis's `pos` raised by `aim` as this frame draws it.

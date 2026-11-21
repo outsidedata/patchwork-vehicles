@@ -1,16 +1,12 @@
-// The title booted as the server boots it, a seat entering it as the entry. The cars roll at their
-// initialVelocity with no brake and the intro waits until the curtain's `ready`; `ready` starts the intro and every driver
-// in one step; the cars then drive their routes, following their `next` waypoints round; at the end the
-// cast's `direct` is null and the cars drive on; a skip ends the intro at once; the curtain starts it
-// alone after its `wait`; a seat cannot start a driver; and a driver handed a cue it cannot obey throws.
+// The title booted as the server boots it, a seat entering it as the entry. The jeep is the one car on
+// it, made on the dunes and driving from the first step, with nothing to wait for: it drives round its
+// route, every waypoint of it, staying on its wheels and at speed.
 import { expect, test, vi } from 'vitest'
 import { boot, type Row, type Scene } from '#engine/engine.ts'
 import { connection, load, manager, type Down } from '#addons/scenemanager/scenemanager.addon.ts'
 import { sim } from './vehicles.sim.ts'
-import { driver } from './driver.sim.ts'
 import file from './vehicles.scene.json'
 import defs from './assets/vehicles.json'
-import intro from './assets/intro.json'
 
 vi.setConfig({ testTimeout: 300_000 })
 
@@ -21,91 +17,45 @@ async function title() {
   const truth = boot(structuredClone(file) as Scene, sim)
   const room = (await load(truth, here)).get('title')!
   const heard: Down[] = []
-  const seat = connection(manager(truth), d => heard.push(d))
+  connection(manager(truth), d => heard.push(d))
   truth.step(DT)
-  let seq = 0
-  const send = (id: number, action: string, ...args: any[]) => {
-    const last = heard[heard.length - 1]
-    seat.take({ scene: last.scene, seat: last.seat, msg: { seq: ++seq, n: last.packet.n, id, action, args } })
-  }
-  const one = (kind: string) => room.rows.find(r => r.kind === kind)!
   const drivers = () => room.rows.filter(r => r.kind === 'driver')
   const step = (k: number) => { for (let i = 0; i < k; i++) truth.step(DT) }
-  return { truth, room, heard, send, one, drivers, step }
+  return { heard, room, drivers, step }
 }
+const chassisOf = (rows: Row[], d: Row) => rows.find(r => r.id === rows.find(c => c.id === d.data.made)!.data.chassis)!
 const speed = (rows: Row[], d: Row) => {
-  const car = rows.find(r => r.id === d.data.made)!
-  const [vx, , vz] = rows.find(r => r.id === car.data.chassis)!.data.vel
+  const [vx, , vz] = chassisOf(rows, d).data.vel
   return Math.hypot(vx, vz)
 }
+// How far the chassis's up leans from the world's: its y, 1 upright and 0 on its side.
+const upright = (rows: Row[], d: Row) => {
+  const [x, , z] = chassisOf(rows, d).data.rot
+  return 1 - 2 * (x * x + z * z)
+}
 
-test('the seat enters the title, where the intro waits and the cars roll unbraked until the curtain\'s ready', async () => {
+test('the seat enters the title, where the jeep is the one car and is driving from the first step', async () => {
   const g = await title()
   expect(g.heard[g.heard.length - 1].scene).toBe(file.prefabs.scenemanager.entry)
-  g.step(60)
-  expect(g.one('cutscene').data.running).toBe(false)
-  for (const d of g.drivers()) {
-    expect(d.data.on).toBe(false)
-    const car = g.room.rows.find(r => r.id === d.data.made)!
-    expect(car.data.brake).toBe(0)
-  }
-})
-
-test('ready starts the intro and every driver in one step, and the cars drive their routes round', async () => {
-  const g = await title()
-  g.send(g.one('curtain').id, 'ready')
-  g.step(1)
-  expect(g.one('cutscene').data.running).toBe(true)
-  expect(g.one('cutscene').data.e).toBeCloseTo(DT, 9)
-  for (const d of g.drivers()) expect(d.data.on).toBe(true)
-  const first = new Map(g.drivers().map(d => [d.id, d.data.next]))
-  g.step(Math.round(40 / DT))
-  for (const d of g.drivers()) {
-    expect(d.data.next).not.toBe(first.get(d.id))
-    expect(speed(g.room.rows, d)).toBeGreaterThan(defs.driver.speeds[d.data.vehicle as keyof typeof defs.driver.speeds] * (1 - defs.driver.corner))
-  }
-})
-
-test('at the intro\'s end the cast is let go and the cars drive on', async () => {
-  const g = await title()
-  g.send(g.one('curtain').id, 'ready')
-  g.step(Math.ceil(intro.end / DT) + 2)
-  expect(g.one('cutscene').data.done).toBe(true)
-  for (const d of g.drivers()) expect(d.data.direct).toBe(null)
-  g.step(60)
-  for (const d of g.drivers()) expect(speed(g.room.rows, d)).toBeGreaterThan(1)
-})
-
-test('a skip ends the intro at once, and the cars drive on', async () => {
-  const g = await title()
-  g.send(g.one('curtain').id, 'ready')
+  expect(g.drivers().map(d => d.data.vehicle)).toEqual(['jeep'])
   g.step(120)
-  g.send(g.one('cutscene').id, 'skip')
-  g.step(2)
-  expect(g.one('cutscene').data.done).toBe(true)
-  g.step(120)
-  for (const d of g.drivers()) expect(speed(g.room.rows, d)).toBeGreaterThan(1)
+  expect(g.room.rows.filter(r => r.kind === 'box3dvehicle')).toHaveLength(1)
+  const [jeep] = g.drivers()
+  expect(speed(g.room.rows, jeep)).toBeGreaterThan(defs.driver.speeds.jeep * (1 - defs.driver.corner))
 })
 
-test('the curtain starts the intro alone after its wait, and a ready after does nothing', async () => {
+test('the jeep drives its route round on the dunes, every waypoint of it, upright', async () => {
   const g = await title()
-  g.step(Math.ceil(defs.curtain.wait / DT) + 1)
-  expect(g.one('cutscene').data.running).toBe(true)
-  const e = g.one('cutscene').data.e
-  g.send(g.one('curtain').id, 'ready')
-  g.step(1)
-  expect(g.one('cutscene').data.e).toBeCloseTo(e + DT, 9)
-})
-
-test('no seat can start a driver', async () => {
-  const g = await title()
-  const d = g.drivers()[0]
-  g.send(d.id, 'start')
-  g.step(1)
-  expect(g.drivers()[0].data.on).toBe(false)
-})
-
-test('a driver handed a cue it cannot obey throws, naming it', () => {
-  const me = { id: 1, kind: 'driver', data: { name: 'jeep', direct: { walk: { to: [0, 0] } } } } as unknown as Row
-  expect(() => driver.tick!(me, DT, {} as never)).toThrow('the driver jeep drives itself, and takes no walk')
+  const [jeep] = g.drivers()
+  const route = defs.driver.routes[jeep.data.route as keyof typeof defs.driver.routes]
+  const seen = new Set<number>()
+  let lowest = 1
+  for (let second = 0; second < 90; second++) {
+    g.step(Math.round(1 / DT))
+    seen.add(jeep.data.next)
+    lowest = Math.min(lowest, upright(g.room.rows, jeep))
+  }
+  expect([...seen].sort()).toEqual(route.map((_, i) => i))
+  expect(lowest).toBeGreaterThan(0.8)
+  expect(speed(g.room.rows, jeep)).toBeGreaterThan(1)
 })

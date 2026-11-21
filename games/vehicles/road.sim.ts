@@ -13,8 +13,7 @@
 // weather, the firs and boulders are lod3d's and the grass is grass3d's (`assets/grasses.json`),
 // none with a row, on terrain3d's ground and never on the road, whose painted surface covers nothing. What the road shares
 // with the other places is the manager's, `vehicles.scene.json`; its land, its sky's look
-// and how it is drawn it shares with the title (`title.sim.ts`), in `plains.partial_scene.json`, which
-// it extends.
+// and how it is drawn are in `plains.partial_scene.json`, which it extends.
 import type { Kind, Scene, Sim } from '#engine/engine.ts'
 import type { Prepare } from '#addons/scenemanager/scenemanager.addon.ts'
 import { particle3d } from '#plugins/particle3d/particle3d.sim.ts'

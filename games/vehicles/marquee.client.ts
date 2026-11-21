@@ -1,16 +1,16 @@
-// The marquee's look, over the title's plains once its intro is done: the game's name and a word for
-// each place to drive in 3D, and nothing else written on the screen.
+// The marquee's look, over the title's desert: the game's name and a word for each place to drive in
+// 3D, and nothing else written on the screen.
 //
-// When it shows. Nothing of it shows while the scene's intro (its `cutscene` row) has not finished.
-// From the first frame it is done it comes up on this page's clock: the name in 3D over `name.reveal`,
-// and the places' words `words.reveal.after` seconds after they are first shown, each
-// `words.reveal.stagger` after the last, over `words.reveal.seconds`. A page that arrives after the
-// intro shows it so from its first frame.
+// When it shows. Nothing of it shows while the page is loading: the loading screen (`loader.ui.ts`) is
+// over the page until every preloaded file is in, every shader compiled and the land whole, and the
+// marquee waits on the same three. From the first frame they are met it comes up on this page's
+// clock: the name in 3D over `name.reveal`, and the places' words `words.reveal.after` seconds after
+// they are first shown, each `words.reveal.stagger` after the last, over `words.reveal.seconds`.
 //
 // The 3D. Every word is a node of the loader's model `model` (made by `assets/title/title.py`, the
 // name's node `name` and each place's its scene), made a word by the interface plugin
 // (`plugins/interface`, `word`) with its finishes, and shown by ui3d (`plugins/ui3d`) in render3d's
-// overlay, over the plains and never behind any of it, held in the camera's frame: its `at` is metres
+// overlay, over the desert and never behind any of it, held in the camera's frame: its `at` is metres
 // right, up and ahead (−z) of the camera, its face toward it, `scale` times the model's metre-tall
 // capitals. It comes in by the interface's `reveal`, from `from` (metres from where it stands, in the
 // camera's frame; the name's `reveal.from`, a word's `words.reveal.from`), turned `turn` radians about
@@ -34,29 +34,29 @@
 // `glow`); the others are drawn at `words.dim` of their colour (`dim`). The keys of ui3d's selection
 // are `place.<i>`, `i` each place's place in `places`.
 //
-// The camera, once the intro is done: this claims render3d's camera and carries on the intro's last
-// shot, turned about the upright `camera.orbit` radians a second on this page's clock from the frame it
-// took the camera. A shot that follows a car keeps following it, its offset turning round the car; a
-// shot from a point turns about the point it looks at. So the cars behind the title drive on in view,
-// and the hand-over does not jump. It lets go when the row goes.
+// The camera: this claims render3d's camera once the land is there and follows the driver named
+// `camera.follows` (the jeep), from `camera.pos`, metres right, up and ahead of it in the world's
+// axes, looking at its point `camera.head` metres up, with the field of view `camera.fov`, the offset
+// turned about the upright `camera.orbit` radians a second on this page's clock from the frame it took
+// the camera. So the jeep drives on in view as the camera circles it. It lets go when the row goes.
 //
-// Its definition, every word, place and number, as above: camera { orbit }, model, env, key, sweep,
-// sway, name { text, at, scale, reveal { seconds, from, turn }, face, side }, words { scale, side, dim,
-// focus { scale, glow }, reveal { after, stagger, seconds, from, turn } }, places [{ scene, word, at,
-// face }].
+// Its definition, every word, place and number, as above: camera { orbit, follows, pos, look, head,
+// fov }, model, env, key, sweep, sway, name { text, at, scale, reveal { seconds, from, turn }, face,
+// side }, words { scale, side, dim, focus { scale, glow }, reveal { after, stagger, seconds, from, turn }
+// }, places [{ scene, word, at, face }].
 import type * as THREE from 'three'
 import type { Row } from '#engine/engine.ts'
 import type { Plugins } from '#engine/browser.ts'
-import { def, json } from '#plugins/loader/loader.sim.ts'
-import { placed, view, type Cue, type Script, type View } from '#plugins/cutscene/cutscene.sim.ts'
-import { mod } from '#addons/scenemanager/scenemanager.addon.ts'
+import { def } from '#plugins/loader/loader.sim.ts'
+import { view } from '#plugins/cutscene/cutscene.sim.ts'
 import type { Look } from '#plugins/ui3d/ui3d.plugin.ts'
 import type { Env, Finish, Interface, Word } from './plugins/interface/interface.plugin.ts'
 
 type Reveal = { seconds: number; from: number[]; turn: number }
 type Place = { scene: string; word: string; at: number[]; face: Finish }
+type Camera = { orbit: number; follows: string; pos: number[]; look: string; head: number; fov: number }
 type Marquee = {
-  camera: { orbit: number }
+  camera: Camera
   model: string
   env: Env
   key: { colour: string; power: number; at: number[]; distance: number }
@@ -66,20 +66,12 @@ type Marquee = {
   words: { scale: number; side: Finish; dim: number; focus: { scale: number; glow: number }; reveal: Reveal & { after: number; stagger: number } }
   places: Place[]
 }
-type Land = (plugins: Plugins) => { height(x: number, z: number): number } | undefined
 type Made = { name: Word; words: Word[]; key: THREE.PointLight; sweep: THREE.PointLight; env?: THREE.Texture }
 
-let done = 0 // this page's clock the first frame the intro was over, ms; 0 not yet
+let shown = 0 // this page's clock the first frame the page was whole, ms; 0 not yet
 let held = 0 // this page's clock the first frame it held the camera, ms; 0 not yet
 let holder: object | undefined
 let made: Made | undefined
-
-// The cue file's last shot: the one the title's camera carries on.
-export function lastShot(file: Script): Cue {
-  const shots = file.cues.filter(c => c.do === 'shot')
-  if (!shots.length) throw new Error('the intro has no shot for the title\'s camera to carry on')
-  return shots.reduce((a, b) => (b.at >= a.at ? b : a))
-}
 
 // The point p turned `a` radians about the upright through `about`, as a yaw turns a heading.
 const turned = (p: number[], about: number[], a: number) => {
@@ -87,31 +79,26 @@ const turned = (p: number[], about: number[], a: number) => {
   return [about[0] + x * Math.cos(a) + z * Math.sin(a), p[1], about[2] + z * Math.cos(a) - x * Math.sin(a)]
 }
 
-function camera(plugins: Plugins, orbit: number, now: number, cast: Record<string, number>) {
-  const { render3d, wire } = plugins
+// Whether everything the loading screen waits on is met: every preloaded file in, every shader compiled
+// and the land whole.
+const whole = ({ loader }: Plugins) => {
+  const { done, of } = loader.preloads()
+  return done >= of && loader.shaders() === 0 && loader.settled()
+}
+
+function camera(plugins: Plugins, C: Camera, now: number) {
+  const { render3d, wire, terrain3d } = plugins
   const cam = render3d.camera as THREE.PerspectiveCamera | undefined
-  if (!cam) return
-  const land = mod<Land>(wire.scene.world!, 'cutscene', 'land')?.(plugins)
-  if (!land) return
+  const ground = terrain3d.ground
+  if (!cam || !ground) return
+  const driver = wire.rows.find(r => r.kind === 'driver' && r.data.name === C.follows)
+  if (!driver) return
   holder ??= {}
   if (!render3d.claim(holder)) return
   held ||= now
-  const file = json(wire, wire.scene.world!.cutscene.script) as Script
-  const shot = lastShot(file)
-  const height = (x: number, z: number) => land.height(x, z)
-  const a = (orbit * (now - held)) / 1000
-  const to: View = { pos: shot.pos, look: shot.look, fov: shot.fov ?? file.fov, head: file.head }
-  if (shot.follows !== undefined) {
-    to.follows = shot.follows
-    if (shot.frame !== undefined) to.frame = shot.frame
-    to.pos = turned(shot.pos, [0, 0, 0], a)
-  } else {
-    const look = placed(shot.look, height)
-    to.pos = turned(placed(shot.pos, height), look, a)
-    to.look = look
-    to.head = 0
-  }
-  const p = view(to, cast, wire.rows, height)
+  const a = (C.orbit * (now - held)) / 1000
+  const to = { pos: turned(C.pos, [0, 0, 0], a), look: C.look, fov: C.fov, head: C.head, follows: C.follows }
+  const p = view(to, { [C.follows]: driver.id }, wire.rows, (x, z) => ground.height(x, z))
   if (!p) return
   cam.position.set(p.pos[0], p.pos[1], p.pos[2])
   cam.quaternion.set(p.quat[0], p.quat[1], p.quat[2], p.quat[3])
@@ -142,19 +129,18 @@ function make(plugins: Plugins, M: Marquee): Made | undefined {
 const swaying = (M: Marquee, phase: number, after: number) => ({ ...M.sway, phase, after })
 
 export function setup() {
-  done = held = 0
+  shown = held = 0
   made = undefined
 }
 
 export function tick(row: Row, plugins: Plugins) {
   const { wire, render3d, ui3d, scenemanager } = plugins
-  const cut = wire.rows.find(r => r.kind === 'cutscene')?.data
-  if (!cut?.done) return
   const now = performance.now()
-  done ||= now
-  const since = (now - done) / 1000
   const M = def(wire, row.kind) as Marquee
-  camera(plugins, M.camera.orbit, now, cut.cast)
+  camera(plugins, M.camera, now)
+  if (!shown && !whole(plugins)) return
+  shown ||= now
+  const since = (now - shown) / 1000
   const T = render3d.THREE as typeof THREE
 
   made ??= render3d.camera ? make(plugins, M) : undefined
@@ -198,5 +184,5 @@ export function remove(plugins: Plugins) {
     made.env?.dispose()
   }
   made = undefined
-  done = held = 0
+  shown = held = 0
 }

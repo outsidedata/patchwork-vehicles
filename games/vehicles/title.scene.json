@@ -1,7 +1,7 @@
 {
-  "extends": "plains.partial_scene.json",
+  "extends": "desert.partial_scene.json",
   "world": {
-    "supershader3d": { "looks": "kit-looks" },
+    "terrain3d": { "preload": true },
     "loader": {
       "mods": { "shaders": "render3d", "ready": ["terrain3d"] },
       "assets": {
@@ -10,16 +10,9 @@
         "vehicles": { "type": "json", "url": "/games/vehicles/assets/vehicles.json", "preload": true },
         "effects": { "type": "json", "url": "/games/vehicles/assets/effects.json", "preload": true },
         "smoke": { "type": "sheet", "url": "/games/vehicles/assets/smoke.json", "preload": true },
-        "land": { "type": "json", "url": "/games/vehicles/assets/land.json", "preload": true },
-        "intro": { "type": "json", "url": "/games/vehicles/assets/intro.json", "preload": true },
+        "desert": { "type": "json", "url": "/games/vehicles/assets/desert.json", "preload": true },
         "title": { "type": "model", "url": "/games/vehicles/assets/title/title.glb", "preload": true },
-        "firs": { "type": "model", "url": "/games/vehicles/assets/firs.glb" },
-        "grasses": { "type": "json", "url": "/games/vehicles/assets/grasses.json", "preload": true },
-        "parkGrasses": { "type": "json", "url": "/games/vehicles/assets/park.grasses.json", "preload": true },
         "jeep-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/jeep.engine.json" },
-        "truck-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/truck.engine.json" },
-        "cart-engine": { "type": "json", "url": "/games/vehicles/assets/sounds/cart.engine.json" },
-        "truck": { "type": "model", "url": "/games/vehicles/assets/truck/truck.glb", "preload": true },
         "kit-looks": { "type": "json", "url": "/games/vehicles/assets/kit.looks.json", "preload": true },
         "jeep-body": { "type": "binary", "url": "/games/vehicles/assets/jeep/body.kit.glb" },
         "jeep-body-looks": { "type": "json", "url": "/games/vehicles/assets/jeep/body.kit.looks.json", "preload": true },
@@ -40,156 +33,26 @@
           "url": "/games/vehicles/assets/pedestrian/pedestrian.rig.json",
           "preload": true
         },
-        "grass": {
+        "sand": {
           "type": "texture",
-          "url": "/games/vehicles/assets/ground/grass-color-1024.webp",
+          "url": "/games/vehicles/assets/ground/sand-color-1024.webp",
           "wrap": "repeat",
           "anisotropy": 8
         },
-        "grassNormal": {
+        "sandNormal": {
           "type": "texture",
-          "url": "/games/vehicles/assets/ground/grass-normal-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "meadow": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/meadow-color-1024.webp",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "meadowNormal": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/meadow-normal-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "meadowRough": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/meadow-roughness-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "dirt": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/dirt-color-1024.webp",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "dirtNormal": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/dirt-normal-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "dirtRough": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/dirt-roughness-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "rock": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/rock-color-1024.webp",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "rockNormal": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/rock-normal-1024.webp",
-          "space": "linear",
-          "wrap": "repeat",
-          "anisotropy": 8
-        },
-        "rockRough": {
-          "type": "texture",
-          "url": "/games/vehicles/assets/ground/rock-roughness-1024.webp",
+          "url": "/games/vehicles/assets/ground/sand-normal-1024.webp",
           "space": "linear",
           "wrap": "repeat",
           "anisotropy": 8
         }
       }
     },
-    "instances3d": { "cutout": 0.45, "coverage": 0.25 },
-    "terrain3d": { "mods": { "ready": ["lod3d", "grass3d"] } },
-    "gpgpu3d": { "reach": 110, "mods": { "things": ["box3dvehicle"], "behaviors": ["box3dvehicle"], "ops": ["grass3d"] } },
-    "grass3d": { "grasses": "grasses", "mods": { "land": "terrain3d", "keeper": "gpgpu3d", "pressed": "gpgpu3d", "behaviors": ["box3dvehicle"] } },
-    "lod3d": {
-      "mods": {
-        "surfaces": ["terrain3d"],
-        "seen": ["terrain3d"],
-        "behaviors": ["terrain3d", "instances3d"],
-        "hollows": ["box3dvehicle"]
-      },
-      "budget": 2,
-      "hollows": 16,
-      "remember": 100000,
-      "layers": {
-        "trees": {
-          "on": ["land"],
-          "rows": {
-            "tall": { "weight": 5, "solid": 0.35, "tall": 8.76 },
-            "mid": { "weight": 3, "solid": 0.35, "tall": 3.71 },
-            "small": { "weight": 2, "solid": 0.35, "tall": 1.3 }
-          },
-          "cell": 13,
-          "spacing": 13,
-          "seed": 91,
-          "density": 0.3,
-          "rules": [{ "q": "slope", "lo": 0.4, "hi": 0.3 }],
-          "clearing": 160,
-          "size": [0.75, 0.8],
-          "vary": 0.18,
-          "mesh": { "asset": "firs", "lods": [0, 3], "shadow": 90, "leaf": 0.55 }
-        },
-        "rocks": {
-          "on": ["land"],
-          "rows": {
-            "a": { "weight": 1, "solid": 0.8, "tall": 0.75 },
-            "b": { "weight": 1, "solid": 0.8, "tall": 0.75 },
-            "c": { "weight": 1, "solid": 0.8, "tall": 0.75 }
-          },
-          "cell": 21,
-          "spacing": 21,
-          "seed": 173,
-          "density": 0.35,
-          "rules": [{ "q": "cliffAbove", "lo": 0.04, "hi": 0.3 }],
-          "clearing": 160,
-          "size": [0.5, 5.5],
-          "vary": 0.3,
-          "mesh": {
-            "shape": { "detail": 1, "lumpy": [0.74, 0.36], "squash": 0.72 },
-            "colour": "#6a655e",
-            "surface": {
-              "broad": 1.4,
-              "fine": 5,
-              "lift": 0.78,
-              "range": 0.44,
-              "mix": [0.6, 0.4],
-              "moss": { "from": 0.55, "to": 0.95, "amount": 0.4, "up": [0.2, 0.8], "colour": "#27401d" },
-              "bump": 0.5,
-              "rough": 0.85
-            },
-            "lods": [0, 0],
-            "shadow": 90,
-            "leaf": 0
-          }
-        }
-      },
-      "rings": [256, 1024, 9000],
-      "widest": 4.800000000000001
-    },
-    "cutscene": {
-      "script": "intro",
-      "kinds": ["driver"],
-      "settle": 0.5,
-      "tremor": [[1, 41], [0.8, 53], [0.5, 37]],
-      "mods": { "land": "terrain3d" }
+    "audio": {
+      "hold": 0.25,
+      "space": { "model": "inverse", "ref": 4, "max": 250, "rolloff": 1 },
+      "cues": {},
+      "volume": { "level": "volume", "muted": "silent" }
     },
     "shipped": { "plugins": ["interface"] },
     "ui3d": {
@@ -229,11 +92,7 @@
             "shaders": { "style": "loading.tip", "at": [640, 620], "text": "Compiling shaders" },
             "fade": 0.8
           }
-        },
-        "cutscene.top": { "anchor": "top", "size": [1280, 96], "layer": 2 },
-        "cutscene.bottom": { "anchor": "bottom", "size": [1280, 96], "layer": 2 },
-        "cutscene.veil": { "anchor": "center", "size": [1280, 720], "layer": 3 },
-        "curtain": { "anchor": "center", "size": [1280, 720], "layer": 4 }
+        }
       },
       "keys": {
         "up": ["ArrowUp", "w", "Pad12", "PadStickUp"],
@@ -244,10 +103,7 @@
         "back": ["Escape", "Pad1", "Pad9"]
       },
       "styles": {
-        "loading.tip": { "fontFamily": "Saira Condensed, Helvetica Neue, Arial, sans-serif", "fontSize": 28, "fill": 15921906 },
-        "cutscene.bars": { "color": 0 },
-        "cutscene.veil": { "color": 0 },
-        "curtain.cover": { "color": 0 }
+        "loading.tip": { "fontFamily": "Saira Condensed, Helvetica Neue, Arial, sans-serif", "fontSize": 28, "fill": 15921906 }
       }
     }
   },
@@ -256,25 +112,19 @@
     "scenemanager",
     "terrain3d",
     "skydome3d",
-    "instances3d",
-    "lod3d",
     "box3d",
     "supershader3d",
     "box3dvehicle",
-    "gpgpu3d",
-    "grass3d",
     "particle3d",
     "ui3d",
     "render3d",
+    "store",
     "audio",
-    "cutscene",
     "ui",
     "shipped"
   ],
   "prefabs": {
-    "particle3d": { "next": 1, "live": [] },
-    "cutscene": {},
-    "curtain": { "t": 0, "started": false },
+    "store": { "volume": 1, "silent": true },
     "marquee": {},
     "driver": {
       "name": "",
@@ -285,50 +135,23 @@
       "z": 0,
       "turn": 0,
       "made": 0,
-      "on": false,
       "pos": [0, 0, 0],
       "yaw": 0,
-      "direct": null,
       "initialVelocity": [0, 0, 0]
     }
   },
   "actors": [
-    { "is": "particle3d" },
-    { "is": "curtain" },
     { "is": "marquee" },
-    { "is": "cutscene" },
     {
       "is": "driver",
       "name": "jeep",
       "vehicle": "jeep",
-      "route": "road",
+      "route": "dunes",
       "next": 1,
-      "x": -110,
-      "z": 0,
+      "x": -70,
+      "z": -30,
       "turn": 0,
       "initialVelocity": [14, 0, 0]
-    },
-    {
-      "is": "driver",
-      "name": "truck",
-      "vehicle": "truck",
-      "route": "oval",
-      "next": 1,
-      "x": -80,
-      "z": -12,
-      "turn": 0,
-      "initialVelocity": [11, 0, 0]
-    },
-    {
-      "is": "driver",
-      "name": "cart",
-      "vehicle": "cart",
-      "route": "oval",
-      "next": 4,
-      "x": 60,
-      "z": 12,
-      "turn": 3.141592653589793,
-      "initialVelocity": [8, 0, 0]
     }
   ]
 }

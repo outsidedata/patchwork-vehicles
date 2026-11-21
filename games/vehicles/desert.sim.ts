@@ -1,5 +1,7 @@
 // The kinds of the desert and the desert.scene.json file next to this one: open rolling dunes to drive
-// on and nothing else. The land is terrain3d's field `assets/desert.json`: a broad swell under long
+// on and nothing else. The land, its sky and the box3d row are in `desert.partial_scene.json`, which the
+// title shares (`title.sim.ts`); the desert scene adds the cars, the ball, the starts and the HUD. The
+// land is terrain3d's field `assets/desert.json`: a broad swell under long
 // dune crests, stretched along one way, turned half a radian and warped 80 m so they wander, with a
 // fine ripple over them, all riding a deep rolling octave (2.5 km cells, about 75 m from trough to
 // crest) that lifts and drops whole fields of dunes, and levelled 30 m round the origin where the cars
